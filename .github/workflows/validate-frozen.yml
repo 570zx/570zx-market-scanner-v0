@@ -129,3 +129,5 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}:v0-validated
             ghcr.io/${{ github.repository }}:${{ github.sha }}
+
+# canonical frozen6k transport complete
