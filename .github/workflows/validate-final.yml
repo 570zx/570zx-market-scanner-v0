@@ -22,8 +22,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(find frozen6k -maxdepth 1 -name 'part*.b64' | wc -l)" -eq 19
-          cat frozen6k/part*.b64 | base64 -d > zero_cost_market_scanner_v0_validated.zip
+          {
+            cat frozen6k/part00.b64 frozen6k/part01.b64 frozen6k/part02.b64 frozen6k/part03.b64 frozen6k/part04.b64 frozen6k/part05.b64 frozen6k/part06.b64
+            cat frozenfix/p07_0.b64 frozenfix/p07_1.b64 frozenfix/p07_2.b64
+            cat frozen6k/part08.b64 frozen6k/part09.b64 frozen6k/part10.b64 frozen6k/part11.b64 frozen6k/part12.b64 frozen6k/part13.b64
+            cat frozenfix/p14_0.b64 frozenfix/p14_1.b64 frozenfix/p14_2.b64
+            cat frozen6k/part15.b64 frozen6k/part16.b64 frozen6k/part17.b64 frozen6k/part18.b64
+          } | base64 -d > zero_cost_market_scanner_v0_validated.zip
           echo '85fa5f4bae55ca378ca633f15fe7d431e3700bd2424a1fa0275a9108c7289fe8  zero_cost_market_scanner_v0_validated.zip' | sha256sum -c -
           unzip -q zero_cost_market_scanner_v0_validated.zip
 
