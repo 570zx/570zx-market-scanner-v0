@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - frozen/**
+      - frozen6k/**
       - .github/workflows/validate-frozen.yml
   workflow_dispatch:
 
@@ -23,7 +23,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat frozen/part*.b64 | base64 -d > zero_cost_market_scanner_v0_validated.zip
+          cat frozen6k/part*.b64 | base64 -d > zero_cost_market_scanner_v0_validated.zip
           echo '85fa5f4bae55ca378ca633f15fe7d431e3700bd2424a1fa0275a9108c7289fe8  zero_cost_market_scanner_v0_validated.zip' | sha256sum -c -
           unzip -q zero_cost_market_scanner_v0_validated.zip
 
