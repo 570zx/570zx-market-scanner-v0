@@ -1,0 +1,15 @@
+--- a/app/health.py
++++ b/app/health.py
+@@ -28,9 +28,12 @@
+         if problems:
+             key='|'.join(problems)
+-            last=self._last_notice.get(key,0)
++            last=self._last_notice.get(key)
+             now=asyncio.get_running_loop().time()
+-            if now-last>=self.s.health_notify_minutes*60:
++            # Always emit the first notice for a newly observed health problem.
++            # A monotonic clock may be near zero on a fresh CI/VM boot, so using
++            # 0 as the default last-notice time can suppress the first alert.
++            if last is None or now-last>=self.s.health_notify_minutes*60:
+                 await self.alerts.system('SCANNER DEGRADED','; '.join(problems),'WARN');self._last_notice[key]=now
+         return problems
