@@ -11,11 +11,13 @@ class D1 {
   prepare(sql){const db=this.db;return {args:[],bind(...args){this.args=args;return this;},async run(){const r=db.prepare(sql).run(...this.args);return {success:true,meta:{changes:Number(r.changes)}};},async all(){return {results:db.prepare(sql).all(...this.args)};},async first(){return db.prepare(sql).get(...this.args)??null;}};}
   async batch(statements){this.db.exec('BEGIN');try{const r=[];for(const s of statements)r.push(await s.run());this.db.exec('COMMIT');return r;}catch(e){this.db.exec('ROLLBACK');throw e;}}
 }
-test('market windows are DST aware',()=>{
+test('24/5 market windows are DST aware',()=>{
  assert.equal(inScanWindow(new Date('2026-09-17T08:00:00Z')),true);
- assert.equal(inScanWindow(new Date('2026-09-18T00:00:00Z')),false);
+ assert.equal(inScanWindow(new Date('2026-09-18T00:00:00Z')),true);
  assert.equal(inScanWindow(new Date('2026-09-19T14:00:00Z')),false);
- assert.equal(inScanWindow(new Date('2026-12-17T08:59:00Z')),false);
+ assert.equal(inScanWindow(new Date('2026-09-20T23:59:00Z')),false);
+ assert.equal(inScanWindow(new Date('2026-09-21T00:00:00Z')),true);
+ assert.equal(inScanWindow(new Date('2026-12-17T08:59:00Z')),true);
  assert.equal(inScanWindow(new Date('2026-12-17T09:00:00Z')),true);
 });
 test('headline classifier flags dilution',()=>{
