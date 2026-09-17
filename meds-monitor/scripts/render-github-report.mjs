@@ -45,10 +45,10 @@ const report = `# MEDS Scout — Live Paper-Trading Monitor
 
 ## Health
 
-| Component | Healthy | Last activity | Error | Count |
-| --- | --- | --- | --- | --- |
-| Scanner | ${status.scanner?.healthy} | ${cell(status.scanner?.last_success_at)} | ${cell(status.scanner?.last_error)} | — |
-| Paper engine | ${status.paper?.healthy} | ${cell(status.paper?.last_cycle_at)} | ${cell(status.paper?.paper_error)} | ${cell(status.paper?.cycle_count)} cycles / ${cell(status.paper?.decision_count)} decisions |
+| Component | Healthy | Last tick | Last success | Error | Count |
+| --- | --- | --- | --- | --- | --- |
+| Scanner | ${status.scanner?.healthy} | ${cell(status.scanner?.last_tick_at)} | ${cell(status.scanner?.last_success_at)} | ${cell(status.scanner?.last_error)} | — |
+| Paper engine | ${status.paper?.healthy} | ${cell(status.paper?.last_cycle_at)} | ${cell(status.paper?.last_cycle_at)} | ${cell(status.paper?.paper_error)} | ${cell(status.paper?.cycle_count)} cycles / ${cell(status.paper?.decision_count)} decisions |
 
 ## Paper ledgers
 
