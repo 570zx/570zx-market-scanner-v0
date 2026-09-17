@@ -838,7 +838,12 @@ async function runTick(env: Env, source: string) {
     ]);
     return result;
   } catch (error) {
-    const message = error instanceof Error && /^(Missing Alpaca|Alpaca HTTP|News HTTP)/.test(error.message) ? error.message : "Scan failed; check provider availability and database limits";
+    const rawMessage = error instanceof Error ? error.message : "Unknown scan failure";
+    // Persist a bounded, credential-safe diagnostic so /health can identify
+    // provider and D1 failures without exposing request headers or secrets.
+    const message = rawMessage
+      .replace(/(APCA-API-(?:KEY-ID|SECRET-KEY)[=: ]+)[^\s,;]+/gi, "$1[redacted]")
+      .slice(0, 300);
     await env.MEDS_DB.prepare(`UPDATE service_state SET last_error=? WHERE id=1`).bind(message).run();
     return {ok:false,error:message};
   } finally {
