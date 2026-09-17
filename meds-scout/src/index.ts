@@ -897,9 +897,24 @@ async function runTick(env: Env, source: string) {
   if (env.SCOUT_ENABLED !== "true" || state.paused) return {ok:true,skipped:"disabled"};
   if (!inScanWindow()) return {ok:true,skipped:"outside scan window"};
   const owner = crypto.randomUUID();
+  const lockNow=Date.now();
+  const lockLeaseMs=2*60_000;
+  const lastSuccessMs=state.last_success_at?Date.parse(state.last_success_at):0;
+  const scannerStale=!lastSuccessMs || lockNow-lastSuccessMs>PAPER_CYCLE_STALE_MS;
+  // Older deployments used a 15-minute lease, so a failed invocation could
+  // suppress every cron tick long after the scanner was known stale. Reclaim
+  // only an abnormally long legacy/stuck lease; normal two-minute overlap
+  // protection remains intact.
+  if(scannerStale && Number(state.lock_until??0)>lockNow+lockLeaseMs){
+    await env.MEDS_DB.prepare(`UPDATE service_state SET lock_owner=NULL,lock_until=NULL,last_error=? WHERE id=1 AND lock_until=?`)
+      .bind('watchdog reclaimed stale scan lock',state.lock_until).run();
+  }
   const lock = await env.MEDS_DB.prepare(`UPDATE service_state SET lock_owner=?,lock_until=? WHERE id=1 AND (lock_until IS NULL OR lock_until<?)`)
-    .bind(owner,Date.now()+15*60000,Date.now()).run();
-  if (!lock.meta.changes) return {ok:true,skipped:"scan already running"};
+    .bind(owner,lockNow+lockLeaseMs,lockNow).run();
+  if (!lock.meta.changes) {
+    if(scannerStale) await env.MEDS_DB.prepare(`UPDATE service_state SET last_error=? WHERE id=1`).bind('scan lock active while scanner is stale; watchdog will retry').run();
+    return {ok:true,skipped:"scan already running"};
+  }
   try {
     if (!env.ALPACA_API_KEY || !env.ALPACA_API_SECRET) throw new Error("Missing Alpaca secrets");
     const result = await scanTick(env);
