@@ -1,5 +1,5 @@
 name = "570zx-agents"
-main = "src/index.ts"
+main = "src/merch-store.ts"
 compatibility_date = "2026-09-01"
 
 # Cheap heartbeat. The Worker only performs meaningful work when due or when queued events exist.
@@ -28,3 +28,4 @@ MAX_AI_CALLS_PER_RUN = "3"
 # Future integrations should use separate secrets and remain approval-gated:
 # GMAIL_WEBHOOK_SECRET
 # CONTENT_WEBHOOK_SECRET
+# FOURTHWALL_WEBHOOK_SECRET
