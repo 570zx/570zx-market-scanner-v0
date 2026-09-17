@@ -84,6 +84,23 @@ test('simulated cron, persistent SQL, exact +20%, runner, dedupe, auth, pause an
   assert.ok(status.paper.cycle_count>=1);assert.ok(status.paper.decision_count>=1);
   assert.equal((await worker.fetch(request('/paper/cycles',undefined,false),env)).status,401);
   assert.equal((await worker.fetch(new Request('https://test/status',{method:'POST'}),env)).status,401);
+  const rowCountsBefore={
+   trades:db.db.prepare('SELECT COUNT(*) AS n FROM paper_trades').get().n,
+   positions:db.db.prepare("SELECT COUNT(*) AS n FROM paper_positions WHERE status='open'").get().n,
+   decisions:db.db.prepare('SELECT COUNT(*) AS n FROM paper_decisions').get().n,
+  };
+  for(const path of ['/status/trades','/status/positions','/status/decisions']){
+   const response=await worker.fetch(request(path+'?limit=2&offset=0',undefined,false),env);
+   assert.equal(response.status,200);const page=await response.json();
+   assert.equal(page.ok,true);assert.equal(page.read_only,true);assert.ok(page.rows.length<=2);
+  }
+  assert.deepEqual({
+   trades:db.db.prepare('SELECT COUNT(*) AS n FROM paper_trades').get().n,
+   positions:db.db.prepare("SELECT COUNT(*) AS n FROM paper_positions WHERE status='open'").get().n,
+   decisions:db.db.prepare('SELECT COUNT(*) AS n FROM paper_decisions').get().n,
+  },rowCountsBefore,'Public telemetry must not mutate paper state');
+  assert.equal((await worker.fetch(new Request('https://test/status/trades',{method:'POST'}),env)).status,401);
+  assert.equal((await worker.fetch(request('/paper/trades',undefined,false),env)).status,401);
   const missingDir=mkdtempSync(join(tmpdir(),'meds-status-missing-'));
   const missingDb=new D1(join(missingDir,'state.sqlite'));
   for(const m of ['0001_init.sql','0002_operations.sql','0003_tick_counter.sql'])missingDb.db.exec(readFileSync(new URL('../migrations/'+m,import.meta.url),'utf8'));

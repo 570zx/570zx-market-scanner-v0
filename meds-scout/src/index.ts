@@ -1000,6 +1000,49 @@ async function publicStatus(env: Env): Promise<Response> {
   return Response.json(body, {headers:{"cache-control":"no-store","x-content-type-options":"nosniff"}});
 }
 
+function publicPage(url: URL) {
+  const requestedLimit = Number(url.searchParams.get("limit") ?? 50);
+  const requestedOffset = Number(url.searchParams.get("offset") ?? 0);
+  return {
+    limit: Number.isInteger(requestedLimit) ? clamp(requestedLimit, 1, 100) : 50,
+    offset: Number.isInteger(requestedOffset) ? clamp(requestedOffset, 0, 10_000) : 0,
+  };
+}
+
+async function publicPaperRows(pathname: string, url: URL, env: Env): Promise<Response> {
+  const {limit, offset} = publicPage(url);
+  const queries: Record<string, string> = {
+    "/status/trades": `SELECT t.id,l.label AS ledger,t.lane,t.asset_type,t.symbol,t.strategy,t.direction,
+      t.opened_at,t.closed_at,t.quantity,t.entry_price,t.exit_price,t.realized_pnl,t.return_pct,
+      t.r_multiple,t.reward_score,t.exit_reason,t.data_quality
+      FROM paper_trades t LEFT JOIN paper_ledgers l ON l.ledger_id=t.ledger_id
+      ORDER BY t.closed_at DESC,t.id DESC LIMIT ? OFFSET ?`,
+    "/status/positions": `SELECT p.id,l.label AS ledger,p.lane,'equity' AS asset_type,p.symbol,p.strategy,
+      p.direction,p.opened_at,p.quantity,p.entry_price,NULL AS current_mark,p.stop_price,p.target_price,
+      p.initial_risk,p.status,'market-data' AS data_quality,NULL AS long_symbol,NULL AS short_symbol
+      FROM paper_positions p LEFT JOIN paper_ledgers l ON l.ledger_id=p.ledger_id WHERE p.status='open'
+      UNION ALL
+      SELECT o.id,l.label AS ledger,o.lane,'option' AS asset_type,o.underlying AS symbol,o.strategy,
+      'long' AS direction,o.opened_at,o.quantity,o.entry_debit,o.current_mark,o.stop_debit,o.target_debit,
+      o.initial_risk,o.status,o.data_quality,o.long_symbol,o.short_symbol
+      FROM paper_option_positions o LEFT JOIN paper_ledgers l ON l.ledger_id=o.ledger_id WHERE o.status='open'
+      ORDER BY opened_at DESC,id DESC LIMIT ? OFFSET ?`,
+    "/status/decisions": `SELECT d.id,d.created_at,d.bucket,l.label AS ledger,d.lane,d.asset_type,d.symbol,
+      d.strategy,d.decision,d.score,d.reference_price,d.spread_pct,d.reason,d.data_quality
+      FROM paper_decisions d LEFT JOIN paper_ledgers l ON l.ledger_id=d.ledger_id
+      ORDER BY d.created_at DESC,d.id DESC LIMIT ? OFFSET ?`,
+  };
+  try {
+    const rows = await env.MEDS_DB.prepare(queries[pathname]).bind(limit, offset).all();
+    return Response.json({ok:true,read_only:true,limit,offset,count:rows.results?.length ?? 0,rows:rows.results ?? []},
+      {headers:{"cache-control":"no-store","x-content-type-options":"nosniff"}});
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "paper telemetry unavailable";
+    return Response.json({ok:false,read_only:true,error:message.slice(0,300)},
+      {status:503,headers:{"cache-control":"no-store","x-content-type-options":"nosniff"}});
+  }
+}
+
 export { runTick, scanTick, manageShadowPositions, inScanWindow, heuristicCatalyst };
 export default {
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
@@ -1013,6 +1056,9 @@ export default {
         enabled:env.SCOUT_ENABLED==="true" && !state?.paused,time:new Date().toISOString(),market:easternParts(),feed:stockFeed(),paper_enabled:env.PAPER_ENABLED!=="false",...state});
     }
     if (url.pathname === "/status" && req.method === "GET") return publicStatus(env);
+    if (["/status/trades","/status/positions","/status/decisions"].includes(url.pathname) && req.method === "GET") {
+      return publicPaperRows(url.pathname,url,env);
+    }
     if (!env.ADMIN_TOKEN || req.headers.get("authorization") !== `Bearer ${env.ADMIN_TOKEN}`) return Response.json({error:"Unauthorized"},{status:401});
     if (url.pathname === "/control/pause" && req.method === "POST") {
       await env.MEDS_DB.prepare(`UPDATE service_state SET paused=1 WHERE id=1`).run();
