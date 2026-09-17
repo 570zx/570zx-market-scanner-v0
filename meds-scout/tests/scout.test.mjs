@@ -81,6 +81,12 @@ test('simulated cron, persistent SQL, exact +20%, runner, dedupe, auth, pause an
   assert.equal(status.live_execution,false);assert.equal(status.mode,'shadow');
   assert.equal(status.scanner.healthy,true);assert.equal(status.paper.healthy,true);
   assert.deepEqual(status.ledgers.map(l=>l.id),['MICRO','SMALL','GROWTH','SCALE']);
+  assert.ok(status.ledgers.every(l=>l.cash>=-1e-8),'Paper entries must never make ledger cash negative');
+  await assert.rejects(
+   db.prepare('UPDATE paper_ledgers SET cash=cash-100000 WHERE ledger_id=?').bind('A').run(),
+   /paper ledger cash cannot be reduced below zero/,
+   'Database invariant must reject negative paper cash'
+  );
   assert.ok(status.paper.cycle_count>=1);assert.ok(status.paper.decision_count>=1);
   assert.equal((await worker.fetch(request('/paper/cycles',undefined,false),env)).status,401);
   assert.equal((await worker.fetch(new Request('https://test/status',{method:'POST'}),env)).status,401);
