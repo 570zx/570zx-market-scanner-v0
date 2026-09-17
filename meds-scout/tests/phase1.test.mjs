@@ -120,6 +120,9 @@ test('new options require setup and reject missing liquidity or excessive combin
   assert.equal(await enterOptionsForCandidate(env,ledger,candidate,'bucket',ctx),0);
   assert.ok(db.prepare("SELECT * FROM paper_decisions WHERE reason LIKE '%combined friction%'").all().length>0);
   assert.equal(db.prepare('SELECT COUNT(*) n FROM paper_option_positions').get().n,0);
+  globalThis.fetch=async()=>Response.json({snapshots:{TEST260925C00100000:{latestQuote:{...quote(.29,.3),as:undefined}}}});
+  assert.equal(await enterOptionsForCandidate(env,ledger,candidate,'bucket',ctx),0);
+  assert.ok(db.prepare("SELECT * FROM paper_decisions WHERE reason='data quality: missing executable option size'").all().length>0);
  }finally{globalThis.Date=NativeDate;globalThis.fetch=oldFetch;db.close();}
 });
 test('scanner retrieves held paper symbols even if discovery omits them',async()=>{

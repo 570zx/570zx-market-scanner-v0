@@ -622,6 +622,7 @@ async function manageEquityPositions(env:PaperEnv,snaps:Record<string,PaperSnaps
 async function enterEquityProposal(env:PaperEnv,ledger:Ledger,lane:'PRIMARY'|'SHADOW',c:PaperCandidate,p:Proposal,bucket:string,ctx:PaperContext){
   if(p.direction==='short') return {entered:false,reason:'unsupported short: borrow/collateral model unavailable'};
   if(!validQuote(ctx.stocks[c.symbol]?.latestQuote)) return {entered:false,reason:'data quality: stale/missing equity quote'};
+  if(!Number.isFinite(c.minuteVolume) || c.minuteVolume<=0) return {entered:false,reason:'data quality: invalid minute liquidity'};
   const policy=LEDGER_POLICY[ledger.ledger_id];
   const maxOpen=lane==='PRIMARY'?policy.primaryMax:policy.shadowMax;
   if(await openCount(env,ledger.ledger_id,lane)>=maxOpen) return {entered:false,reason:'open-position cap'};
@@ -758,6 +759,7 @@ async function enterOptionsForCandidate(env:PaperEnv,ledger:Ledger,c:PaperCandid
   for(const st of strategies.slice(0,2)){
     const pricing=optionQuote(long.s.latestQuote,st.shortSym?short?.s.latestQuote:undefined,st.shortSym?Math.abs(long.meta!.strike-short!.meta!.strike):null);
     if(!pricing || pricing.friction>LIMITS.optionFriction){await reject('data quality: invalid legs/debit/width or excessive combined friction',st.strategy);continue;}
+    if(!Number.isFinite(long.s.latestQuote?.as) || Number(long.s.latestQuote?.as)<1 || (st.shortSym && (!Number.isFinite(short?.s.latestQuote?.bs) || Number(short?.s.latestQuote?.bs)<1))){await reject('data quality: missing executable option size',st.strategy);continue;}
     const duplicate=await env.MEDS_DB.prepare("SELECT id FROM paper_option_positions WHERE ledger_id=? AND long_symbol=? AND COALESCE(short_symbol,'')=? AND status='open' LIMIT 1").bind(ledger.ledger_id,st.longSym,st.shortSym??'').first();
     if(duplicate){await reject('duplicate option structure',st.strategy);continue;}
     const valuation=await valueLedger(env,ledger,ctx);
@@ -1082,7 +1084,7 @@ async function publicStatus(env: Env): Promise<Response> {
 
     const [meta, latestCycle, counts, ledgerRows, laneCounts] = await Promise.all([
       env.MEDS_DB.prepare(`SELECT version,initialized_at FROM paper_meta WHERE id=1`).first<any>(),
-      env.MEDS_DB.prepare(`SELECT bucket,started_at,completed_at,notes FROM paper_cycles ORDER BY bucket DESC LIMIT 1`).first<any>(),
+      env.MEDS_DB.prepare(`SELECT bucket,started_at,completed_at,notes,simulator_version,execution_version FROM paper_cycles ORDER BY bucket DESC LIMIT 1`).first<any>(),
       env.MEDS_DB.prepare(`SELECT
         (SELECT COUNT(*) FROM paper_cycles) AS cycle_count,
         (SELECT COUNT(*) FROM paper_decisions) AS decision_count,
@@ -1126,6 +1128,8 @@ async function publicStatus(env: Env): Promise<Response> {
       schema_version: meta?.version ?? null,
       initialized_at: meta?.initialized_at ?? null,
       last_cycle_at: lastCycleAt,
+      last_cycle_simulator_version: latestCycle?.simulator_version??null,
+      last_cycle_execution_version: latestCycle?.execution_version??null,
       seconds_since_cycle: secondsSinceCycle,
       cycle_count: Number(counts?.cycle_count ?? 0),
       decision_count: Number(counts?.decision_count ?? 0),
@@ -1179,7 +1183,8 @@ async function publicStatus(env: Env): Promise<Response> {
         const byUnderlying:Record<string,{planned_risk:number;reserved_risk:number;notional:number}>={};
         for(const e of exposures){const a=byUnderlying[e.underlying]??={planned_risk:0,reserved_risk:0,notional:0};a.planned_risk+=e.risk;a.reserved_risk+=e.risk+Math.max(0,-e.unrealized);a.notional+=e.notional;}
         return {...v,diagnostics:JSON.parse(v.diagnostics),exposures,by_underlying:byUnderlying,
-          aggregate_reserved_risk:exposures.reduce((n,e)=>n+e.risk+Math.max(0,-e.unrealized),0)};
+          exposure_complete:!!v.complete,
+          aggregate_reserved_risk:v.complete?exposures.reduce((n,e)=>n+e.risk+Math.max(0,-e.unrealized),0):null};
       }),
       prospective_metrics:epochs.results??[],rejected_entries_24h:rejections.results??[]};
     if((valuations.results??[]).length!==4 || (valuations.results??[]).some(v=>!v.complete || (activeSession && (secondsSince(v.created_at)??Infinity)>180))){paper.healthy=false;paper.paper_error='incomplete or stale portfolio valuation';body.ok=false;}
