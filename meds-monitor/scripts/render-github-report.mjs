@@ -1,11 +1,14 @@
 const base = process.env.MEDS_BASE_URL || "https://meds-monitor.pages.dev";
 
 async function get(path) {
-  const response = await fetch(`${base}${path}`, {
-    headers: { Accept: "application/json", "User-Agent": "MEDS-GitHub-Monitor/1.0" },
-  });
-  if (!response.ok) throw new Error(`${path} returned HTTP ${response.status}`);
-  return response.json();
+  try {
+    const response = await fetch(`${base}${path}`, {
+      headers: { Accept: "application/json", "User-Agent": "MEDS-GitHub-Monitor/1.0" },
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!response.ok) return {ok:false,error:`${path} returned HTTP ${response.status}`};
+    return await response.json();
+  } catch { return {ok:false,error:`${path} unavailable; no current data`}; }
 }
 
 function cell(value) {
@@ -33,15 +36,18 @@ const trades = tradesPage.rows || [];
 const positions = positionsPage.rows || [];
 const decisions = (decisionsPage.rows || []).slice(0, 50);
 const generatedAt = new Date().toISOString();
+const retrievalErrors=[status,tradesPage,positionsPage,decisionsPage].filter(x=>x.error).map(x=>x.error);
 
 const report = `# MEDS Scout — Live Paper-Trading Monitor
 
 > Automatically refreshed from Cloudflare every five minutes. Public and read-only. No credentials, control actions, or brokerage execution are exposed.
 
 **Snapshot generated:** ${generatedAt}  
-**System:** ${status.ok ? "HEALTHY" : "UNHEALTHY"}  
+**System:** ${status.ok && !retrievalErrors.length ? "HEALTHY" : "UNHEALTHY"}  
 **Mode:** ${status.mode || "unknown"}  
-**Live execution:** ${status.live_execution === true ? "ENABLED — INVESTIGATE" : "false"}
+**Live execution:** ${status.live_execution === true ? "ENABLED — INVESTIGATE" : status.live_execution === false ? "false" : "unknown — telemetry unavailable"}
+
+${retrievalErrors.length ? '**Telemetry unavailable (empty tables below are not evidence of zero activity):** '+retrievalErrors.map(cell).join('; ') : ''}
 
 ## Health
 
@@ -117,4 +123,3 @@ _Source endpoints remain available at ${base}, but normal ChatGPT should read th
 process.stdout.write(report.slice(0, 64000));
 
 // Workflow pushes provide an immediate verification refresh when scheduled jobs are delayed (watchdog verification).
-
