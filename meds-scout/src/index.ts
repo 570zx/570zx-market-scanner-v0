@@ -1,3 +1,5 @@
+import {SIM_VERSION, EXEC_VERSION, LIMITS, validQuote, equityExit, optionQuote, riskCapacity, type Exposure} from './paper-accounting.ts';
+
 interface Env {
   ADMIN_TOKEN?: string;
   SCOUT_ENABLED?: string;
@@ -412,7 +414,7 @@ INSERT INTO paper_meta(id,version,initialized_at) VALUES(1,2,strftime('%Y-%m-%dT
 async function ensurePaperSchema(env:PaperEnv){
   try {
     const row=await env.MEDS_DB.prepare(`SELECT version FROM paper_meta WHERE id=1`).first<any>();
-    if(Number(row?.version)>=2) return;
+    if(Number(row?.version)>=3) return;
   } catch { /* first boot before paper tables exist */ }
   // D1 exec() treats newline-delimited input as separate statements, which
   // breaks the multiline INSERT ... SELECT seed below. Prepare complete
@@ -423,6 +425,31 @@ async function ensurePaperSchema(env:PaperEnv){
     .filter(Boolean)
     .map(sql => env.MEDS_DB.prepare(sql));
   await env.MEDS_DB.batch(statements);
+  // Additive migration: legacy values explicitly identify untouched history.
+  for(const table of ['paper_trades','paper_cycles']){
+    const columns=await env.MEDS_DB.prepare(`PRAGMA table_info(${table})`).all<any>();
+    for(const col of ['simulator_version','execution_version']){
+      if(!(columns.results??[]).some((c:any)=>c.name===col))
+        await env.MEDS_DB.prepare(`ALTER TABLE ${table} ADD COLUMN ${col} TEXT NOT NULL DEFAULT 'legacy-untrusted'`).run();
+    }
+  }
+  await env.MEDS_DB.batch([
+    env.MEDS_DB.prepare(`CREATE TABLE IF NOT EXISTS paper_valuations(id INTEGER PRIMARY KEY AUTOINCREMENT,ledger_id TEXT NOT NULL,created_at TEXT NOT NULL,equity REAL,complete INTEGER NOT NULL,diagnostics TEXT NOT NULL,exposures TEXT NOT NULL,simulator_version TEXT NOT NULL)`),
+    env.MEDS_DB.prepare(`CREATE INDEX IF NOT EXISTS idx_paper_valuation_ledger ON paper_valuations(ledger_id,id DESC)`),
+    env.MEDS_DB.prepare(`CREATE TABLE IF NOT EXISTS paper_metric_epochs(ledger_id TEXT NOT NULL,simulator_version TEXT NOT NULL,max_equity REAL NOT NULL,max_drawdown_pct REAL NOT NULL,PRIMARY KEY(ledger_id,simulator_version))`),
+    env.MEDS_DB.prepare(`CREATE TABLE IF NOT EXISTS paper_account_revisions(ledger_id TEXT PRIMARY KEY,revision INTEGER NOT NULL DEFAULT 0)`),
+    env.MEDS_DB.prepare(`INSERT OR IGNORE INTO paper_account_revisions SELECT ledger_id,0 FROM paper_ledgers`),
+    env.MEDS_DB.prepare(`CREATE TABLE IF NOT EXISTS paper_risk_guards(ledger_id TEXT PRIMARY KEY,expected_revision INTEGER NOT NULL)`),
+    env.MEDS_DB.prepare(`CREATE TRIGGER IF NOT EXISTS paper_risk_guard_v3 BEFORE INSERT ON paper_risk_guards WHEN NEW.expected_revision != (SELECT revision FROM paper_account_revisions WHERE ledger_id=NEW.ledger_id) BEGIN SELECT RAISE(ABORT,'concurrent portfolio change: retry valuation'); END`),
+    env.MEDS_DB.prepare(`CREATE TRIGGER IF NOT EXISTS paper_cash_revision_v3 AFTER UPDATE OF cash ON paper_ledgers BEGIN UPDATE paper_account_revisions SET revision=revision+1 WHERE ledger_id=NEW.ledger_id; END`),
+    env.MEDS_DB.prepare(`CREATE TRIGGER IF NOT EXISTS paper_no_double_close_v3 BEFORE UPDATE OF status ON paper_positions WHEN OLD.status='closed' AND NEW.status='closed' BEGIN SELECT RAISE(ABORT,'position already closed'); END`),
+    env.MEDS_DB.prepare(`CREATE TRIGGER IF NOT EXISTS paper_no_double_option_close_v3 BEFORE UPDATE OF status ON paper_option_positions WHEN OLD.status='closed' AND NEW.status='closed' BEGIN SELECT RAISE(ABORT,'option already closed'); END`),
+    env.MEDS_DB.prepare(`CREATE TRIGGER IF NOT EXISTS paper_no_duplicate_equity_v3 BEFORE INSERT ON paper_positions WHEN EXISTS(SELECT 1 FROM paper_positions WHERE ledger_id=NEW.ledger_id AND symbol=NEW.symbol AND status='open') BEGIN SELECT RAISE(ABORT,'duplicate underlying equity'); END`),
+    env.MEDS_DB.prepare(`CREATE TRIGGER IF NOT EXISTS paper_no_duplicate_option_v3 BEFORE INSERT ON paper_option_positions WHEN EXISTS(SELECT 1 FROM paper_option_positions WHERE ledger_id=NEW.ledger_id AND long_symbol=NEW.long_symbol AND COALESCE(short_symbol,'')=COALESCE(NEW.short_symbol,'') AND status='open') BEGIN SELECT RAISE(ABORT,'duplicate option structure'); END`),
+    env.MEDS_DB.prepare(`CREATE TRIGGER IF NOT EXISTS paper_trade_version_v3 AFTER INSERT ON paper_trades BEGIN UPDATE paper_trades SET simulator_version='phase1-v1',execution_version='observed-side-v1' WHERE id=NEW.id; END`),
+    env.MEDS_DB.prepare(`CREATE TRIGGER IF NOT EXISTS paper_cycle_version_v3 AFTER INSERT ON paper_cycles BEGIN UPDATE paper_cycles SET simulator_version='phase1-v1',execution_version='observed-side-v1' WHERE bucket=NEW.bucket; END`),
+    env.MEDS_DB.prepare(`UPDATE paper_meta SET version=3 WHERE id=1`)
+  ]);
 }
 const LEDGER_POLICY: Record<string,{maxRiskPct:number;maxAllocPct:number;primaryMax:number;shadowMax:number}> = {
   A: {maxRiskPct:0.05,maxAllocPct:0.25,primaryMax:3,shadowMax:7},
@@ -498,23 +525,56 @@ async function openCount(env:PaperEnv,ledger:string,lane:string,table='paper_pos
   return Number(row?.n??0);
 }
 async function hasOpen(env:PaperEnv,ledger:string,lane:string,symbol:string,strategy:string){
-  const r=await env.MEDS_DB.prepare(`SELECT id FROM paper_positions WHERE ledger_id=? AND lane=? AND symbol=? AND strategy=? AND status='open' LIMIT 1`).bind(ledger,lane,symbol,strategy).first<any>();
+  const r=await env.MEDS_DB.prepare(`SELECT id FROM paper_positions WHERE ledger_id=? AND symbol=? AND status='open' LIMIT 1`).bind(ledger,symbol).first<any>();
   return !!r;
 }
 
-async function markLedger(env:PaperEnv, ledger:Ledger, snaps:Record<string,PaperSnapshot>){
-  const equities=await env.MEDS_DB.prepare(`SELECT symbol,direction,quantity FROM paper_positions WHERE ledger_id=? AND status='open'`).bind(ledger.ledger_id).all<any>();
-  let equity=Number(ledger.cash);
+type PaperContext = {stocks:Record<string,PaperSnapshot>; options:Record<string,OptionSnap>};
+function spreadWidth(p:any):number|null {
+  if(!p.short_symbol) return null;
+  const l=parseOcc(p.long_symbol), r=parseOcc(p.short_symbol);
+  if(!l||!r||l.root!==r.root||l.expiration!==r.expiration||l.type!==r.type) return NaN;
+  return Math.abs(l.strike-r.strike);
+}
+function entryVersion(notes:string|null):string {
+  try{return JSON.parse(notes??'').simulator_version??'legacy-untrusted';}catch{return 'legacy-untrusted';}
+}
+async function valueLedger(env:PaperEnv,ledger:Ledger,ctx:PaperContext){
+  const revision=Number((await env.MEDS_DB.prepare('SELECT revision FROM paper_account_revisions WHERE ledger_id=?').bind(ledger.ledger_id).first<any>())?.revision??-1);
+  const cash=await env.MEDS_DB.prepare('SELECT cash FROM paper_ledgers WHERE ledger_id=?').bind(ledger.ledger_id).first<any>();
+  let equity=Number(cash?.cash); const warnings:string[]=[];const exposures:Exposure[]=[];
+  if(!Number.isFinite(equity)) warnings.push('invalid cash');
+  const equities=await env.MEDS_DB.prepare("SELECT * FROM paper_positions WHERE ledger_id=? AND status='open'").bind(ledger.ledger_id).all<any>();
   for(const p of equities.results??[]){
-    const s=snaps[p.symbol]; const bid=s?.latestQuote?.bp??s?.latestTrade?.p??0; const ask=s?.latestQuote?.ap??s?.latestTrade?.p??0;
-    if(p.direction==='long') equity+=Number(p.quantity)*bid; else equity-=Number(p.quantity)*ask;
+    const q=ctx.stocks[p.symbol]?.latestQuote;
+    if(!validQuote(q)){warnings.push('equity quote unavailable/stale: '+p.symbol);continue;}
+    const mark=p.direction==='long'?q.bp:q.ap;
+    const pnl=(p.direction==='long'?mark-p.entry_price:p.entry_price-mark)*p.quantity;
+    equity+=(p.direction==='long'?1:-1)*mark*p.quantity;
+    exposures.push({underlying:p.symbol,risk:Math.max(Number(p.initial_risk),Math.abs(mark-p.stop_price)*p.quantity),notional:mark*p.quantity,unrealized:pnl});
   }
-  const opts=await env.MEDS_DB.prepare(`SELECT current_mark,quantity FROM paper_option_positions WHERE ledger_id=? AND status='open'`).bind(ledger.ledger_id).all<any>();
-  for(const p of opts.results??[]) equity += Number(p.current_mark) * 100 * Number(p.quantity);
-  const high=Math.max(Number(ledger.max_equity),equity);
-  const dd=high>0?Math.max(Number(ledger.max_drawdown_pct),1-equity/high):Number(ledger.max_drawdown_pct);
-  await env.MEDS_DB.prepare(`UPDATE paper_ledgers SET max_equity=?,max_drawdown_pct=?,updated_at=? WHERE ledger_id=?`).bind(high,dd,new Date().toISOString(),ledger.ledger_id).run();
-  return equity;
+  const options=await env.MEDS_DB.prepare("SELECT * FROM paper_option_positions WHERE ledger_id=? AND status='open'").bind(ledger.ledger_id).all<any>();
+  for(const p of options.results??[]){
+    const mark=optionQuote(ctx.options[p.long_symbol]?.latestQuote,ctx.options[p.short_symbol]?.latestQuote,spreadWidth(p));
+    if(!mark){warnings.push('option quote unavailable/stale/invalid: '+p.long_symbol);continue;}
+    equity+=mark.liquidation*100*p.quantity;
+    exposures.push({underlying:p.underlying,risk:Number(p.initial_risk),notional:p.entry_debit*100*p.quantity,unrealized:(mark.liquidation-p.entry_debit)*100*p.quantity});
+  }
+  const finalRevision=Number((await env.MEDS_DB.prepare('SELECT revision FROM paper_account_revisions WHERE ledger_id=?').bind(ledger.ledger_id).first<any>())?.revision??-1);
+  if(revision<0 || revision!==finalRevision) warnings.push('portfolio changed during valuation');
+  return {complete:warnings.length===0,equity:warnings.length?null:equity,warnings,exposures,revision};
+}
+async function markLedger(env:PaperEnv,ledger:Ledger,ctx:PaperContext){
+  const v=await valueLedger(env,ledger,ctx);
+  const statements=[env.MEDS_DB.prepare('INSERT INTO paper_valuations(ledger_id,created_at,equity,complete,diagnostics,exposures,simulator_version) VALUES(?,?,?,?,?,?,?)')
+    .bind(ledger.ledger_id,new Date().toISOString(),v.equity,v.complete?1:0,JSON.stringify(v.warnings),JSON.stringify(v.exposures),SIM_VERSION)];
+  if(v.complete && v.equity!==null) statements.push(env.MEDS_DB.prepare(`INSERT INTO paper_metric_epochs(ledger_id,simulator_version,max_equity,max_drawdown_pct) VALUES(?,?,?,0)
+    ON CONFLICT(ledger_id,simulator_version) DO UPDATE SET
+    max_drawdown_pct=MAX(max_drawdown_pct,CASE WHEN MAX(max_equity,excluded.max_equity)>0 THEN 1-excluded.max_equity/MAX(max_equity,excluded.max_equity) ELSE 0 END),
+    max_equity=MAX(max_equity,excluded.max_equity)`).bind(ledger.ledger_id,SIM_VERSION,v.equity));
+  // Legacy paper_ledgers.max_drawdown_pct/max_equity stay frozen and flagged.
+  await env.MEDS_DB.batch(statements);
+  return v;
 }
 
 async function manageEquityPositions(env:PaperEnv,snaps:Record<string,PaperSnapshot>){
@@ -523,7 +583,7 @@ async function manageEquityPositions(env:PaperEnv,snaps:Record<string,PaperSnaps
   for(const p of rows.results??[]){
     const s=snaps[p.symbol]; if(!s) continue;
     const bid=s.latestQuote?.bp??0, ask=s.latestQuote?.ap??0;
-    if(!(bid>0&&ask>=bid)) continue;
+    if(!validQuote(s.latestQuote)) continue;
     const mark=p.direction==='long'?bid:ask;
     const hi=Math.max(Number(p.highest_price),mark), lo=Math.min(Number(p.lowest_price),mark);
     const stopHit=p.direction==='long'?mark<=p.stop_price:mark>=p.stop_price;
@@ -535,19 +595,10 @@ async function manageEquityPositions(env:PaperEnv,snaps:Record<string,PaperSnaps
       continue;
     }
     const exitReason=stopHit?'stop':targetHit?'target':'time';
-    // A five-minute paper cycle only observes discrete quotes. If a stop/target
-    // was crossed between cycles, using the next raw bid/ask can manufacture
-    // huge multi-R losses or gains that are artifacts of polling latency.
-    // Model the trigger at the configured stop/target and apply bounded
-    // execution slippage exactly once. Time exits continue to use the live mark.
     const triggerPrice=stopHit?Number(p.stop_price):targetHit?Number(p.target_price):mark;
-    const halfSpread=Math.max(0,(ask-bid)*0.5);
-    const maxModeledSlip=Math.max(0.001,Number(p.entry_price)*0.005);
-    const slipPerShare=Math.min(halfSpread,maxModeledSlip);
-    const exitFill=p.direction==='long'
-      ? Math.max(0.0001,triggerPrice-slipPerShare)
-      : triggerPrice+slipPerShare;
-    const exitSlip=Math.abs(exitFill-triggerPrice)*p.quantity;
+    const execution=equityExit(s.latestQuote!,p.direction,triggerPrice,p.quantity)!;
+    const exitFill=execution.modeled_fill;
+    const exitSlip=execution.slippage_total;
     const pnl=p.direction==='long'
       ? (exitFill-p.entry_price)*p.quantity
       : (p.entry_price-exitFill)*p.quantity;
@@ -561,14 +612,16 @@ async function manageEquityPositions(env:PaperEnv,snaps:Record<string,PaperSnaps
       env.MEDS_DB.prepare(`UPDATE paper_positions SET status='closed',highest_price=?,lowest_price=? WHERE id=?`).bind(hi,lo,p.id),
       env.MEDS_DB.prepare(`UPDATE paper_ledgers SET cash=cash+?,realized_pnl=realized_pnl+?,updated_at=? WHERE ledger_id=?`).bind(cashDelta,pnl,new Date().toISOString(),p.ledger_id),
       env.MEDS_DB.prepare(`INSERT INTO paper_trades(ledger_id,lane,asset_type,symbol,strategy,direction,opened_at,closed_at,quantity,entry_price,exit_price,realized_pnl,return_pct,r_multiple,reward_score,max_favorable_excursion,max_adverse_excursion,slippage_cost,exit_reason,data_quality,notes) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-        .bind(p.ledger_id,p.lane,'equity',p.symbol,p.strategy,p.direction,p.opened_at,new Date().toISOString(),p.quantity,p.entry_price,exitFill,pnl,ret*100,rMult,reward,mfe*100,mae*100,p.entry_slippage_cost+exitSlip,exitReason,'market-data',p.notes??'')
+        .bind(p.ledger_id,p.lane,'equity',p.symbol,p.strategy,p.direction,p.opened_at,new Date().toISOString(),p.quantity,p.entry_price,exitFill,pnl,ret*100,rMult,reward,mfe*100,mae*100,p.entry_slippage_cost+exitSlip,exitReason,'market-data',JSON.stringify({original_notes:p.notes??'',execution,simulator_version:SIM_VERSION,entry_version:entryVersion(p.notes)}))
     ]);
     exits++;
   }
   return exits;
 }
 
-async function enterEquityProposal(env:PaperEnv,ledger:Ledger,lane:'PRIMARY'|'SHADOW',c:PaperCandidate,p:Proposal,bucket:string){
+async function enterEquityProposal(env:PaperEnv,ledger:Ledger,lane:'PRIMARY'|'SHADOW',c:PaperCandidate,p:Proposal,bucket:string,ctx:PaperContext){
+  if(p.direction==='short') return {entered:false,reason:'unsupported short: borrow/collateral model unavailable'};
+  if(!validQuote(ctx.stocks[c.symbol]?.latestQuote)) return {entered:false,reason:'data quality: stale/missing equity quote'};
   const policy=LEDGER_POLICY[ledger.ledger_id];
   const maxOpen=lane==='PRIMARY'?policy.primaryMax:policy.shadowMax;
   if(await openCount(env,ledger.ledger_id,lane)>=maxOpen) return {entered:false,reason:'open-position cap'};
@@ -578,11 +631,17 @@ async function enterEquityProposal(env:PaperEnv,ledger:Ledger,lane:'PRIMARY'|'SH
   if(!(c.ask>0&&c.bid>0&&c.ask>=c.bid)) return {entered:false,reason:'invalid quote'};
   if(c.spreadPct>(lane==='PRIMARY'?3.0:5.0)) return {entered:false,reason:'spread too wide'};
   const roughEntry=p.direction==='long'?c.ask:c.bid;
-  const riskPerShare=Math.max(roughEntry*p.stopPct,roughEntry*0.01);
-  const equity=Math.max(0.01,Number(ledger.starting_equity)+Number(ledger.realized_pnl));
-  const riskCap=equity*policy.maxRiskPct;
-  const allocCap=equity*policy.maxAllocPct;
-  const byRisk=Math.floor(riskCap/riskPerShare), byAlloc=Math.floor(allocCap/roughEntry);
+  const riskPerShare=Math.max(roughEntry*p.stopPct,roughEntry*0.01)*1.01;
+  const valuation=await valueLedger(env,ledger,ctx);
+  if(!valuation.complete || valuation.equity===null) return {entered:false,reason:'incomplete ledger valuation'};
+  const equity=valuation.equity;
+  const capacity=riskCapacity(equity,valuation.exposures,c.symbol);
+  if(capacity.risk<=0 || capacity.allocation<=0) return {entered:false,reason:'aggregate ledger/underlying risk or allocation exhausted'};
+  const riskCap=Math.min(equity*policy.maxRiskPct,capacity.risk);
+  const allocCap=Math.min(equity*policy.maxAllocPct,capacity.allocation);
+  const immediateLossPerShare=Math.max(0,roughEntry*1.01-c.bid);
+  const byRisk=Math.floor(riskCap/(riskPerShare+immediateLossPerShare*(1+LIMITS.totalRisk)));
+  const byAlloc=Math.floor(allocCap/(roughEntry*1.01+immediateLossPerShare*LIMITS.grossAllocation));
   const liquidityCap=Math.max(0,Math.floor(Math.max(0,c.minuteVolume)*(lane==='PRIMARY'?0.02:0.05)));
   // Re-read cash for every proposal. A ledger can make several entries in one
   // decision cycle, so the cycle-start Ledger snapshot is not authoritative.
@@ -597,12 +656,14 @@ async function enterEquityProposal(env:PaperEnv,ledger:Ledger,lane:'PRIMARY'|'SH
   const risk=Math.abs(fill-stop)*qty;
   const target=p.direction==='long'?fill+(fill-stop)*p.rewardRisk:fill-(stop-fill)*p.rewardRisk;
   const cost=fill*qty;
+  if(risk>riskCap+1e-8 || cost>allocCap+1e-8) return {entered:false,reason:'aggregate risk/allocation limit'};
   if(p.direction==='long' && cost>availableCash+1e-8) return {entered:false,reason:'cash constraint'};
   const spreadCost=(c.ask-c.bid)*0.5*qty, slipCost=fill*slipPct*qty;
   const cashDelta=p.direction==='long'?-cost:cost;
   await env.MEDS_DB.batch([
+    env.MEDS_DB.prepare('INSERT OR REPLACE INTO paper_risk_guards(ledger_id,expected_revision) VALUES(?,?)').bind(ledger.ledger_id,valuation.revision),
     env.MEDS_DB.prepare(`INSERT INTO paper_positions(ledger_id,lane,symbol,direction,strategy,opened_at,entry_price,quantity,stop_price,target_price,initial_risk,entry_spread_cost,entry_slippage_cost,highest_price,lowest_price,status,notes) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-      .bind(ledger.ledger_id,lane,c.symbol,p.direction,p.strategy,new Date().toISOString(),fill,qty,stop,target,risk,spreadCost,slipCost,fill,fill,'open',p.reason),
+      .bind(ledger.ledger_id,lane,c.symbol,p.direction,p.strategy,new Date().toISOString(),fill,qty,stop,target,risk,spreadCost,slipCost,fill,fill,'open',JSON.stringify({reason:p.reason,simulator_version:SIM_VERSION})),
     env.MEDS_DB.prepare(`UPDATE paper_ledgers SET cash=cash+?,updated_at=? WHERE ledger_id=?`).bind(cashDelta,new Date().toISOString(),ledger.ledger_id),
     env.MEDS_DB.prepare(`INSERT INTO paper_decisions(created_at,bucket,ledger_id,lane,asset_type,symbol,strategy,decision,score,reference_price,spread_pct,reason,data_quality) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       .bind(new Date().toISOString(),bucket,ledger.ledger_id,lane,'equity',c.symbol,p.strategy,'ENTER',p.quality,fill,c.spreadPct,p.reason,'market-data')
@@ -634,67 +695,90 @@ async function optionMarks(env:PaperEnv,symbols:string[]){
   return out;
 }
 
-async function manageOptionPositions(env:PaperEnv){
+async function manageOptionPositions(env:PaperEnv,marks:Record<string,OptionSnap>){
   const rows=await env.MEDS_DB.prepare(`SELECT * FROM paper_option_positions WHERE status='open' ORDER BY id`).all<any>();
   const symbols=[...new Set((rows.results??[]).flatMap((p:any)=>[p.long_symbol,p.short_symbol].filter(Boolean)))];
   if(!symbols.length || phase()!=='regular') return 0;
-  const marks=await optionMarks(env,symbols); let exits=0;
+  let exits=0;
   for(const p of rows.results??[]){
     const l=marks[p.long_symbol], sh=p.short_symbol?marks[p.short_symbol]:null;
-    const longBid=l?.latestQuote?.bp??0; const shortAsk=sh?.latestQuote?.ap??0;
-    if(!(longBid>0) || (p.short_symbol && !(shortAsk>=0))) continue;
-    const mark=Math.max(0.01,longBid-(p.short_symbol?shortAsk:0));
+    const pricing=optionQuote(l?.latestQuote,sh?.latestQuote,spreadWidth(p));
+    if(!pricing) continue;
+    const mark=pricing.liquidation;
     const hi=Math.max(Number(p.highest_mark),mark),lo=Math.min(Number(p.lowest_mark),mark);
     const age=(Date.now()-Date.parse(p.opened_at))/60000;
     const stop=mark<=p.stop_debit,target=mark>=p.target_debit,timeExit=age>=240;
     if(!stop&&!target&&!timeExit){ await env.MEDS_DB.prepare(`UPDATE paper_option_positions SET highest_mark=?,lowest_mark=?,current_mark=? WHERE id=?`).bind(hi,lo,mark,p.id).run(); continue; }
     const reason=stop?'stop':target?'target':'time';
-    const pnl=(mark-p.entry_debit)*100*p.quantity;
-    const ret=p.entry_debit>0?(mark/p.entry_debit-1):0;
+    const slip=mark*0.0002;
+    const fill=Math.max(0,mark-slip);
+    const execution={trigger_price:stop?p.stop_debit:target?p.target_debit:mark,
+      ...pricing,modeled_fill:fill,slippage_per_unit:slip,slippage_total:slip*100*p.quantity,execution_version:EXEC_VERSION};
+    const pnl=(fill-p.entry_debit)*100*p.quantity;
+    const ret=p.entry_debit>0?(fill/p.entry_debit-1):0;
     const r=p.initial_risk>0?pnl/p.initial_risk:0;
     const reward=r-0.20; // fixed penalty: free indicative options data is not execution-quality.
     const symbol=p.short_symbol?`${p.long_symbol}/${p.short_symbol}`:p.long_symbol;
     await env.MEDS_DB.batch([
       env.MEDS_DB.prepare(`UPDATE paper_option_positions SET status='closed',highest_mark=?,lowest_mark=?,current_mark=? WHERE id=?`).bind(hi,lo,mark,p.id),
-      env.MEDS_DB.prepare(`UPDATE paper_ledgers SET cash=cash+?,realized_pnl=realized_pnl+?,updated_at=? WHERE ledger_id=?`).bind(mark*100*p.quantity,pnl,new Date().toISOString(),p.ledger_id),
+      env.MEDS_DB.prepare(`UPDATE paper_ledgers SET cash=cash+?,realized_pnl=realized_pnl+?,updated_at=? WHERE ledger_id=?`).bind(fill*100*p.quantity,pnl,new Date().toISOString(),p.ledger_id),
       env.MEDS_DB.prepare(`INSERT INTO paper_trades(ledger_id,lane,asset_type,symbol,strategy,direction,opened_at,closed_at,quantity,entry_price,exit_price,realized_pnl,return_pct,r_multiple,reward_score,max_favorable_excursion,max_adverse_excursion,slippage_cost,exit_reason,data_quality,notes) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-        .bind(p.ledger_id,'SHADOW','option',symbol,p.strategy,'long',p.opened_at,new Date().toISOString(),p.quantity,p.entry_debit,mark,pnl,ret*100,r,reward,(hi/p.entry_debit-1)*100,(lo/p.entry_debit-1)*100,0,reason,'indicative',p.notes??'')
+        .bind(p.ledger_id,'SHADOW','option',symbol,p.strategy,'long',p.opened_at,new Date().toISOString(),p.quantity,p.entry_debit,fill,pnl,ret*100,r,reward,(hi/p.entry_debit-1)*100,(lo/p.entry_debit-1)*100,execution.slippage_total,reason,'indicative',JSON.stringify({original_notes:p.notes??'',execution,simulator_version:SIM_VERSION,entry_version:entryVersion(p.notes)}))
     ]); exits++;
   }
   return exits;
 }
 
-async function enterOptionsForCandidate(env:PaperEnv,ledger:Ledger,c:PaperCandidate,bucket:string){
+async function enterOptionsForCandidate(env:PaperEnv,ledger:Ledger,c:PaperCandidate,bucket:string,ctx:PaperContext){
+  const reject=async(reason:string,strategy='option_candidate')=>{
+    await env.MEDS_DB.prepare(`INSERT INTO paper_decisions(created_at,bucket,ledger_id,lane,asset_type,symbol,strategy,decision,score,reference_price,spread_pct,reason,data_quality) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+      .bind(new Date().toISOString(),bucket,ledger.ledger_id,'SHADOW','option',c.symbol,strategy,'REJECTED_HARD',c.score,c.price,null,reason,'indicative').run();
+    return 0;
+  };
   if(phase()!=='regular') return 0;
   const bullish=c.catalystScore>0 || (c.dayChangePct>1&&c.volumeAccel>0);
   const bearish=c.catalystScore<0 || (c.dayChangePct<-2&&c.volumeAccel>0);
-  if(!bullish&&!bearish) return 0;
+  if(!bullish&&!bearish) return reject('no directional underlying setup');
   const dir=bullish&&!bearish?'bull':bearish&&!bullish?'bear':c.score>=70?'bull':'bear';
-  const chain=await optionChain(env,c,dir); if(!chain.length) return 0;
+  if(!proposals(c,phase()).some(p=>p.direction===(dir==='bull'?'long':'short'))) return reject('no valid underlying setup');
+  if(!validQuote(ctx.stocks[c.symbol]?.latestQuote)) return reject('data quality: underlying quote unavailable/stale');
+  const chain=await optionChain(env,c,dir); if(!chain.length) return reject('data quality: no valid option quotes');
+  for(const x of chain) ctx.options[x.symbol]=x.s;
   chain.sort((a,b)=>Math.abs((a.meta!.strike)-c.price)-Math.abs((b.meta!.strike)-c.price) || a.meta!.expiration.localeCompare(b.meta!.expiration));
   const long=chain[0]; const longAsk=long.s.latestQuote!.ap!, longBid=long.s.latestQuote!.bp!;
-  if(!(longAsk>0&&longBid>0) || (longAsk-longBid)/((longAsk+longBid)/2)>0.35) return 0;
+  if(!validQuote(long.s.latestQuote) || (longAsk-longBid)/((longAsk+longBid)/2)>0.35) return reject('data quality: long quote stale/invalid/wide');
   const sameExp=chain.filter(x=>x.meta!.expiration===long.meta!.expiration).sort((a,b)=>a.meta!.strike-b.meta!.strike);
   const shortCandidates=dir==='bull'?sameExp.filter(x=>x.meta!.strike>long.meta!.strike):sameExp.filter(x=>x.meta!.strike<long.meta!.strike).reverse();
   const short=shortCandidates[0];
   const existing=await env.MEDS_DB.prepare(`SELECT COUNT(*) AS n FROM paper_option_positions WHERE ledger_id=? AND underlying=? AND status='open'`).bind(ledger.ledger_id,c.symbol).first<any>();
-  if(Number(existing?.n??0)>=2) return 0;
-  const policy=LEDGER_POLICY[ledger.ledger_id]; const eq=Math.max(0.01,ledger.starting_equity+ledger.realized_pnl); let entries=0;
+  if(Number(existing?.n??0)>=2) return reject('underlying option position cap');
+  const policy=LEDGER_POLICY[ledger.ledger_id]; let entries=0;
   const strategies:{strategy:string,longSym:string,shortSym?:string,debit:number}[]=[{strategy:dir==='bull'?'long_call':'long_put',longSym:long.symbol,debit:longAsk}];
   if(short){ const shortBid=short.s.latestQuote?.bp??0; const debit=longAsk-shortBid; if(debit>0.02) strategies.push({strategy:dir==='bull'?'call_debit_spread':'put_debit_spread',longSym:long.symbol,shortSym:short.symbol,debit}); }
   for(const st of strategies.slice(0,2)){
+    const pricing=optionQuote(long.s.latestQuote,st.shortSym?short?.s.latestQuote:undefined,st.shortSym?Math.abs(long.meta!.strike-short!.meta!.strike):null);
+    if(!pricing || pricing.friction>LIMITS.optionFriction){await reject('data quality: invalid legs/debit/width or excessive combined friction',st.strategy);continue;}
+    const duplicate=await env.MEDS_DB.prepare("SELECT id FROM paper_option_positions WHERE ledger_id=? AND long_symbol=? AND COALESCE(short_symbol,'')=? AND status='open' LIMIT 1").bind(ledger.ledger_id,st.longSym,st.shortSym??'').first();
+    if(duplicate){await reject('duplicate option structure',st.strategy);continue;}
+    const valuation=await valueLedger(env,ledger,ctx);
+    if(!valuation.complete || valuation.equity===null){await reject('incomplete ledger valuation',st.strategy);continue;}
+    const eq=valuation.equity, capacity=riskCapacity(eq,valuation.exposures,c.symbol);
+    st.debit=pricing.entry;
     const cashRow=await env.MEDS_DB.prepare(`SELECT cash FROM paper_ledgers WHERE ledger_id=?`).bind(ledger.ledger_id).first<any>();
     const availableCash=Math.max(0,Number(cashRow?.cash??0));
     ledger.cash=Number(cashRow?.cash??0);
-    const riskPer=st.debit*100; const qty=Math.floor(Math.min(eq*policy.maxRiskPct/riskPer,eq*policy.maxAllocPct/riskPer,availableCash/riskPer));
+    const riskPer=st.debit*100;
+    const immediateLoss=Math.max(0,st.debit-pricing.liquidation)*100;
+    const qty=Math.floor(Math.min(eq*policy.maxRiskPct/riskPer,eq*policy.maxAllocPct/riskPer,capacity.risk/(riskPer+immediateLoss*(1+LIMITS.totalRisk)),capacity.allocation/(riskPer+immediateLoss*LIMITS.grossAllocation),availableCash/riskPer,Math.max(0,Number(long.s.latestQuote?.as??0)),st.shortSym?Math.max(0,Number(short?.s.latestQuote?.bs??0)):Number.MAX_SAFE_INTEGER));
     if(qty<1){
       await env.MEDS_DB.prepare(`INSERT INTO paper_decisions(created_at,bucket,ledger_id,lane,asset_type,symbol,strategy,decision,score,reference_price,spread_pct,reason,data_quality) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(new Date().toISOString(),bucket,ledger.ledger_id,'SHADOW','option',c.symbol,st.strategy,'REJECTED_SIZE',c.score,st.debit,null,'premium/risk exceeds ledger constraints','indicative').run();
       continue;
     }
     const risk=riskPer*qty; const target=st.debit*1.50, stop=Math.max(0.01,st.debit*0.60);
     await env.MEDS_DB.batch([
+      env.MEDS_DB.prepare('INSERT OR REPLACE INTO paper_risk_guards(ledger_id,expected_revision) VALUES(?,?)').bind(ledger.ledger_id,valuation.revision),
       env.MEDS_DB.prepare(`INSERT INTO paper_option_positions(ledger_id,lane,underlying,strategy,opened_at,long_symbol,short_symbol,quantity,entry_debit,stop_debit,target_debit,initial_risk,highest_mark,lowest_mark,current_mark,status,data_quality,notes) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-        .bind(ledger.ledger_id,'SHADOW',c.symbol,st.strategy,new Date().toISOString(),st.longSym,st.shortSym??null,qty,st.debit,stop,target,risk,st.debit,st.debit,st.debit,'open','indicative','Free Alpaca indicative feed; research-only, not live-quality execution'),
+        .bind(ledger.ledger_id,'SHADOW',c.symbol,st.strategy,new Date().toISOString(),st.longSym,st.shortSym??null,qty,st.debit,stop,target,risk,st.debit,st.debit,st.debit,'open','indicative',JSON.stringify({quality:'Free Alpaca indicative feed; research-only, not live-quality execution',simulator_version:SIM_VERSION,entry_quotes:pricing})),
       env.MEDS_DB.prepare(`UPDATE paper_ledgers SET cash=cash-?,updated_at=? WHERE ledger_id=?`).bind(riskPer*qty,new Date().toISOString(),ledger.ledger_id),
       env.MEDS_DB.prepare(`INSERT INTO paper_decisions(created_at,bucket,ledger_id,lane,asset_type,symbol,strategy,decision,score,reference_price,spread_pct,reason,data_quality) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`)
         .bind(new Date().toISOString(),bucket,ledger.ledger_id,'SHADOW','option',c.symbol,st.strategy,'ENTER',c.score,st.debit,null,'directional option research from underlying signal','indicative')
@@ -709,10 +793,15 @@ const PAPER_CYCLE_STALE_MS=7*60_000;
 async function runPaperLab(env:PaperEnv,candidates:PaperCandidate[],snaps:Record<string,PaperSnapshot>){
   if(env.PAPER_ENABLED==='false') return {ok:true,skipped:'paper disabled'};
   await ensurePaperSchema(env);
+  const heldOptions=await env.MEDS_DB.prepare("SELECT long_symbol,short_symbol FROM paper_option_positions WHERE status='open'").all<any>();
+  const optionSymbols=[...new Set((heldOptions.results??[]).flatMap((p:any)=>[p.long_symbol,p.short_symbol].filter(Boolean)))] as string[];
+  let optionData:Record<string,OptionSnap>={};
+  try {if(optionSymbols.length) optionData=await optionMarks(env,optionSymbols);} catch { /* incomplete valuation blocks entries; equity exits continue */ }
+  const ctx:PaperContext={stocks:snaps,options:optionData};
   const equityExits=await manageEquityPositions(env,snaps);
-  const optionExits=await manageOptionPositions(env);
+  const optionExits=await manageOptionPositions(env,optionData);
   const ledgers=(await env.MEDS_DB.prepare(`SELECT * FROM paper_ledgers ORDER BY ledger_id`).all<Ledger>()).results??[];
-  for(const l of ledgers) await markLedger(env,l,snaps);
+  for(const l of ledgers) await markLedger(env,l,ctx);
   if(!paperDecisionBoundary()) return {ok:true,managed:true,equityExits,optionExits,decisionCycle:false};
 
   const now=new Date();
@@ -739,6 +828,7 @@ async function runPaperLab(env:PaperEnv,candidates:PaperCandidate[],snaps:Record
       exits=0,
       option_entries=0,
       notes='retrying incomplete cycle'
+      ,simulator_version='phase1-v1',execution_version='observed-side-v1'
     WHERE paper_cycles.completed_at IS NULL AND paper_cycles.started_at<=?
   `).bind(bucket,now.toISOString(),watchdogForced?'running: watchdog recovery':'running',retryBefore).run();
   if(!claim.meta.changes) return {ok:true,managed:true,equityExits,optionExits,decisionCycle:false,inProgress:true,watchdogForced};
@@ -757,18 +847,19 @@ async function runPaperLab(env:PaperEnv,candidates:PaperCandidate[],snaps:Record
         }
         for(const p of ps.slice(0,2)){
           for(const lane of ['PRIMARY','SHADOW'] as const){
-            const r=await enterEquityProposal(env,ledger,lane,c,p,bucket); evaluated++;
+            const r=await enterEquityProposal(env,ledger,lane,c,p,bucket,ctx); evaluated++;
             if(r.entered) entries++;
             else await env.MEDS_DB.prepare(`INSERT INTO paper_decisions(created_at,bucket,ledger_id,lane,asset_type,symbol,strategy,decision,score,reference_price,spread_pct,reason,data_quality) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(new Date().toISOString(),bucket,ledger.ledger_id,lane,'equity',c.symbol,p.strategy,(r.reason==='soft score threshold'||r.reason==='below exploration threshold')?'REJECTED_SOFT':'REJECTED_HARD',p.quality,c.price,c.spreadPct,r.reason,'market-data').run();
           }
         }
       }
       // Free option data is indicative, so options remain shadow/research-only.
-      for(const c of candidates.slice(0,2)) optionEntries+=await enterOptionsForCandidate(env,ledger,c,bucket);
+      for(const c of candidates.slice(0,2)) optionEntries+=await enterOptionsForCandidate(env,ledger,c,bucket,ctx);
       if(entries===ledgerEntriesBefore && optionEntries===ledgerOptionEntriesBefore){
         await env.MEDS_DB.prepare(`INSERT INTO paper_decisions(created_at,bucket,ledger_id,lane,asset_type,symbol,strategy,decision,score,reference_price,spread_pct,reason,data_quality) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(new Date().toISOString(),bucket,ledger.ledger_id,'SHADOW','equity','MARKET','none','NO_TRADE',null,null,null,'fresh five-minute scan completed; no new entry met strategy and risk constraints','market-data').run();
       }
     }
+    for(const ledger of ledgers) await markLedger(env,ledger,ctx);
     await env.MEDS_DB.prepare(`UPDATE paper_cycles SET completed_at=?,candidates_evaluated=?,entries=?,exits=?,option_entries=?,notes=? WHERE bucket=?`).bind(new Date().toISOString(),evaluated,entries,equityExits+optionExits,optionEntries,`complete; phase=${marketPhase}; options=indicative-research-only; watchdog=${watchdogForced}`,bucket).run();
     return {ok:true,decisionCycle:true,bucket,marketPhase,evaluated,entries,optionEntries,equityExits,optionExits,watchdogForced};
   } catch(error){
@@ -786,9 +877,11 @@ async function scanTick(env: Env) {
   const maxChange = num(env.MAX_DAY_CHANGE_PCT, 25);
   const threshold = num(env.MIN_SIGNAL_SCORE, 67);
 
+  await ensurePaperSchema(env);
   const discovered = await discoverSymbols(env);
+  const paperHeld=await env.MEDS_DB.prepare("SELECT symbol FROM paper_positions WHERE status='open' UNION SELECT underlying AS symbol FROM paper_option_positions WHERE status='open'").all<{symbol:string}>();
   const held = await env.MEDS_DB.prepare(`SELECT symbol FROM shadow_positions WHERE status='open'`).all<{symbol:string}>();
-  const symbols = [...new Set([...(held.results ?? []).map(p=>p.symbol),...discovered])];
+  const symbols = [...new Set([...(paperHeld.results??[]).map(p=>p.symbol),...(held.results ?? []).map(p=>p.symbol),...discovered])];
   const prior = await env.MEDS_DB.prepare(`SELECT * FROM symbol_state WHERE last_seen_at >= ?`).bind(new Date(Date.now()-90*60000).toISOString()).all<any>();
   const priorMap = new Map((prior.results ?? []).map(p=>[p.symbol,p]));
   const snapshots = await fetchSnapshots(env, symbols);
@@ -810,7 +903,7 @@ async function scanTick(env: Env) {
     if (dayChangePct > maxChange + 20 || dayChangePct < -15) continue;
     const previousState = priorMap.get(symbol);
     const state = previousState && easternParts(new Date(previousState.last_seen_at)).date === easternParts().date ? previousState : null;
-    if (overnight ? !quoteFresh : !tradeFresh) continue;
+    if (!validQuote(s?.latestQuote) || (overnight ? !quoteFresh : !tradeFresh)) continue;
     if (!(bid > 0 && ask >= bid)) continue;
     const dayVolume = s?.dailyBar?.v ?? 0;
     const priorDayVolume = s?.prevDailyBar?.v ?? 0;
@@ -1076,6 +1169,21 @@ async function publicStatus(env: Env): Promise<Response> {
       ...(env.CF_VERSION_METADATA.timestamp ? { deployed_at: env.CF_VERSION_METADATA.timestamp } : {}),
     };
   }
+  try {
+    const valuations=await env.MEDS_DB.prepare(`SELECT v.*,l.label FROM paper_valuations v JOIN paper_ledgers l USING(ledger_id) WHERE v.id=(SELECT MAX(v2.id) FROM paper_valuations v2 WHERE v2.ledger_id=v.ledger_id)`).all<any>();
+    const epochs=await env.MEDS_DB.prepare('SELECT * FROM paper_metric_epochs WHERE simulator_version=?').bind(SIM_VERSION).all<any>();
+    const rejections=await env.MEDS_DB.prepare("SELECT reason,COUNT(*) AS count FROM paper_decisions WHERE decision LIKE 'REJECTED%' AND created_at>=? GROUP BY reason ORDER BY count DESC LIMIT 20").bind(new Date(Date.now()-86400000).toISOString()).all<any>();
+    body.diagnostics={simulator_version:SIM_VERSION,execution_version:EXEC_VERSION,legacy_drawdown_quality:'pre-fix/untrusted; preserved unchanged',
+      risk_limits:LIMITS,valuations:(valuations.results??[]).map(v=>{
+        const exposures:Exposure[]=JSON.parse(v.exposures);
+        const byUnderlying:Record<string,{planned_risk:number;reserved_risk:number;notional:number}>={};
+        for(const e of exposures){const a=byUnderlying[e.underlying]??={planned_risk:0,reserved_risk:0,notional:0};a.planned_risk+=e.risk;a.reserved_risk+=e.risk+Math.max(0,-e.unrealized);a.notional+=e.notional;}
+        return {...v,diagnostics:JSON.parse(v.diagnostics),exposures,by_underlying:byUnderlying,
+          aggregate_reserved_risk:exposures.reduce((n,e)=>n+e.risk+Math.max(0,-e.unrealized),0)};
+      }),
+      prospective_metrics:epochs.results??[],rejected_entries_24h:rejections.results??[]};
+    if((valuations.results??[]).length!==4 || (valuations.results??[]).some(v=>!v.complete || (activeSession && (secondsSince(v.created_at)??Infinity)>180))){paper.healthy=false;paper.paper_error='incomplete or stale portfolio valuation';body.ok=false;}
+  } catch {body.diagnostics={simulator_version:SIM_VERSION,execution_version:EXEC_VERSION,warning:'phase1 diagnostics unavailable'};paper.healthy=false;body.ok=false;}
   return Response.json(body, {headers:{"cache-control":"no-store","x-content-type-options":"nosniff"}});
 }
 
@@ -1093,7 +1201,7 @@ async function publicPaperRows(pathname: string, url: URL, env: Env): Promise<Re
   const queries: Record<string, string> = {
     "/status/trades": `SELECT t.id,l.label AS ledger,t.lane,t.asset_type,t.symbol,t.strategy,t.direction,
       t.opened_at,t.closed_at,t.quantity,t.entry_price,t.exit_price,t.realized_pnl,t.return_pct,
-      t.r_multiple,t.reward_score,t.exit_reason,t.data_quality
+      t.r_multiple,t.reward_score,t.exit_reason,t.data_quality,t.simulator_version,t.execution_version,t.notes AS execution_audit
       FROM paper_trades t LEFT JOIN paper_ledgers l ON l.ledger_id=t.ledger_id
       ORDER BY t.closed_at DESC,t.id DESC LIMIT ? OFFSET ?`,
     "/status/positions": `SELECT p.id,l.label AS ledger,p.lane,'equity' AS asset_type,p.symbol,p.strategy,
@@ -1122,7 +1230,7 @@ async function publicPaperRows(pathname: string, url: URL, env: Env): Promise<Re
   }
 }
 
-export { runTick, scanTick, manageShadowPositions, inScanWindow, heuristicCatalyst };
+export { runTick, scanTick, manageShadowPositions, inScanWindow, heuristicCatalyst, ensurePaperSchema, valueLedger, markLedger, manageEquityPositions, manageOptionPositions, enterEquityProposal, enterOptionsForCandidate };
 export default {
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
     ctx.waitUntil(runTick(env,"cron"));

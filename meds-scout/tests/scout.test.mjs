@@ -41,7 +41,7 @@ test('simulated cron, persistent SQL, exact +20%, runner, dedupe, auth, pause an
   if(url.includes('/options/snapshots'))return Response.json({snapshots:{}});
   if(url.includes('/snapshots')){
    const q=new URL(url).searchParams.get('symbols').split(',');const result={};
-   for(const symbol of q)result[symbol]={latestTrade:{p:symbol==='FRGT'?price:1,t:new Date().toISOString()},latestQuote:{bp:.995,ap:1.005},minuteBar:{c:1,v:minuteVol},dailyBar:{v:20000},prevDailyBar:{c:1,v:10000}};
+   for(const symbol of q)result[symbol]={latestTrade:{p:symbol==='FRGT'?price:1,t:new Date().toISOString()},latestQuote:{bp:.995,ap:1.005,t:new Date().toISOString()},minuteBar:{c:1,v:minuteVol},dailyBar:{v:20000},prevDailyBar:{c:1,v:10000}};
    return Response.json(result);
   }
   throw Error('Unexpected URL');
