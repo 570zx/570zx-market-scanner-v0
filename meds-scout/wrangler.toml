@@ -1,0 +1,36 @@
+name = "meds-scout-agent"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+
+# Every minute. The code itself gates scans to US market windows.
+[triggers]
+crons = ["* * * * *"]
+
+[[d1_databases]]
+binding = "MEDS_DB"
+database_name = "meds-scout"
+
+
+[vars]
+TRADING_MODE = "shadow"
+SCOUT_ENABLED = "true"
+MIN_PRICE = "0.50"
+MAX_PRICE = "20.00"
+MAX_DAY_CHANGE_PCT = "25"
+MIN_SIGNAL_SCORE = "67"
+MAX_WATCH_SYMBOLS = "4"
+MAX_NEW_POSITION_PCT = "0.40"
+PROFIT_PROTECT_PCT = "0.15"
+FIRST_TAKE_PROFIT_PCT = "0.20"
+FIRST_TAKE_PROFIT_FRACTION = "0.70"
+SECOND_TAKE_PROFIT_PCT = "0.30"
+SECOND_TAKE_PROFIT_FRACTION = "0.50"
+STOP_LOSS_PCT = "0.12"
+MARKET_TIMEZONE = "America/New_York"
+
+# Secrets to set with `wrangler secret put ...`:
+# ALPACA_API_KEY
+# ALPACA_API_SECRET
+# ALERT_WEBHOOK_URL (optional; Discord webhook works)
+# BORROW_PROVIDER_URL (optional; must return JSON metrics for requested symbols)
+# BORROW_PROVIDER_TOKEN (optional)
