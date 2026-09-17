@@ -535,20 +535,33 @@ async function manageEquityPositions(env:PaperEnv,snaps:Record<string,PaperSnaps
       continue;
     }
     const exitReason=stopHit?'stop':targetHit?'target':'time';
-    const gross=p.direction==='long'?(mark-p.entry_price)*p.quantity:(p.entry_price-mark)*p.quantity;
-    const exitSlip=Math.abs(ask-bid)*0.5*p.quantity;
-    const pnl=gross-exitSlip;
+    // A five-minute paper cycle only observes discrete quotes. If a stop/target
+    // was crossed between cycles, using the next raw bid/ask can manufacture
+    // huge multi-R losses or gains that are artifacts of polling latency.
+    // Model the trigger at the configured stop/target and apply bounded
+    // execution slippage exactly once. Time exits continue to use the live mark.
+    const triggerPrice=stopHit?Number(p.stop_price):targetHit?Number(p.target_price):mark;
+    const halfSpread=Math.max(0,(ask-bid)*0.5);
+    const maxModeledSlip=Math.max(0.001,Number(p.entry_price)*0.005);
+    const slipPerShare=Math.min(halfSpread,maxModeledSlip);
+    const exitFill=p.direction==='long'
+      ? Math.max(0.0001,triggerPrice-slipPerShare)
+      : triggerPrice+slipPerShare;
+    const exitSlip=Math.abs(exitFill-triggerPrice)*p.quantity;
+    const pnl=p.direction==='long'
+      ? (exitFill-p.entry_price)*p.quantity
+      : (p.entry_price-exitFill)*p.quantity;
     const ret=p.entry_price>0?pnl/(p.entry_price*p.quantity):0;
     const rMult=p.initial_risk>0?pnl/p.initial_risk:0;
     const mfe=p.direction==='long'?(hi-p.entry_price)/p.entry_price:(p.entry_price-lo)/p.entry_price;
     const mae=p.direction==='long'?(lo-p.entry_price)/p.entry_price:(p.entry_price-hi)/p.entry_price;
     const reward=rMult - Math.abs(ret)*0.15 - (p.entry_slippage_cost+exitSlip)/Math.max(0.01,p.initial_risk)*0.15;
-    const cashDelta=p.direction==='long'?mark*p.quantity:-mark*p.quantity;
+    const cashDelta=p.direction==='long'?exitFill*p.quantity:-exitFill*p.quantity;
     await env.MEDS_DB.batch([
       env.MEDS_DB.prepare(`UPDATE paper_positions SET status='closed',highest_price=?,lowest_price=? WHERE id=?`).bind(hi,lo,p.id),
       env.MEDS_DB.prepare(`UPDATE paper_ledgers SET cash=cash+?,realized_pnl=realized_pnl+?,updated_at=? WHERE ledger_id=?`).bind(cashDelta,pnl,new Date().toISOString(),p.ledger_id),
       env.MEDS_DB.prepare(`INSERT INTO paper_trades(ledger_id,lane,asset_type,symbol,strategy,direction,opened_at,closed_at,quantity,entry_price,exit_price,realized_pnl,return_pct,r_multiple,reward_score,max_favorable_excursion,max_adverse_excursion,slippage_cost,exit_reason,data_quality,notes) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-        .bind(p.ledger_id,p.lane,'equity',p.symbol,p.strategy,p.direction,p.opened_at,new Date().toISOString(),p.quantity,p.entry_price,mark,pnl,ret*100,rMult,reward,mfe*100,mae*100,p.entry_slippage_cost+exitSlip,exitReason,'market-data',p.notes??'')
+        .bind(p.ledger_id,p.lane,'equity',p.symbol,p.strategy,p.direction,p.opened_at,new Date().toISOString(),p.quantity,p.entry_price,exitFill,pnl,ret*100,rMult,reward,mfe*100,mae*100,p.entry_slippage_cost+exitSlip,exitReason,'market-data',p.notes??'')
     ]);
     exits++;
   }
