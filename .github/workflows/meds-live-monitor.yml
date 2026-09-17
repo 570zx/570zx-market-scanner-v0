@@ -4,6 +4,8 @@ on:
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
+  issue_comment:
+    types: [created]
   push:
     branches: [main]
     paths:
@@ -20,6 +22,7 @@ concurrency:
 
 jobs:
   refresh:
+    if: github.event_name != 'issue_comment' || (github.event.issue.number == 1 && github.event.comment.body == '/refresh-meds')
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
@@ -34,3 +37,9 @@ jobs:
         run: |
           jq -n --rawfile body "$RUNNER_TEMP/meds-report.md" '{body:$body}' > "$RUNNER_TEMP/issue.json"
           gh api --method PATCH "repos/$GITHUB_REPOSITORY/issues/1" --input "$RUNNER_TEMP/issue.json"
+      - name: Remove refresh command
+        if: github.event_name == 'issue_comment'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+        run: gh api --method DELETE "repos/$GITHUB_REPOSITORY/issues/comments/$COMMENT_ID"
