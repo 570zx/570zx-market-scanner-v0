@@ -412,7 +412,15 @@ async function ensurePaperSchema(env:PaperEnv){
     const row=await env.MEDS_DB.prepare(`SELECT version FROM paper_meta WHERE id=1`).first<any>();
     if(Number(row?.version)>=1) return;
   } catch { /* first boot before paper tables exist */ }
-  await env.MEDS_DB.exec(PAPER_SCHEMA_SQL);
+  // D1 exec() treats newline-delimited input as separate statements, which
+  // breaks the multiline INSERT ... SELECT seed below. Prepare complete
+  // semicolon-delimited statements and apply them atomically instead.
+  const statements = PAPER_SCHEMA_SQL.trim()
+    .split(/;\s*(?:\n|$)/)
+    .map(sql => sql.trim())
+    .filter(Boolean)
+    .map(sql => env.MEDS_DB.prepare(sql));
+  await env.MEDS_DB.batch(statements);
 }
 const LEDGER_POLICY: Record<string,{maxRiskPct:number;maxAllocPct:number;primaryMax:number;shadowMax:number}> = {
   A: {maxRiskPct:0.05,maxAllocPct:0.25,primaryMax:3,shadowMax:7},
