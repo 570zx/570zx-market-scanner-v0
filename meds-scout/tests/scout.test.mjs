@@ -38,6 +38,7 @@ test('simulated cron, persistent SQL, exact +20%, runner, dedupe, auth, pause an
   if(url.includes('most-actives'))return Response.json({most_actives:[{symbol:'TEST'}]});
   if(url.includes('/movers'))return Response.json({gainers:[],losers:[]});
   if(url.includes('/news'))return Response.json({news:[{symbols:['TEST'],headline:'FDA approval and new contract award'}]});
+  if(url.includes('/options/snapshots'))return Response.json({snapshots:{}});
   if(url.includes('/snapshots')){
    const q=new URL(url).searchParams.get('symbols').split(',');const result={};
    for(const symbol of q)result[symbol]={latestTrade:{p:symbol==='FRGT'?price:1,t:new Date().toISOString()},latestQuote:{bp:.995,ap:1.005},minuteBar:{c:1,v:minuteVol},dailyBar:{v:20000},prevDailyBar:{c:1,v:10000}};
@@ -74,6 +75,22 @@ test('simulated cron, persistent SQL, exact +20%, runner, dedupe, auth, pause an
   await assert.rejects(runTick({...env,TRADING_MODE:'live'},'cron'),/Only shadow/);
   assert.equal((await worker.fetch(request('/orders',{}),env)).status,404);
   const h=await (await worker.fetch(request('/health'),env)).json();assert.equal(h.live_execution,false);assert.ok(h.last_success_at);
+  const statusResponse=await worker.fetch(request('/status',undefined,false),env);
+  assert.equal(statusResponse.status,200);
+  const status=await statusResponse.json();
+  assert.equal(status.live_execution,false);assert.equal(status.mode,'shadow');
+  assert.equal(status.scanner.healthy,true);assert.equal(status.paper.healthy,true);
+  assert.deepEqual(status.ledgers.map(l=>l.id),['MICRO','SMALL','GROWTH','SCALE']);
+  assert.ok(status.paper.cycle_count>=1);assert.ok(status.paper.decision_count>=1);
+  assert.equal((await worker.fetch(request('/paper/cycles',undefined,false),env)).status,401);
+  assert.equal((await worker.fetch(new Request('https://test/status',{method:'POST'}),env)).status,401);
+  const missingDir=mkdtempSync(join(tmpdir(),'meds-status-missing-'));
+  const missingDb=new D1(join(missingDir,'state.sqlite'));
+  for(const m of ['0001_init.sql','0002_operations.sql','0003_tick_counter.sql'])missingDb.db.exec(readFileSync(new URL('../migrations/'+m,import.meta.url),'utf8'));
+  const missingStatus=await (await worker.fetch(request('/status',undefined,false),{...env,MEDS_DB:missingDb})).json();
+  assert.equal(missingStatus.scanner.healthy,false);assert.equal(missingStatus.paper.healthy,false);
+  assert.match(missingStatus.paper.paper_error,/missing tables/);
+  missingDb.db.close();rmSync(missingDir,{recursive:true,force:true});
   assert.ok(requests.every(r=>r.method==='GET'||r.url==='https://discord.com/api/webhooks/test'));
  }finally{globalThis.Date=NativeDate;globalThis.fetch=nativeFetch;db.db.close();rmSync(dir,{recursive:true,force:true});}
 });

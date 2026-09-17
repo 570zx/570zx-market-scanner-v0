@@ -23,6 +23,7 @@ interface Env {
   STOP_LOSS_PCT: string;
   MARKET_TIMEZONE: string;
   PAPER_ENABLED?: string;
+  CF_VERSION_METADATA?: { id: string; tag?: string; timestamp?: string };
 }
 
 type Snapshot = {
@@ -859,6 +860,146 @@ async function runTick(env: Env, source: string) {
   }
 }
 
+function secondsSince(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? Math.max(0, Math.floor((Date.now() - parsed) / 1000)) : null;
+}
+
+const EXPECTED_PAPER_TABLES = [
+  "paper_meta", "paper_ledgers", "paper_cycles", "paper_positions",
+  "paper_option_positions", "paper_trades", "paper_decisions"
+] as const;
+
+async function publicStatus(env: Env): Promise<Response> {
+  const now = new Date();
+  const activeSession = inScanWindow(now);
+  const paperEnabled = env.PAPER_ENABLED !== "false";
+  const state = await env.MEDS_DB.prepare(
+    `SELECT paused,last_tick_at,last_success_at,last_source,last_error,last_result FROM service_state WHERE id=1`
+  ).first<any>();
+  const secondsSinceTick = secondsSince(state?.last_tick_at);
+  const secondsSinceSuccess = secondsSince(state?.last_success_at);
+  const scannerEnabled = env.SCOUT_ENABLED === "true" && !state?.paused;
+  const scannerHealthy = env.TRADING_MODE === "shadow" && scannerEnabled && !state?.last_error &&
+    secondsSinceTick !== null && secondsSinceTick <= 180 &&
+    (!activeSession || (secondsSinceSuccess !== null && secondsSinceSuccess <= 180));
+
+  const scanner = {
+    enabled: scannerEnabled,
+    healthy: scannerHealthy,
+    active_session: activeSession,
+    feed: stockFeed(now),
+    last_tick_at: state?.last_tick_at ?? null,
+    last_success_at: state?.last_success_at ?? null,
+    last_error: state?.last_error ?? null,
+    seconds_since_tick: secondsSinceTick,
+    seconds_since_success: secondsSinceSuccess,
+  };
+
+  let paper: Record<string, unknown> = { enabled: paperEnabled, healthy: !paperEnabled };
+  let ledgers: Record<string, unknown>[] = [];
+  let activity: Record<string, number> = {};
+  try {
+    const schema = await env.MEDS_DB.prepare(
+      `SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'paper_%'`
+    ).all<{name:string}>();
+    const available = new Set((schema.results ?? []).map(row => row.name));
+    const missingTables = EXPECTED_PAPER_TABLES.filter(name => !available.has(name));
+    if (missingTables.length) throw new Error(`missing tables: ${missingTables.join(", ")}`);
+
+    const [meta, latestCycle, counts, ledgerRows, laneCounts] = await Promise.all([
+      env.MEDS_DB.prepare(`SELECT version,initialized_at FROM paper_meta WHERE id=1`).first<any>(),
+      env.MEDS_DB.prepare(`SELECT bucket,started_at,completed_at,notes FROM paper_cycles ORDER BY bucket DESC LIMIT 1`).first<any>(),
+      env.MEDS_DB.prepare(`SELECT
+        (SELECT COUNT(*) FROM paper_cycles) AS cycle_count,
+        (SELECT COUNT(*) FROM paper_decisions) AS decision_count,
+        (SELECT COUNT(*) FROM paper_positions WHERE status='open') +
+          (SELECT COUNT(*) FROM paper_option_positions WHERE status='open') AS open_position_count,
+        (SELECT COUNT(*) FROM paper_trades) AS closed_trade_count`).first<any>(),
+      env.MEDS_DB.prepare(`SELECT l.ledger_id,l.label,l.starting_equity,l.cash,l.realized_pnl,l.max_equity,l.max_drawdown_pct,l.updated_at,
+        (SELECT COUNT(*) FROM paper_positions p WHERE p.ledger_id=l.ledger_id AND p.status='open') +
+          (SELECT COUNT(*) FROM paper_option_positions o WHERE o.ledger_id=l.ledger_id AND o.status='open') AS open_position_count,
+        (SELECT COUNT(*) FROM paper_trades t WHERE t.ledger_id=l.ledger_id) AS closed_trade_count
+        FROM paper_ledgers l ORDER BY l.starting_equity`).all<any>(),
+      env.MEDS_DB.prepare(`SELECT
+        (SELECT COUNT(*) FROM paper_positions WHERE lane='PRIMARY' AND status='open') AS primary_open,
+        (SELECT COUNT(*) FROM paper_positions WHERE lane='SHADOW' AND status='open') +
+          (SELECT COUNT(*) FROM paper_option_positions WHERE lane='SHADOW' AND status='open') AS shadow_open,
+        (SELECT COUNT(*) FROM paper_trades WHERE lane='PRIMARY') AS primary_trades,
+        (SELECT COUNT(*) FROM paper_trades WHERE lane='SHADOW') AS shadow_trades,
+        (SELECT COUNT(*) FROM paper_decisions WHERE decision='REJECTED_SOFT') AS rejected_soft,
+        (SELECT COUNT(*) FROM paper_decisions WHERE decision='REJECTED_HARD') AS rejected_hard`).first<any>(),
+    ]);
+
+    const labels = new Set((ledgerRows.results ?? []).map(row => row.label));
+    const expectedLabels = ["MICRO", "SMALL", "GROWTH", "SCALE"];
+    const missingLedgers = expectedLabels.filter(label => !labels.has(label));
+    const lastCycleAt = latestCycle?.completed_at ?? latestCycle?.started_at ?? null;
+    const secondsSinceCycle = secondsSince(lastCycleAt);
+    let paperError: string | null = null;
+    try {
+      const result = state?.last_result ? JSON.parse(state.last_result) : null;
+      if (result?.paper?.ok === false) paperError = String(result.paper.error ?? "paper cycle failed").slice(0, 300);
+    } catch { paperError = "invalid paper result telemetry"; }
+    if (!meta) paperError = "paper_meta is not initialized";
+    else if (missingLedgers.length) paperError = `missing ledgers: ${missingLedgers.join(", ")}`;
+    else if (latestCycle && !latestCycle.completed_at) paperError = "latest paper cycle is incomplete";
+    else if (activeSession && (secondsSinceCycle === null || secondsSinceCycle > 600)) paperError = "paper cycle is stale";
+
+    const paperHealthy = !paperEnabled || paperError === null;
+    paper = {
+      enabled: paperEnabled,
+      healthy: paperHealthy,
+      schema_version: meta?.version ?? null,
+      initialized_at: meta?.initialized_at ?? null,
+      last_cycle_at: lastCycleAt,
+      seconds_since_cycle: secondsSinceCycle,
+      cycle_count: Number(counts?.cycle_count ?? 0),
+      decision_count: Number(counts?.decision_count ?? 0),
+      open_position_count: Number(counts?.open_position_count ?? 0),
+      closed_trade_count: Number(counts?.closed_trade_count ?? 0),
+      paper_error: paperError,
+    };
+    ledgers = (ledgerRows.results ?? []).map(row => ({
+      id: row.label,
+      starting_equity: Number(row.starting_equity),
+      cash: Number(row.cash),
+      realized_pnl: Number(row.realized_pnl),
+      max_equity: Number(row.max_equity),
+      max_drawdown_pct: Number(row.max_drawdown_pct),
+      open_position_count: Number(row.open_position_count),
+      closed_trade_count: Number(row.closed_trade_count),
+      updated_at: row.updated_at,
+    }));
+    activity = Object.fromEntries(Object.entries(laneCounts ?? {}).map(([key,value]) => [key, Number(value)]));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "paper telemetry unavailable";
+    paper = { enabled: paperEnabled, healthy: false, paper_error: message.slice(0, 300) };
+  }
+
+  const paperHealthy = paper.healthy === true;
+  const body: Record<string, unknown> = {
+    ok: scannerHealthy && paperHealthy,
+    service: "MEDS Scout",
+    mode: "shadow",
+    live_execution: false,
+    time: now.toISOString(),
+    scanner,
+    paper,
+    ledgers,
+    activity,
+  };
+  if (env.CF_VERSION_METADATA?.id) {
+    body.version = {
+      worker_version: env.CF_VERSION_METADATA.id,
+      ...(env.CF_VERSION_METADATA.tag ? { tag: env.CF_VERSION_METADATA.tag } : {}),
+      ...(env.CF_VERSION_METADATA.timestamp ? { deployed_at: env.CF_VERSION_METADATA.timestamp } : {}),
+    };
+  }
+  return Response.json(body, {headers:{"cache-control":"no-store","x-content-type-options":"nosniff"}});
+}
+
 export { runTick, scanTick, manageShadowPositions, inScanWindow, heuristicCatalyst };
 export default {
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
@@ -871,6 +1012,7 @@ export default {
       return Response.json({ok:env.TRADING_MODE==="shadow" && !state?.last_error,mode:"shadow",live_execution:false,
         enabled:env.SCOUT_ENABLED==="true" && !state?.paused,time:new Date().toISOString(),market:easternParts(),feed:stockFeed(),paper_enabled:env.PAPER_ENABLED!=="false",...state});
     }
+    if (url.pathname === "/status" && req.method === "GET") return publicStatus(env);
     if (!env.ADMIN_TOKEN || req.headers.get("authorization") !== `Bearer ${env.ADMIN_TOKEN}`) return Response.json({error:"Unauthorized"},{status:401});
     if (url.pathname === "/control/pause" && req.method === "POST") {
       await env.MEDS_DB.prepare(`UPDATE service_state SET paused=1 WHERE id=1`).run();
