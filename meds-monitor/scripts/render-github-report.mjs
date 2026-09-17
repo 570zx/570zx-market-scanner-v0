@@ -95,4 +95,4 @@ _Source endpoints remain available at ${base}, but normal ChatGPT should read th
 
 process.stdout.write(report.slice(0, 64000));
 
-// A workflow push also provides an immediate refresh path when scheduled jobs are delayed.
+// Workflow pushes provide an immediate verification refresh when scheduled jobs are delayed.
