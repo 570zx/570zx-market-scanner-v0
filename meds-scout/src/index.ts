@@ -399,19 +399,20 @@ CREATE INDEX IF NOT EXISTS idx_paper_trades_strategy ON paper_trades(strategy,cl
 CREATE TABLE IF NOT EXISTS paper_decisions(id INTEGER PRIMARY KEY AUTOINCREMENT,created_at TEXT NOT NULL,bucket TEXT NOT NULL,ledger_id TEXT NOT NULL,lane TEXT NOT NULL,asset_type TEXT NOT NULL,symbol TEXT NOT NULL,strategy TEXT NOT NULL,decision TEXT NOT NULL,score REAL,reference_price REAL,spread_pct REAL,reason TEXT,data_quality TEXT NOT NULL DEFAULT 'live');
 CREATE INDEX IF NOT EXISTS idx_paper_decisions_bucket ON paper_decisions(bucket,ledger_id);
 CREATE INDEX IF NOT EXISTS idx_paper_decisions_symbol ON paper_decisions(symbol,created_at DESC);
+CREATE TRIGGER IF NOT EXISTS paper_ledgers_prevent_negative_cash BEFORE UPDATE OF cash ON paper_ledgers WHEN NEW.cash < -0.000001 AND NEW.cash < OLD.cash BEGIN SELECT RAISE(ABORT,'paper ledger cash cannot be reduced below zero'); END;
 INSERT OR IGNORE INTO paper_ledgers(ledger_id,label,starting_equity,cash,realized_pnl,max_equity,max_drawdown_pct,updated_at) VALUES('A','MICRO',209.87,210.92,1.05,210.92,0,strftime('%Y-%m-%dT%H:%M:%fZ','now'));
 INSERT OR IGNORE INTO paper_ledgers(ledger_id,label,starting_equity,cash,realized_pnl,max_equity,max_drawdown_pct,updated_at) VALUES('B','SMALL',1000,1000,0,1000,0,strftime('%Y-%m-%dT%H:%M:%fZ','now'));
 INSERT OR IGNORE INTO paper_ledgers(ledger_id,label,starting_equity,cash,realized_pnl,max_equity,max_drawdown_pct,updated_at) VALUES('C','GROWTH',5000,5000,0,5000,0,strftime('%Y-%m-%dT%H:%M:%fZ','now'));
 INSERT OR IGNORE INTO paper_ledgers(ledger_id,label,starting_equity,cash,realized_pnl,max_equity,max_drawdown_pct,updated_at) VALUES('D','SCALE',25000,25000,0,25000,0,strftime('%Y-%m-%dT%H:%M:%fZ','now'));
 INSERT INTO paper_trades(ledger_id,lane,asset_type,symbol,strategy,direction,opened_at,closed_at,quantity,entry_price,exit_price,realized_pnl,return_pct,r_multiple,reward_score,max_favorable_excursion,max_adverse_excursion,slippage_cost,exit_reason,data_quality,notes)
 SELECT 'A','PRIMARY','equity','CIFR','extended_hours_continuation','long','2026-09-16T23:58:00-04:00','2026-09-17T04:51:00-04:00',3,17.30,17.65,1.05,2.0231,1.9444,1.80,NULL,NULL,0,'target','manual-paper','Imported from manual paper cycle' WHERE NOT EXISTS(SELECT 1 FROM paper_trades WHERE ledger_id='A' AND symbol='CIFR' AND opened_at='2026-09-16T23:58:00-04:00');
-INSERT OR REPLACE INTO paper_meta(id,version,initialized_at) VALUES(1,1,strftime('%Y-%m-%dT%H:%M:%fZ','now'));
+INSERT INTO paper_meta(id,version,initialized_at) VALUES(1,2,strftime('%Y-%m-%dT%H:%M:%fZ','now')) ON CONFLICT(id) DO UPDATE SET version=excluded.version;
 `;
 
 async function ensurePaperSchema(env:PaperEnv){
   try {
     const row=await env.MEDS_DB.prepare(`SELECT version FROM paper_meta WHERE id=1`).first<any>();
-    if(Number(row?.version)>=1) return;
+    if(Number(row?.version)>=2) return;
   } catch { /* first boot before paper tables exist */ }
   // D1 exec() treats newline-delimited input as separate statements, which
   // breaks the multiline INSERT ... SELECT seed below. Prepare complete
@@ -570,14 +571,20 @@ async function enterEquityProposal(env:PaperEnv,ledger:Ledger,lane:'PRIMARY'|'SH
   const allocCap=equity*policy.maxAllocPct;
   const byRisk=Math.floor(riskCap/riskPerShare), byAlloc=Math.floor(allocCap/roughEntry);
   const liquidityCap=Math.max(0,Math.floor(Math.max(0,c.minuteVolume)*(lane==='PRIMARY'?0.02:0.05)));
-  const qty=Math.max(0,Math.min(byRisk,byAlloc,liquidityCap||0));
+  // Re-read cash for every proposal. A ledger can make several entries in one
+  // decision cycle, so the cycle-start Ledger snapshot is not authoritative.
+  const cashRow=await env.MEDS_DB.prepare(`SELECT cash FROM paper_ledgers WHERE ledger_id=?`).bind(ledger.ledger_id).first<any>();
+  const availableCash=Math.max(0,Number(cashRow?.cash??0));
+  ledger.cash=Number(cashRow?.cash??0);
+  const byCash=p.direction==='long'?Math.floor(availableCash/(c.ask*1.01)):Number.MAX_SAFE_INTEGER;
+  const qty=Math.max(0,Math.min(byRisk,byAlloc,liquidityCap||0,byCash));
   if(qty<1) return {entered:false,reason:'size/liquidity/whole-share constraint'};
   const {fill,slipPct}=executablePrice(c,p.direction,qty);
   const stop=p.direction==='long'?fill*(1-p.stopPct):fill*(1+p.stopPct);
   const risk=Math.abs(fill-stop)*qty;
   const target=p.direction==='long'?fill+(fill-stop)*p.rewardRisk:fill-(stop-fill)*p.rewardRisk;
   const cost=fill*qty;
-  if(p.direction==='long' && cost>ledger.cash+1e-8) return {entered:false,reason:'cash constraint'};
+  if(p.direction==='long' && cost>availableCash+1e-8) return {entered:false,reason:'cash constraint'};
   const spreadCost=(c.ask-c.bid)*0.5*qty, slipCost=fill*slipPct*qty;
   const cashDelta=p.direction==='long'?-cost:cost;
   await env.MEDS_DB.batch([
@@ -587,6 +594,7 @@ async function enterEquityProposal(env:PaperEnv,ledger:Ledger,lane:'PRIMARY'|'SH
     env.MEDS_DB.prepare(`INSERT INTO paper_decisions(created_at,bucket,ledger_id,lane,asset_type,symbol,strategy,decision,score,reference_price,spread_pct,reason,data_quality) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       .bind(new Date().toISOString(),bucket,ledger.ledger_id,lane,'equity',c.symbol,p.strategy,'ENTER',p.quality,fill,c.spreadPct,p.reason,'market-data')
   ]);
+  ledger.cash+=cashDelta;
   return {entered:true,qty,fill,stop,target,risk};
 }
 
@@ -662,7 +670,10 @@ async function enterOptionsForCandidate(env:PaperEnv,ledger:Ledger,c:PaperCandid
   const strategies:{strategy:string,longSym:string,shortSym?:string,debit:number}[]=[{strategy:dir==='bull'?'long_call':'long_put',longSym:long.symbol,debit:longAsk}];
   if(short){ const shortBid=short.s.latestQuote?.bp??0; const debit=longAsk-shortBid; if(debit>0.02) strategies.push({strategy:dir==='bull'?'call_debit_spread':'put_debit_spread',longSym:long.symbol,shortSym:short.symbol,debit}); }
   for(const st of strategies.slice(0,2)){
-    const riskPer=st.debit*100; const qty=Math.floor(Math.min(eq*policy.maxRiskPct/riskPer,eq*policy.maxAllocPct/riskPer,ledger.cash/riskPer));
+    const cashRow=await env.MEDS_DB.prepare(`SELECT cash FROM paper_ledgers WHERE ledger_id=?`).bind(ledger.ledger_id).first<any>();
+    const availableCash=Math.max(0,Number(cashRow?.cash??0));
+    ledger.cash=Number(cashRow?.cash??0);
+    const riskPer=st.debit*100; const qty=Math.floor(Math.min(eq*policy.maxRiskPct/riskPer,eq*policy.maxAllocPct/riskPer,availableCash/riskPer));
     if(qty<1){
       await env.MEDS_DB.prepare(`INSERT INTO paper_decisions(created_at,bucket,ledger_id,lane,asset_type,symbol,strategy,decision,score,reference_price,spread_pct,reason,data_quality) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(new Date().toISOString(),bucket,ledger.ledger_id,'SHADOW','option',c.symbol,st.strategy,'REJECTED_SIZE',c.score,st.debit,null,'premium/risk exceeds ledger constraints','indicative').run();
       continue;
@@ -674,7 +685,7 @@ async function enterOptionsForCandidate(env:PaperEnv,ledger:Ledger,c:PaperCandid
       env.MEDS_DB.prepare(`UPDATE paper_ledgers SET cash=cash-?,updated_at=? WHERE ledger_id=?`).bind(riskPer*qty,new Date().toISOString(),ledger.ledger_id),
       env.MEDS_DB.prepare(`INSERT INTO paper_decisions(created_at,bucket,ledger_id,lane,asset_type,symbol,strategy,decision,score,reference_price,spread_pct,reason,data_quality) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`)
         .bind(new Date().toISOString(),bucket,ledger.ledger_id,'SHADOW','option',c.symbol,st.strategy,'ENTER',c.score,st.debit,null,'directional option research from underlying signal','indicative')
-    ]); entries++;
+    ]); ledger.cash=availableCash-riskPer*qty; entries++;
   }
   return entries;
 }
