@@ -1,0 +1,30 @@
+name = "570zx-agents"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+
+# Cheap heartbeat. The Worker only performs meaningful work when due or when queued events exist.
+[triggers]
+crons = ["*/15 * * * *"]
+
+[ai]
+binding = "AI"
+
+[vars]
+AI_ENABLED = "true"
+AI_MODEL = "@cf/meta/llama-3.2-3b-instruct"
+TIMEZONE = "America/New_York"
+APPROVAL_MODE = "required"
+MAX_AI_CALLS_PER_RUN = "3"
+
+# Add this block after creating the D1 database in Cloudflare.
+# [[d1_databases]]
+# binding = "OPS_DB"
+# database_name = "570zx-agents"
+# database_id = "PASTE_D1_DATABASE_ID_HERE"
+
+# Required runtime secret before using protected HTTP endpoints:
+# ADMIN_TOKEN
+#
+# Future integrations should use separate secrets and remain approval-gated:
+# GMAIL_WEBHOOK_SECRET
+# CONTENT_WEBHOOK_SECRET
