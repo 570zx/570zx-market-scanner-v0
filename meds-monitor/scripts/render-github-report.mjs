@@ -58,6 +58,27 @@ ${table(ledgers, [
   ["Open", "open_position_count"], ["Closed", "closed_trade_count"], ["Updated", "updated_at"],
 ])}
 
+## Simulator diagnostics
+
+- Simulator: ${cell(status.diagnostics?.simulator_version || "legacy/unavailable")}
+- Execution: ${cell(status.diagnostics?.execution_version || "legacy/unavailable")}
+- Historical drawdown: ${cell(status.diagnostics?.legacy_drawdown_quality || "pre-fix/untrusted")}
+- Warning: ${cell(status.diagnostics?.warning)}
+
+${table((status.diagnostics?.valuations || []).map(v=>({
+  ledger:v.label, equity:v.complete ? v.equity : "UNAVAILABLE", risk:v.complete ? v.aggregate_reserved_risk : "INCOMPLETE",
+  warnings:(v.diagnostics || []).join("; "),at:v.created_at,
+  exposure:Object.entries(v.by_underlying || {}).map(([symbol,e])=>symbol+": risk="+Number(e.reserved_risk).toFixed(2)).join("; "),
+})), [["Ledger","ledger"],["Marked equity","equity"],["Reserved risk","risk"],["Underlying risk","exposure"],["Warnings","warnings"],["As of","at"]])}
+
+${table(status.diagnostics?.prospective_metrics || [], [["Ledger ID","ledger_id"],["Post-fix peak equity","max_equity"],["Post-fix max drawdown","max_drawdown_pct"]])}
+
+<details><summary>Entry rejections (last 24 hours, including legacy records)</summary>
+
+${table(status.diagnostics?.rejected_entries_24h || [], [["Reason","reason"],["Count","count"]])}
+
+</details>
+
 ## Open paper positions (${positions.length})
 
 ${table(positions, [
@@ -73,7 +94,7 @@ ${table(trades, [
   ["Ledger", "ledger"], ["Lane", "lane"], ["Asset", "asset_type"], ["Symbol", "symbol"],
   ["Strategy", "strategy"], ["Direction", "direction"], ["Qty", "quantity"],
   ["Entry", "entry_price"], ["Exit", "exit_price"], ["P&L", "realized_pnl"],
-  ["Return %", "return_pct"], ["R", "r_multiple"], ["Reason", "exit_reason"], ["Closed", "closed_at"],
+  ["Simulator", "simulator_version"], ["Return %", "return_pct"], ["R", "r_multiple"], ["Reason", "exit_reason"], ["Closed", "closed_at"],
 ])}
 
 ## Most recent paper decisions (${decisions.length} shown)
@@ -96,3 +117,4 @@ _Source endpoints remain available at ${base}, but normal ChatGPT should read th
 process.stdout.write(report.slice(0, 64000));
 
 // Workflow pushes provide an immediate verification refresh when scheduled jobs are delayed (watchdog verification).
+
