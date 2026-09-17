@@ -1,0 +1,36 @@
+name: Refresh MEDS live monitor
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/meds-live-monitor.yml"
+      - "meds-monitor/scripts/render-github-report.mjs"
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: meds-live-monitor
+  cancel-in-progress: true
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build read-only telemetry report
+        env:
+          MEDS_BASE_URL: https://meds-monitor.pages.dev
+        run: node meds-monitor/scripts/render-github-report.mjs > "$RUNNER_TEMP/meds-report.md"
+      - name: Refresh GitHub monitor issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          jq -n --rawfile body "$RUNNER_TEMP/meds-report.md" '{body:$body}' > "$RUNNER_TEMP/issue.json"
+          gh api --method PATCH "repos/$GITHUB_REPOSITORY/issues/1" --input "$RUNNER_TEMP/issue.json"
