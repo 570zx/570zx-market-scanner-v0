@@ -9,7 +9,7 @@ crons = ["* * * * *"]
 [[d1_databases]]
 binding = "MEDS_DB"
 database_name = "meds-scout"
-
+database_id = "4c51e6c1-6d95-4002-800a-a7c74da64b24"
 
 [vars]
 TRADING_MODE = "shadow"
@@ -28,9 +28,10 @@ SECOND_TAKE_PROFIT_FRACTION = "0.50"
 STOP_LOSS_PCT = "0.12"
 MARKET_TIMEZONE = "America/New_York"
 
-# Secrets to set with `wrangler secret put ...`:
+# Runtime secrets are configured in Cloudflare, not committed here:
 # ALPACA_API_KEY
 # ALPACA_API_SECRET
+# ADMIN_TOKEN
 # ALERT_WEBHOOK_URL (optional; Discord webhook works)
 # BORROW_PROVIDER_URL (optional; must return JSON metrics for requested symbols)
 # BORROW_PROVIDER_TOKEN (optional)
