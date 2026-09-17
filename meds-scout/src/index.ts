@@ -703,6 +703,9 @@ async function enterOptionsForCandidate(env:PaperEnv,ledger:Ledger,c:PaperCandid
   return entries;
 }
 
+const PAPER_CYCLE_RETRY_MS=60_000;
+const PAPER_CYCLE_STALE_MS=7*60_000;
+
 async function runPaperLab(env:PaperEnv,candidates:PaperCandidate[],snaps:Record<string,PaperSnapshot>){
   if(env.PAPER_ENABLED==='false') return {ok:true,skipped:'paper disabled'};
   await ensurePaperSchema(env);
@@ -711,31 +714,68 @@ async function runPaperLab(env:PaperEnv,candidates:PaperCandidate[],snaps:Record
   const ledgers=(await env.MEDS_DB.prepare(`SELECT * FROM paper_ledgers ORDER BY ledger_id`).all<Ledger>()).results??[];
   for(const l of ledgers) await markLedger(env,l,snaps);
   if(!paperDecisionBoundary()) return {ok:true,managed:true,equityExits,optionExits,decisionCycle:false};
-  const bucket=bucket5();
-  const claim=await env.MEDS_DB.prepare(`INSERT OR IGNORE INTO paper_cycles(bucket,started_at) VALUES(?,?)`).bind(bucket,new Date().toISOString()).run();
-  if(!claim.meta.changes) return {ok:true,managed:true,equityExits,optionExits,decisionCycle:false,duplicate:true};
-  let entries=0,optionEntries=0,evaluated=0;
-  const marketPhase=phase();
-  for(const ledger of ledgers){
-    for(const c of candidates.slice(0,6)){
-      const ps=proposals(c,marketPhase);
-      if(!ps.length){
-        await env.MEDS_DB.prepare(`INSERT INTO paper_decisions(created_at,bucket,ledger_id,lane,asset_type,symbol,strategy,decision,score,reference_price,spread_pct,reason,data_quality) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(new Date().toISOString(),bucket,ledger.ledger_id,'SHADOW','equity',c.symbol,'none','NO_SETUP',c.score,c.price,c.spreadPct,'no strategy rule matched','market-data').run();
-        evaluated++; continue;
-      }
-      for(const p of ps.slice(0,2)){
-        for(const lane of ['PRIMARY','SHADOW'] as const){
-          const r=await enterEquityProposal(env,ledger,lane,c,p,bucket); evaluated++;
-          if(r.entered) entries++;
-          else await env.MEDS_DB.prepare(`INSERT INTO paper_decisions(created_at,bucket,ledger_id,lane,asset_type,symbol,strategy,decision,score,reference_price,spread_pct,reason,data_quality) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(new Date().toISOString(),bucket,ledger.ledger_id,lane,'equity',c.symbol,p.strategy,(r.reason==='soft score threshold'||r.reason==='below exploration threshold')?'REJECTED_SOFT':'REJECTED_HARD',p.quality,c.price,c.spreadPct,r.reason,'market-data').run();
+
+  const now=new Date();
+  const bucket=bucket5(now);
+  const existing=await env.MEDS_DB.prepare(`SELECT started_at,completed_at FROM paper_cycles WHERE bucket=?`).bind(bucket).first<any>();
+  if(existing?.completed_at) return {ok:true,managed:true,equityExits,optionExits,decisionCycle:false,duplicate:true};
+
+  const latestComplete=await env.MEDS_DB.prepare(`SELECT completed_at FROM paper_cycles WHERE completed_at IS NOT NULL ORDER BY completed_at DESC LIMIT 1`).first<any>();
+  const latestCompleteMs=latestComplete?.completed_at?Date.parse(latestComplete.completed_at):0;
+  const watchdogForced=!latestCompleteMs || now.getTime()-latestCompleteMs>PAPER_CYCLE_STALE_MS;
+  if(existing?.started_at && now.getTime()-Date.parse(existing.started_at)<PAPER_CYCLE_RETRY_MS){
+    return {ok:true,managed:true,equityExits,optionExits,decisionCycle:false,inProgress:true,watchdogForced};
+  }
+
+  const retryBefore=new Date(now.getTime()-PAPER_CYCLE_RETRY_MS).toISOString();
+  const claim=await env.MEDS_DB.prepare(`
+    INSERT INTO paper_cycles(bucket,started_at,completed_at,candidates_evaluated,entries,exits,option_entries,notes)
+    VALUES(?,?,NULL,0,0,0,0,?)
+    ON CONFLICT(bucket) DO UPDATE SET
+      started_at=excluded.started_at,
+      completed_at=NULL,
+      candidates_evaluated=0,
+      entries=0,
+      exits=0,
+      option_entries=0,
+      notes='retrying incomplete cycle'
+    WHERE paper_cycles.completed_at IS NULL AND paper_cycles.started_at<=?
+  `).bind(bucket,now.toISOString(),watchdogForced?'running: watchdog recovery':'running',retryBefore).run();
+  if(!claim.meta.changes) return {ok:true,managed:true,equityExits,optionExits,decisionCycle:false,inProgress:true,watchdogForced};
+
+  try {
+    let entries=0,optionEntries=0,evaluated=0;
+    const marketPhase=phase(now);
+    for(const ledger of ledgers){
+      const ledgerEntriesBefore=entries;
+      const ledgerOptionEntriesBefore=optionEntries;
+      for(const c of candidates.slice(0,6)){
+        const ps=proposals(c,marketPhase);
+        if(!ps.length){
+          await env.MEDS_DB.prepare(`INSERT INTO paper_decisions(created_at,bucket,ledger_id,lane,asset_type,symbol,strategy,decision,score,reference_price,spread_pct,reason,data_quality) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(new Date().toISOString(),bucket,ledger.ledger_id,'SHADOW','equity',c.symbol,'none','NO_SETUP',c.score,c.price,c.spreadPct,'no strategy rule matched','market-data').run();
+          evaluated++; continue;
+        }
+        for(const p of ps.slice(0,2)){
+          for(const lane of ['PRIMARY','SHADOW'] as const){
+            const r=await enterEquityProposal(env,ledger,lane,c,p,bucket); evaluated++;
+            if(r.entered) entries++;
+            else await env.MEDS_DB.prepare(`INSERT INTO paper_decisions(created_at,bucket,ledger_id,lane,asset_type,symbol,strategy,decision,score,reference_price,spread_pct,reason,data_quality) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(new Date().toISOString(),bucket,ledger.ledger_id,lane,'equity',c.symbol,p.strategy,(r.reason==='soft score threshold'||r.reason==='below exploration threshold')?'REJECTED_SOFT':'REJECTED_HARD',p.quality,c.price,c.spreadPct,r.reason,'market-data').run();
+          }
         }
       }
+      // Free option data is indicative, so options remain shadow/research-only.
+      for(const c of candidates.slice(0,2)) optionEntries+=await enterOptionsForCandidate(env,ledger,c,bucket);
+      if(entries===ledgerEntriesBefore && optionEntries===ledgerOptionEntriesBefore){
+        await env.MEDS_DB.prepare(`INSERT INTO paper_decisions(created_at,bucket,ledger_id,lane,asset_type,symbol,strategy,decision,score,reference_price,spread_pct,reason,data_quality) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(new Date().toISOString(),bucket,ledger.ledger_id,'SHADOW','equity','MARKET','none','NO_TRADE',null,null,null,'fresh five-minute scan completed; no new entry met strategy and risk constraints','market-data').run();
+      }
     }
-    // Free option data is indicative, so options are shadow/research-only until OPRA-quality data is available.
-    for(const c of candidates.slice(0,2)) optionEntries+=await enterOptionsForCandidate(env,ledger,c,bucket);
+    await env.MEDS_DB.prepare(`UPDATE paper_cycles SET completed_at=?,candidates_evaluated=?,entries=?,exits=?,option_entries=?,notes=? WHERE bucket=?`).bind(new Date().toISOString(),evaluated,entries,equityExits+optionExits,optionEntries,`complete; phase=${marketPhase}; options=indicative-research-only; watchdog=${watchdogForced}`,bucket).run();
+    return {ok:true,decisionCycle:true,bucket,marketPhase,evaluated,entries,optionEntries,equityExits,optionExits,watchdogForced};
+  } catch(error){
+    const message=error instanceof Error?error.message:String(error);
+    await env.MEDS_DB.prepare(`UPDATE paper_cycles SET completed_at=NULL,notes=? WHERE bucket=?`).bind(`incomplete: ${message}`.slice(0,500),bucket).run();
+    throw error;
   }
-  await env.MEDS_DB.prepare(`UPDATE paper_cycles SET completed_at=?,candidates_evaluated=?,entries=?,exits=?,option_entries=?,notes=? WHERE bucket=?`).bind(new Date().toISOString(),evaluated,entries,equityExits+optionExits,optionEntries,`phase=${marketPhase}; options=indicative-research-only`,bucket).run();
-  return {ok:true,decisionCycle:true,bucket,marketPhase,evaluated,entries,optionEntries,equityExits,optionExits};
 }
 
 
