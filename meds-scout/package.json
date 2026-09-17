@@ -1,0 +1,18 @@
+{
+  "name": "meds-scout-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "node scripts/deploy.mjs",
+    "db:init": "wrangler d1 migrations apply MEDS_DB --remote",
+    "test": "node --test tests/*.test.mjs",
+    "check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20260917.1",
+    "typescript": "^5.6.3",
+    "wrangler": "^4.0.0"
+  }
+}
