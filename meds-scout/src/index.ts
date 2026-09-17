@@ -121,7 +121,7 @@ function regularSession(date = new Date()): boolean {
 }
 
 async function alpacaJson(env: Env, path: string): Promise<any> {
-  const r = await fetch(`${ALPACA_DATA}${path}`, { headers: headers(env), redirect:"error", signal:AbortSignal.timeout(5000) });
+  const r = await fetch(`${ALPACA_DATA}${path}`, { headers: headers(env), redirect:"manual", signal:AbortSignal.timeout(5000) });
   if (!r.ok) throw new Error(`Alpaca HTTP ${r.status}`);
   return r.json();
 }
@@ -167,7 +167,7 @@ async function fetchNewsForSymbols(env: Env, symbols: string[]) {
   if (!symbols.length) return [] as any[];
   const start = new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString();
   const q = new URLSearchParams({ symbols: symbols.join(","), limit: "35", sort: "desc", start });
-  const r = await fetch(`${ALPACA_DATA}/v1beta1/news?${q}`, { headers: headers(env), redirect:"error", signal:AbortSignal.timeout(5000) });
+  const r = await fetch(`${ALPACA_DATA}/v1beta1/news?${q}`, { headers: headers(env), redirect:"manual", signal:AbortSignal.timeout(5000) });
   if (!r.ok) throw new Error(`News HTTP ${r.status}`);
   const j: any = await r.json();
   return j.news ?? [];
@@ -241,7 +241,7 @@ async function postAlert(env: Env, text: string, eventKey: string) {
     if (target.protocol !== "https:" || /(^|\.)alpaca\.markets$/.test(target.hostname)) throw new Error("Invalid webhook target");
     const body = /(^|\.)discord(?:app)?\.com$/.test(target.hostname)
       ? { content: text.slice(0,1900), allowed_mentions: {parse: []} } : { text };
-    const response = await fetch(target, {method:"POST",redirect:"error",signal:AbortSignal.timeout(5000),
+    const response = await fetch(target, {method:"POST",redirect:"manual",signal:AbortSignal.timeout(5000),
       headers:{"content-type":"application/json"},body:JSON.stringify(body)});
     status = response.ok ? "sent" : `failed_http_${response.status}`;
   } catch { status = "unknown"; }
@@ -449,7 +449,7 @@ function bucket5(date=new Date()){
 }
 
 async function alpaca(env:PaperEnv,path:string):Promise<any>{
-  const r=await fetch(`${PAPER_ALPACA_DATA}${path}`,{headers:paperHeaders(env),redirect:'error',signal:AbortSignal.timeout(5000)});
+  const r=await fetch(`${PAPER_ALPACA_DATA}${path}`,{headers:paperHeaders(env),redirect:'manual',signal:AbortSignal.timeout(5000)});
   if(!r.ok) throw new Error(`Alpaca paper-lab HTTP ${r.status}`);
   return r.json();
 }
