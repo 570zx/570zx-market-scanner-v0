@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {readFileSync} from 'node:fs';
 import {validQuote,equityExit,optionQuote,riskCapacity,SIM_VERSION,EXEC_VERSION} from '../src/paper-accounting.ts';
-import {ensurePaperSchema,valueLedger,markLedger,manageEquityPositions,manageOptionPositions,enterEquityProposal,enterOptionsForCandidate,scanTick,leaderHuntEligible,runLeaderHunt,manageLeaderHuntPositions,HUNT_VERSION} from '../src/index.ts';
+import {ensurePaperSchema,valueLedger,markLedger,manageEquityPositions,manageOptionPositions,enterEquityProposal,enterOptionsForCandidate,scanTick,leaderHuntEligible,runLeaderHunt,manageHuntAccountPositions,HUNT_VERSION} from '../src/index.ts';
 class D1 {
  constructor(){this.db=new DatabaseSync(':memory:');}
  prepare(sql){const db=this.db;return {args:[],bind(...a){this.args=a;return this;},async run(){const r=db.prepare(sql).run(...this.args);return {meta:{changes:Number(r.changes)}};},async all(){return {results:db.prepare(sql).all(...this.args)};},async first(){return db.prepare(sql).get(...this.args)??null;}};}
@@ -44,7 +44,7 @@ test('migration preserves historical trades and drawdown, and is idempotent',asy
  await ensurePaperSchema(env);await ensurePaperSchema(env);
  assert.equal(JSON.stringify(db.prepare('SELECT * FROM paper_trades').all()),trades);
  assert.equal(db.prepare("SELECT max_drawdown_pct AS dd FROM paper_ledgers WHERE ledger_id='C'").get().dd,.51);
- assert.equal(db.prepare('SELECT version FROM paper_meta').get().version,4);
+ assert.equal(db.prepare('SELECT version FROM paper_meta').get().version,5);
  assert.equal(db.prepare('SELECT simulator_version FROM paper_trades').get().simulator_version,'legacy-untrusted');
  db.close();
 });
@@ -137,19 +137,26 @@ test('scanner retrieves held paper symbols even if discovery omits them',async()
 });
 
 
-test('leader hunt enters early candidates independently and records target outcomes',async()=>{
+test('leader hunt mirrors one early signal across five capital tiers and records account P&L',async()=>{
  const {env,db}=await setup();
- const c={...candidate,dayChangePct:4,dayVolume:1000,previousDayVolume:1000,spreadPct:.1,volumeAccel:.10,consecutiveHits:3,catalystScore:0,catalystSummary:'',score:60,reasons:['fixture']};
+ const accounts=db.prepare("SELECT label,starting_equity,cash FROM hunt_accounts ORDER BY starting_equity").all();
+ assert.deepEqual(accounts.map(x=>x.starting_equity),[100,1000,10000,100000,500000]);
+ const c={...candidate,dayChangePct:4,dayVolume:100000,previousDayVolume:100000,minuteVolume:100000,spreadPct:.1,volumeAccel:.10,consecutiveHits:3,catalystScore:0,catalystSummary:'',score:60,reasons:['fixture']};
  assert.equal(leaderHuntEligible(c),true);
  assert.equal(leaderHuntEligible({...c,dayChangePct:10.01}),false);
- const snaps={TEST:{latestQuote:quote(100,100.1)}};
+ const snaps={TEST:{latestQuote:quote(100,100.1),minuteBar:{o:100,h:100.2,l:99.9,c:100.1,v:100000,t:new Date().toISOString()}}};
  const run=await runLeaderHunt(env,[c],snaps);
- assert.equal(run.entries,1);assert.equal(run.open,1);assert.equal(run.version,HUNT_VERSION);
- assert.equal(db.prepare("SELECT status FROM hunt_observations WHERE symbol='TEST'").get().status,'ENTERED');
+ assert.equal(run.signals_entered,1);assert.equal(run.account_entries,5);assert.equal(run.open,5);assert.equal(run.version,HUNT_VERSION);
+ assert.equal(db.prepare("SELECT status FROM hunt_observations WHERE symbol='TEST'").get().status,'ACCOUNT_SAMPLED');
+ assert.equal(db.prepare("SELECT COUNT(*) n FROM hunt_account_positions WHERE status='open'").get().n,5);
  assert.equal(db.prepare("SELECT COUNT(*) n FROM paper_positions").get().n,0);
+ const sizes=db.prepare("SELECT account_id,quantity,entry_notional FROM hunt_account_positions ORDER BY entry_notional").all();
+ assert.equal(sizes.length,5);assert.ok(sizes[4].entry_notional>sizes[0].entry_notional*1000);
  snaps.TEST.latestQuote=quote(113,113.1);
- assert.equal(await manageLeaderHuntPositions(env,snaps),1);
- const t=db.prepare("SELECT * FROM hunt_trades WHERE symbol='TEST'").get();
- assert.equal(t.exit_reason,'target');assert.ok(t.return_pct>10);assert.equal(t.version,HUNT_VERSION);
+ assert.equal(await manageHuntAccountPositions(env,snaps),5);
+ const trades=db.prepare("SELECT * FROM hunt_account_trades WHERE symbol='TEST' ORDER BY entry_notional").all();
+ assert.equal(trades.length,5);assert.ok(trades.every(t=>t.exit_reason==='target'&&t.realized_pnl>0&&t.version===HUNT_VERSION));
+ const after=db.prepare("SELECT starting_equity,current_equity,realized_pnl FROM hunt_accounts ORDER BY starting_equity").all();
+ assert.ok(after.every(a=>a.realized_pnl>0&&a.current_equity>a.starting_equity));
  db.close();
 });
