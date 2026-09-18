@@ -1172,6 +1172,10 @@ async function publicStatus(env: Env): Promise<Response> {
   const now = new Date();
   const activeSession = inScanWindow(now);
   const paperEnabled = env.PAPER_ENABLED !== "false";
+  // Status is frequently the first request after a rolling deployment. Apply
+  // additive schema upgrades here too so monitoring cannot observe a new
+  // Worker with the previous D1 schema while waiting for the next cron tick.
+  if(paperEnabled) await ensurePaperSchema(env);
   const state = await env.MEDS_DB.prepare(
     `SELECT paused,last_tick_at,last_success_at,last_source,last_error,last_result FROM service_state WHERE id=1`
   ).first<any>();
