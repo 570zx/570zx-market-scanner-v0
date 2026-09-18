@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {readFileSync} from 'node:fs';
 import {validQuote,equityExit,optionQuote,riskCapacity,SIM_VERSION,EXEC_VERSION} from '../src/paper-accounting.ts';
-import {ensurePaperSchema,valueLedger,markLedger,manageEquityPositions,manageOptionPositions,enterEquityProposal,enterOptionsForCandidate,scanTick,leaderHuntEligible,runLeaderHunt,manageHuntAccountPositions,markHuntAccounts,HUNT_VERSION} from '../src/index.ts';
+import {ensurePaperSchema,valueLedger,markLedger,manageEquityPositions,manageOptionPositions,enterEquityProposal,enterOptionsForCandidate,scanTick,leaderHuntEligible,runLeaderHunt,manageHuntAccountPositions,markHuntAccounts,enterLeaderHuntOptions,manageHuntOptionPositions,HUNT_VERSION} from '../src/index.ts';
 class D1 {
  constructor(){this.db=new DatabaseSync(':memory:');}
  prepare(sql){const db=this.db;return {args:[],bind(...a){this.args=a;return this;},async run(){const r=db.prepare(sql).run(...this.args);return {meta:{changes:Number(r.changes)}};},async all(){return {results:db.prepare(sql).all(...this.args)};},async first(){return db.prepare(sql).get(...this.args)??null;}};}
@@ -197,4 +197,56 @@ test('leader hunt records compounding milestones once at first observed crossing
  assert.equal(rows[0].reached_at,t1.toISOString(),'first milestone time must be immutable');
  assert.ok(rows.slice(1).every(x=>x.reached_at===t2.toISOString()));
  db.close();
+});
+
+
+test('leader hunt includes true penny stocks without loosening execution discipline',async()=>{
+ const {env,db}=await setup();
+ const penny={...candidate,symbol:'PENNY',price:.20,bid:.195,ask:.205,spreadPct:5,dayChangePct:3,score:55,catalystScore:0,volumeAccel:.1,executionFresh:true};
+ assert.equal(leaderHuntEligible(penny),true);
+ assert.equal(leaderHuntEligible({...penny,price:.09}),false);
+ assert.equal(leaderHuntEligible({...penny,spreadPct:8.1}),false);
+ assert.equal(db.prepare("SELECT version FROM paper_meta WHERE id=1").get().version,8);
+ db.close();
+});
+
+test('leader hunt options share account cash, use whole contracts and follow +200 lifecycle',async()=>{
+ const {env,db}=await setup();
+ const NativeFetch=globalThis.fetch;
+ const now=new Date('2026-09-18T15:00:00Z');
+ const optionSymbol='TEST260925C00005000';
+ globalThis.fetch=async(url)=>{
+   url=String(url);
+   if(url.includes('/v1beta1/options/snapshots/TEST')){
+     return Response.json({snapshots:{[optionSymbol]:{latestQuote:{bp:.45,ap:.50,bs:50,as:50,t:now.toISOString()}}}});
+   }
+   throw new Error('unexpected '+url);
+ };
+ const huntEnv={...env,ALPACA_API_KEY:'test',ALPACA_API_SECRET:'test'};
+ const c={...candidate,price:5,bid:4.99,ask:5.01,spreadPct:.4,dayChangePct:2,catalystScore:22,volumeAccel:.2,score:80,
+   dayVolume:100000,previousDayVolume:50000,minuteVolume:10000,catalystSummary:'fixture',reasons:['fixture'],executionFresh:true};
+ try{
+   const marks={};
+   const entered=await enterLeaderHuntOptions(huntEnv,[c],now,marks);
+   assert.equal(entered.signals_entered,1);
+   assert.equal(entered.account_entries,3,'$100 and $1K tiers should skip contracts they cannot afford at 4% sizing');
+   assert.equal(db.prepare("SELECT COUNT(*) n FROM hunt_account_option_positions WHERE status='open'").get().n,3);
+   assert.equal(db.prepare("SELECT COUNT(*) n FROM hunt_account_option_positions WHERE quantity!=CAST(quantity AS INTEGER)").get().n,0,
+     'option sizing must remain whole-contract');
+
+   marks[optionSymbol]={latestQuote:{bp:1.55,ap:1.60,bs:50,as:50,t:now.toISOString()}};
+   const hit=await manageHuntOptionPositions(huntEnv,marks,new Date(now.getTime()+5*60000));
+   assert.ok(hit.take200s>=3);
+   assert.equal(db.prepare("SELECT COUNT(*) n FROM hunt_account_option_trades WHERE exit_reason='take_200'").get().n,1,
+     'smaller whole-contract position closes fully at +200 when a 5% runner is impossible');
+   assert.equal(db.prepare("SELECT COUNT(*) n FROM hunt_account_option_positions WHERE status='open' AND take200_done=1").get().n,2);
+
+   marks[optionSymbol]={latestQuote:{bp:1.25,ap:1.30,bs:50,as:50,t:new Date(now.getTime()+10*60000).toISOString()}};
+   const runner=await manageHuntOptionPositions(huntEnv,marks,new Date(now.getTime()+10*60000));
+   assert.equal(runner.exits,2);
+   assert.equal(db.prepare("SELECT COUNT(*) n FROM hunt_account_option_trades").get().n,3);
+   assert.ok(db.prepare("SELECT MIN(realized_pnl) AS n FROM hunt_account_option_trades").get().n>0);
+ }finally{
+   globalThis.fetch=NativeFetch;db.close();
+ }
 });
