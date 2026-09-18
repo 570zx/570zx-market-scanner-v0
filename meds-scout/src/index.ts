@@ -1588,6 +1588,47 @@ async function publicStatus(env: Env): Promise<Response> {
       (SELECT COUNT(*) FROM hunt_account_trades t WHERE t.account_id=a.account_id AND t.closed_at>=? AND t.realized_pnl>0) AS winners_24h,
       (SELECT COUNT(*) FROM hunt_account_trades t WHERE t.account_id=a.account_id AND t.closed_at>=?) AS trades_24h
       FROM hunt_accounts a ORDER BY a.starting_equity`).bind(since,since).all<any>();
+    const openSessions=await env.MEDS_DB.prepare(`SELECT p.opened_phase AS phase,
+      COUNT(*) AS open_account_positions,
+      COUNT(DISTINCT p.symbol || '|' || p.opened_at) AS open_signals,
+      AVG(CASE WHEN s.last_bid>0 THEN (s.last_bid/p.entry_price-1)*100 ELSE NULL END) AS avg_open_return_pct
+      FROM hunt_account_positions p
+      LEFT JOIN symbol_state s ON s.symbol=p.symbol
+      WHERE p.status='open'
+      GROUP BY p.opened_phase`).all<any>();
+    const closedSessions=await env.MEDS_DB.prepare(`SELECT opened_phase AS phase,
+      COUNT(*) AS account_trades_24h,
+      COUNT(DISTINCT symbol || '|' || opened_at) AS closed_signals_24h,
+      SUM(CASE WHEN realized_pnl>0 THEN 1 ELSE 0 END) AS winners_24h,
+      AVG(return_pct) AS avg_closed_return_pct,
+      AVG(mfe_pct) AS avg_mfe_pct,
+      AVG(mae_pct) AS avg_mae_pct,
+      MAX(return_pct) AS best_return_pct,
+      MIN(return_pct) AS worst_return_pct
+      FROM hunt_account_trades
+      WHERE closed_at>=?
+      GROUP BY opened_phase`).bind(since).all<any>();
+    const openByPhase=new Map((openSessions.results??[]).map((x:any)=>[String(x.phase),x]));
+    const closedByPhase=new Map((closedSessions.results??[]).map((x:any)=>[String(x.phase),x]));
+    const sessionBreakdown=['overnight','premarket','regular','postmarket'].map(phaseName=>{
+      const o:any=openByPhase.get(phaseName)??{}, d:any=closedByPhase.get(phaseName)??{};
+      const trades=Number(d.account_trades_24h??0), winners=Number(d.winners_24h??0);
+      return {
+        phase:phaseName,
+        open_signals:Number(o.open_signals??0),
+        open_account_positions:Number(o.open_account_positions??0),
+        avg_open_return_pct:o.avg_open_return_pct==null?null:Number(o.avg_open_return_pct),
+        closed_signals_24h:Number(d.closed_signals_24h??0),
+        account_trades_24h:trades,
+        winners_24h:winners,
+        win_rate_24h:trades>0?winners/trades:null,
+        avg_closed_return_pct:d.avg_closed_return_pct==null?null:Number(d.avg_closed_return_pct),
+        avg_mfe_pct:d.avg_mfe_pct==null?null:Number(d.avg_mfe_pct),
+        avg_mae_pct:d.avg_mae_pct==null?null:Number(d.avg_mae_pct),
+        best_return_pct:d.best_return_pct==null?null:Number(d.best_return_pct),
+        worst_return_pct:d.worst_return_pct==null?null:Number(d.worst_return_pct),
+      };
+    });
     body.leader_hunt={
       version:HUNT_VERSION,objective:'catch eventual top gainers before +10%',tracked_per_cycle:HUNT_TRACKED_PER_CYCLE,
       max_new_signals_per_cycle:HUNT_MAX_NEW_PER_CYCLE,max_open_per_account:HUNT_MAX_OPEN,max_hold_minutes:HUNT_MAX_HOLD_MIN,
@@ -1604,6 +1645,7 @@ async function publicStatus(env: Env): Promise<Response> {
         current_equity:Number(a.current_equity),realized_pnl:Number(a.realized_pnl),max_equity:Number(a.max_equity),
         max_drawdown_pct:Number(a.max_drawdown_pct),open_positions:Number(a.open_positions),closed_trades:Number(a.closed_trades),
         winners_24h:Number(a.winners_24h),trades_24h:Number(a.trades_24h)})),
+      session_breakdown:sessionBreakdown,
     };
   } catch(error) {
     body.leader_hunt={version:HUNT_VERSION,error:error instanceof Error?error.message:'leader hunt telemetry unavailable'};
