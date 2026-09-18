@@ -194,7 +194,7 @@ async function persistBroadDiscovery(env:Env,rows:Candidate[],discovery:Discover
   const bucket=bucket5(now),sessionDate=easternParts(now).date;
   for(let i=0;i<rows.length;i+=40){
     const chunk=rows.slice(i,i+40);
-    const values=chunk.map(()=>"(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").join(",");
+    const values=chunk.map(()=>"(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").join(",");
     const args:any[]=[];
     for(const x of chunk){
       const src=discovery.sourceBySymbol.get(x.symbol)??{source:'held_or_recent',rank:null};
