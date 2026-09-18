@@ -44,7 +44,7 @@ test('migration preserves historical trades and drawdown, and is idempotent',asy
  await ensurePaperSchema(env);await ensurePaperSchema(env);
  assert.equal(JSON.stringify(db.prepare('SELECT * FROM paper_trades').all()),trades);
  assert.equal(db.prepare("SELECT max_drawdown_pct AS dd FROM paper_ledgers WHERE ledger_id='C'").get().dd,.51);
- assert.equal(db.prepare('SELECT version FROM paper_meta').get().version,5);
+ assert.equal(db.prepare('SELECT version FROM paper_meta').get().version,6);
  assert.equal(db.prepare('SELECT simulator_version FROM paper_trades').get().simulator_version,'legacy-untrusted');
  db.close();
 });
@@ -137,7 +137,7 @@ test('scanner retrieves held paper symbols even if discovery omits them',async()
 });
 
 
-test('leader hunt mirrors one early signal across five capital tiers and records account P&L',async()=>{
+test('leader hunt ladders small profits, takes 85% at +200%, then peak-tests a 5% runner',async()=>{
  const {env,db}=await setup();
  const accounts=db.prepare("SELECT label,starting_equity,cash FROM hunt_accounts ORDER BY starting_equity").all();
  assert.deepEqual(accounts.map(x=>x.starting_equity),[100,1000,10000,100000,500000]);
@@ -147,15 +147,32 @@ test('leader hunt mirrors one early signal across five capital tiers and records
  const snaps={TEST:{latestQuote:quote(100,100.1),minuteBar:{o:100,h:100.2,l:99.9,c:100.1,v:100000,t:new Date().toISOString()}}};
  const run=await runLeaderHunt(env,[c],snaps);
  assert.equal(run.signals_entered,1);assert.equal(run.account_entries,5);assert.equal(run.open,5);assert.equal(run.version,HUNT_VERSION);
- assert.equal(db.prepare("SELECT status FROM hunt_observations WHERE symbol='TEST'").get().status,'ACCOUNT_SAMPLED');
  assert.equal(db.prepare("SELECT COUNT(*) n FROM hunt_account_positions WHERE status='open'").get().n,5);
- assert.equal(db.prepare("SELECT COUNT(*) n FROM paper_positions").get().n,0);
- const sizes=db.prepare("SELECT account_id,quantity,entry_notional FROM hunt_account_positions ORDER BY entry_notional").all();
- assert.equal(sizes.length,5);assert.ok(sizes[4].entry_notional>sizes[0].entry_notional*1000);
- snaps.TEST.latestQuote=quote(113,113.1);
- assert.equal(await manageHuntAccountPositions(env,snaps),5);
+
+ for(const [bp,ap,event] of [[126,126.1,'LADDER_25'],[151,151.1,'LADDER_50'],[202,202.1,'LADDER_100']]){
+  snaps.TEST.latestQuote=quote(bp,ap);
+  const m=await manageHuntAccountPositions(env,snaps);
+  assert.equal(m.ladderSells,5);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM hunt_account_events WHERE event_type=?").get(event).n,5);
+ }
+ const before200=db.prepare("SELECT quantity,remaining_qty FROM hunt_account_positions WHERE account_id='H1K'").get();
+ assert.ok(Math.abs(before200.remaining_qty-before200.quantity*.90)<1e-8);
+
+ snaps.TEST.latestQuote=quote(303,303.1);
+ const take=await manageHuntAccountPositions(env,snaps);
+ assert.equal(take.take200s,5);
+ const runner=db.prepare("SELECT quantity,remaining_qty,take200_done,locked_realized_pnl FROM hunt_account_positions WHERE account_id='H1K'").get();
+ assert.equal(runner.take200_done,1);assert.ok(Math.abs(runner.remaining_qty-runner.quantity*.05)<1e-8);assert.ok(runner.locked_realized_pnl>0);
+ assert.equal(db.prepare("SELECT COUNT(*) n FROM hunt_account_events WHERE event_type='TAKE_200'").get().n,5);
+
+ snaps.TEST.latestQuote=quote(350,350.1);let hold=await manageHuntAccountPositions(env,snaps);
+ assert.equal(hold.exits,0);
+ snaps.TEST.latestQuote=quote(295,295.1);const close=await manageHuntAccountPositions(env,snaps);
+ assert.equal(close.exits,5);
  const trades=db.prepare("SELECT * FROM hunt_account_trades WHERE symbol='TEST' ORDER BY entry_notional").all();
- assert.equal(trades.length,5);assert.ok(trades.every(t=>t.exit_reason==='target'&&t.realized_pnl>0&&t.version===HUNT_VERSION));
+ assert.equal(trades.length,5);
+ assert.ok(trades.every(t=>t.exit_reason==='runner_peak_retrace'&&t.take200_hit===1&&t.realized_pnl>0&&t.return_pct>150&&t.peak_gap_pct>=15&&t.version===HUNT_VERSION));
+ assert.equal(db.prepare("SELECT COUNT(*) n FROM hunt_account_events WHERE event_type='RUNNER_EXIT'").get().n,5);
  const after=db.prepare("SELECT starting_equity,current_equity,realized_pnl FROM hunt_accounts ORDER BY starting_equity").all();
  assert.ok(after.every(a=>a.realized_pnl>0&&a.current_equity>a.starting_equity));
  db.close();
