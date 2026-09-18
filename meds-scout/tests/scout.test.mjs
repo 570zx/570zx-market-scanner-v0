@@ -88,6 +88,8 @@ test('simulated cron, persistent SQL, exact +20%, runner, dedupe, auth, pause an
    'Database invariant must reject negative paper cash'
   );
   assert.ok(status.paper.cycle_count>=1);assert.ok(status.paper.decision_count>=1);
+  assert.deepEqual(status.leader_hunt.session_breakdown.map(x=>x.phase),['overnight','premarket','regular','postmarket']);
+  assert.ok(status.leader_hunt.session_breakdown.every(x=>Number.isInteger(x.open_signals)&&Number.isInteger(x.open_account_positions)));
   assert.equal((await worker.fetch(request('/paper/cycles',undefined,false),env)).status,401);
   assert.equal((await worker.fetch(new Request('https://test/status',{method:'POST'}),env)).status,401);
   const rowCountsBefore={
