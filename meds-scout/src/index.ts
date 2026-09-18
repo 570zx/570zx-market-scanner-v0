@@ -2646,7 +2646,7 @@ async function publicPaperRows(pathname: string, url: URL, env: Env): Promise<Re
   }
 }
 
-export { runTick, scanTick, manageShadowPositions, inScanWindow, heuristicCatalyst, ensurePaperSchema, valueLedger, markLedger, manageEquityPositions, manageOptionPositions, enterEquityProposal, enterOptionsForCandidate, leaderHuntEligible, runLeaderHunt, manageLeaderHuntPositions, runHuntAccounts, manageHuntAccountPositions, markHuntAccounts, selectLeaderOption, enterLeaderHuntOptions, manageHuntOptionPositions, HUNT_VERSION };
+export { runTick, scanTick, manageShadowPositions, inScanWindow, heuristicCatalyst, ensurePaperSchema, valueLedger, markLedger, manageEquityPositions, manageOptionPositions, enterEquityProposal, enterOptionsForCandidate, leaderHuntEligible, leaderEquityRunnerEligible, leaderEquityRunnerScore, runLeaderHunt, manageLeaderHuntPositions, runHuntAccounts, manageHuntAccountPositions, markHuntAccounts, selectLeaderOption, enterLeaderHuntOptions, manageHuntOptionPositions, HUNT_VERSION };
 export default {
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
     ctx.waitUntil(runTick(env,"cron"));
