@@ -1591,7 +1591,9 @@ async function publicStatus(env: Env): Promise<Response> {
     body.leader_hunt={
       version:HUNT_VERSION,objective:'catch eventual top gainers before +10%',tracked_per_cycle:HUNT_TRACKED_PER_CYCLE,
       max_new_signals_per_cycle:HUNT_MAX_NEW_PER_CYCLE,max_open_per_account:HUNT_MAX_OPEN,max_hold_minutes:HUNT_MAX_HOLD_MIN,
-      position_pct:HUNT_POSITION_PCT,max_minute_participation:HUNT_MAX_MINUTE_PARTICIPATION,
+      runner_max_hold_minutes:HUNT_RUNNER_MAX_HOLD_MIN,position_pct:HUNT_POSITION_PCT,max_minute_participation:HUNT_MAX_MINUTE_PARTICIPATION,
+      take_profit_return_pct:HUNT_TAKE_RETURN_PCT,take_profit_fraction:HUNT_TAKE_FRACTION,runner_fraction:HUNT_RUNNER_FRACTION,
+      runner_trail_pct:HUNT_RUNNER_TRAIL_PCT,profit_ladder:HUNT_LADDER.map(x=>({return_pct:x.returnPct,fraction:x.fraction})),
       observations_24h:Number(h?.observations_24h??0),open_positions:Number(h?.open_positions??0),trades_24h:Number(h?.trades_24h??0),
       winners_24h:Number(h?.winners_24h??0),win_rate_24h:Number(h?.trades_24h??0)>0?Number(h.winners_24h)/Number(h.trades_24h):null,
       avg_return_pct_24h:h?.avg_return_pct_24h==null?null:Number(h.avg_return_pct_24h),
