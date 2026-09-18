@@ -127,6 +127,12 @@ ${table(status.diagnostics?.rejected_entries_24h || [], [["Reason","reason"],["C
 - Latest scan execution-fresh candidates: ${cell(status.leader_hunt?.last_scan_execution_fresh)}
 - Continuity warning: ${cell(status.leader_hunt?.warning)}
 - Objective: ${cell(status.leader_hunt?.objective || "catch eventual top gainers before +10%")}
+- Assets: ${cell((status.leader_hunt?.assets || ["equity"]).join(", "))}
+- Penny-stock floor: ${cell(status.leader_hunt?.penny_floor)}
+- Max option signals per cycle: ${cell(status.leader_hunt?.max_option_signals_per_cycle)}
+- Option stop: ${status.leader_hunt?.option_stop_pct == null ? "" : (Number(status.leader_hunt.option_stop_pct)*100).toFixed(0)+"% premium loss"}
+- Option max hold: ${cell(status.leader_hunt?.option_max_hold_minutes)} minutes
+- Option data: ${cell(status.leader_hunt?.option_data_quality)}
 - Tracked per cycle: ${cell(status.leader_hunt?.tracked_per_cycle)}
 - Max fresh signals per cycle: ${cell(status.leader_hunt?.max_new_signals_per_cycle)}
 - Max open positions per account: ${cell(status.leader_hunt?.max_open_per_account)}
@@ -145,6 +151,13 @@ ${table(status.leader_hunt?.accounts || [], [
   ["Account","label"],["Starting","starting_equity"],["Cash","cash"],["Equity","current_equity"],
   ["Realized P&L","realized_pnl"],["Max DD","max_drawdown_pct"],["Open","open_positions"],
   ["Closed","closed_trades"],["Trades 24h","trades_24h"],["Winners 24h","winners_24h"],["Updated","updated_at"],
+])}
+
+### Performance by asset
+
+${table(status.leader_hunt?.asset_breakdown || [], [
+  ["Asset","asset_type"],["Open","open_positions"],["Trades 24h","trades_24h"],
+  ["Winners 24h","winners_24h"],["Avg closed %","avg_closed_return_pct"],
 ])}
 
 ### Compounding scoreboard — target 10x to 100x
@@ -173,7 +186,7 @@ ${table(status.leader_hunt?.session_breakdown || [], [
 ### Leader Hunt open positions (${huntPositions.length})
 
 ${table(huntPositions, [
-  ["Account","account"],["Symbol","symbol"],["Entry","entry_price"],["Bid/mark","current_bid"],
+  ["Account","account"],["Asset","asset_type"],["Underlying","underlying"],["Symbol/contract","symbol"],["Entry","entry_price"],["Bid/mark","current_bid"],
   ["Unrealized %","unrealized_return_pct"],["Entry day %","entry_day_change_pct"],["Stage","stage"],
   ["Qty","quantity"],["Remaining","remaining"],["Locked P&L","locked_realized_pnl"],
   ["Distance to +200 %","distance_to_200_pct"],["Capacity limited","capacity_limited"],
@@ -183,7 +196,7 @@ ${table(huntPositions, [
 ### Recent Leader Hunt closes (${huntTrades.length})
 
 ${table(huntTrades, [
-  ["Account","account"],["Symbol","symbol"],["Entry % up","entry_day_change_pct"],["Entry score","entry_score"],
+  ["Account","account"],["Asset","asset_type"],["Underlying","underlying"],["Symbol/contract","symbol"],["Entry % up","entry_day_change_pct"],["Entry score","entry_score"],
   ["Qty","quantity"],["Entry notional","entry_notional"],["Entry","entry_price"],["Exit","exit_price"],
   ["P&L","realized_pnl"],["Return %","return_pct"],["MFE %","mfe_pct"],["MAE %","mae_pct"],
   ["Minutes","minutes_held"],["Reason","exit_reason"],["Phase","opened_phase"],["Closed","closed_at"],
