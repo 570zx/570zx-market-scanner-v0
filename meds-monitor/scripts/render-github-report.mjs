@@ -94,10 +94,20 @@ ${table(status.diagnostics?.rejected_entries_24h || [], [["Reason","reason"],["C
 - Version: ${cell(status.leader_hunt?.version || "unavailable")}
 - Objective: ${cell(status.leader_hunt?.objective || "catch eventual top gainers before +10%")}
 - Tracked per cycle: ${cell(status.leader_hunt?.tracked_per_cycle)}
-- Max fresh entries per cycle: ${cell(status.leader_hunt?.max_new_per_cycle)}
-- Max concurrent research positions: ${cell(status.leader_hunt?.max_open)}
+- Max fresh signals per cycle: ${cell(status.leader_hunt?.max_new_signals_per_cycle)}
+- Max open positions per account: ${cell(status.leader_hunt?.max_open_per_account)}
+- Position size: ${status.leader_hunt?.position_pct == null ? "" : (Number(status.leader_hunt.position_pct)*100).toFixed(1)+"% of starting equity"}
+- Max minute-volume participation: ${status.leader_hunt?.max_minute_participation == null ? "" : (Number(status.leader_hunt.max_minute_participation)*100).toFixed(1)+"%"}
 - Max research hold: ${cell(status.leader_hunt?.max_hold_minutes)} minutes
 - Telemetry warning: ${cell(status.leader_hunt?.error || huntPage.error)}
+
+### Capital-tier accounts
+
+${table(status.leader_hunt?.accounts || [], [
+  ["Account","label"],["Starting","starting_equity"],["Cash","cash"],["Equity","current_equity"],
+  ["Realized P&L","realized_pnl"],["Max DD","max_drawdown_pct"],["Open","open_positions"],
+  ["Closed","closed_trades"],["Trades 24h","trades_24h"],["Winners 24h","winners_24h"],["Updated","updated_at"],
+])}
 
 | Observations 24h | Open research positions | Closed trades 24h | Winners 24h | Win rate | Avg return % | Best % | Worst % | Latest observation | Latest close |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -106,10 +116,10 @@ ${table(status.diagnostics?.rejected_entries_24h || [], [["Reason","reason"],["C
 ### Recent Leader Hunt closes (${huntTrades.length})
 
 ${table(huntTrades, [
-  ["Symbol","symbol"],["Entry % up","entry_day_change_pct"],["Entry score","entry_score"],
-  ["Entry","entry_price"],["Exit","exit_price"],["Return %","return_pct"],
-  ["MFE %","mfe_pct"],["MAE %","mae_pct"],["Minutes","minutes_held"],
-  ["Reason","exit_reason"],["Phase","opened_phase"],["Closed","closed_at"],
+  ["Account","account"],["Symbol","symbol"],["Entry % up","entry_day_change_pct"],["Entry score","entry_score"],
+  ["Qty","quantity"],["Entry notional","entry_notional"],["Entry","entry_price"],["Exit","exit_price"],
+  ["P&L","realized_pnl"],["Return %","return_pct"],["MFE %","mfe_pct"],["MAE %","mae_pct"],
+  ["Minutes","minutes_held"],["Reason","exit_reason"],["Phase","opened_phase"],["Closed","closed_at"],
 ])}
 
 ## Open paper positions (${positions.length})
