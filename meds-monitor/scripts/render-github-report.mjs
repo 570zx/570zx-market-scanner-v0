@@ -121,6 +121,11 @@ ${table(status.diagnostics?.rejected_entries_24h || [], [["Reason","reason"],["C
 ## Leader Hunt — high-volume research
 
 - Version: ${cell(status.leader_hunt?.version || "unavailable")}
+- Health: ${status.leader_hunt?.healthy === true ? "HEALTHY" : status.leader_hunt?.healthy === false ? "UNHEALTHY" : "unknown"}
+- Latest observation age: ${cell(status.leader_hunt?.observation_age_seconds)} seconds
+- Latest scan research candidates: ${cell(status.leader_hunt?.last_scan_research_shortlist)}
+- Latest scan execution-fresh candidates: ${cell(status.leader_hunt?.last_scan_execution_fresh)}
+- Continuity warning: ${cell(status.leader_hunt?.warning)}
 - Objective: ${cell(status.leader_hunt?.objective || "catch eventual top gainers before +10%")}
 - Tracked per cycle: ${cell(status.leader_hunt?.tracked_per_cycle)}
 - Max fresh signals per cycle: ${cell(status.leader_hunt?.max_new_signals_per_cycle)}
@@ -132,7 +137,7 @@ ${table(status.diagnostics?.rejected_entries_24h || [], [["Reason","reason"],["C
 - Max pre-target hold: ${cell(status.leader_hunt?.max_hold_minutes)} minutes
 - Max runner hold after target: ${cell(status.leader_hunt?.runner_max_hold_minutes)} minutes
 - Max minute-volume participation: ${status.leader_hunt?.max_minute_participation == null ? "" : (Number(status.leader_hunt.max_minute_participation)*100).toFixed(1)+"%"}
-- Telemetry warning: ${cell(status.leader_hunt?.error || huntPage.error || huntPositionsPage.error)}
+- Telemetry warning: ${cell(status.leader_hunt?.error || status.leader_hunt?.warning || huntPage.error || huntPositionsPage.error)}
 
 ### Capital-tier accounts
 
