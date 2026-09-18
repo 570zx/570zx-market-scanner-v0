@@ -2308,6 +2308,115 @@ function publicPage(url: URL) {
   };
 }
 
+
+async function publicGainerAudit(url:URL,env:Env):Promise<Response>{
+  const {limit,offset}=publicPage(url);
+  const requestedDate=url.searchParams.get('date');
+  try{
+    const latest=requestedDate
+      ? await env.MEDS_DB.prepare(`SELECT bucket,session_date,created_at,phase FROM hunt_gainer_board
+          WHERE session_date=? ORDER BY created_at DESC LIMIT 1`).bind(requestedDate).first<any>()
+      : await env.MEDS_DB.prepare(`SELECT bucket,session_date,created_at,phase FROM hunt_gainer_board
+          ORDER BY created_at DESC LIMIT 1`).first<any>();
+    if(!latest) return Response.json({ok:true,read_only:true,count:0,rows:[],summary:{caught_before_10:0,top10_caught_before_10:0}},
+      {headers:{"cache-control":"no-store","x-content-type-options":"nosniff"}});
+
+    const board=await env.MEDS_DB.prepare(`SELECT rank,symbol,price,change,percent_change,created_at,phase
+      FROM hunt_gainer_board WHERE bucket=? ORDER BY rank ASC LIMIT ? OFFSET ?`)
+      .bind(latest.bucket,limit,offset).all<any>();
+    const boardRows=board.results??[];
+    const symbols=boardRows.map((x:any)=>String(x.symbol));
+    if(!symbols.length) return Response.json({ok:true,read_only:true,count:0,rows:[],session_date:latest.session_date,
+      board_at:latest.created_at,summary:{caught_before_10:0,top10_caught_before_10:0}},
+      {headers:{"cache-control":"no-store","x-content-type-options":"nosn"}});
+
+    const ph=symbols.map(()=>"?").join(",");
+    const discovery=await env.MEDS_DB.prepare(`SELECT * FROM hunt_discovery_observations
+      WHERE session_date=? AND symbol IN (${ph}) ORDER BY created_at ASC,id ASC`)
+      .bind(latest.session_date,...symbols).all<any>();
+
+    const equityEntries=await env.MEDS_DB.prepare(`SELECT symbol,opened_at,entry_day_change_pct,'equity' AS asset_type
+      FROM hunt_account_positions WHERE symbol IN (${ph})
+      UNION ALL
+      SELECT symbol,opened_at,entry_day_change_pct,'equity' AS asset_type
+      FROM hunt_account_trades WHERE symbol IN (${ph})`)
+      .bind(...symbols,...symbols).all<any>();
+
+    const optionEntries=await env.MEDS_DB.prepare(`SELECT underlying AS symbol,opened_at,entry_day_change_pct,'option' AS asset_type
+      FROM hunt_account_option_positions WHERE underlying IN (${ph})
+      UNION ALL
+      SELECT underlying AS symbol,opened_at,entry_day_change_pct,'option' AS asset_type
+      FROM hunt_account_option_trades WHERE underlying IN (${ph})`)
+      .bind(...symbols,...symbols).all<any>();
+
+    const discoveryBy=new Map<string,any[]>();
+    for(const row of discovery.results??[]){
+      const k=String(row.symbol),arr=discoveryBy.get(k)??[];arr.push(row);discoveryBy.set(k,arr);
+    }
+    const entriesBy=new Map<string,any[]>();
+    for(const row of [...(equityEntries.results??[]),...(optionEntries.results??[])]){
+      if(easternParts(new Date(String(row.opened_at))).date!==latest.session_date) continue;
+      const k=String(row.symbol),arr=entriesBy.get(k)??[];arr.push(row);entriesBy.set(k,arr);
+    }
+
+    const rows=boardRows.map((g:any)=>{
+      const ds=(discoveryBy.get(String(g.symbol))??[]).sort((a,b)=>String(a.created_at).localeCompare(String(b.created_at)));
+      const entries=(entriesBy.get(String(g.symbol))??[]).sort((a,b)=>String(a.opened_at).localeCompare(String(b.opened_at)));
+      const firstSeen=ds[0]??null;
+      const firstUnder10=ds.find((x:any)=>Number(x.day_change_pct)<=10)??null;
+      const firstShortlisted=ds.find((x:any)=>Number(x.day_change_pct)<=10&&Number(x.shortlisted)===1)??null;
+      const firstEligible=ds.find((x:any)=>Number(x.day_change_pct)<=10&&Number(x.eligible)===1&&Number(x.execution_fresh)===1)??null;
+      const firstEntry=entries[0]??null;
+      const entryGain=firstEntry?.entry_day_change_pct==null?null:Number(firstEntry.entry_day_change_pct);
+      const caughtBefore10=!!firstEntry&&entryGain!==null&&entryGain<=10;
+      let missReason='ENTERED_BEFORE_10';
+      if(!caughtBefore10){
+        if(firstEntry) missReason='ENTERED_AFTER_10';
+        else if(!firstSeen) missReason='NOT_DISCOVERED';
+        else if(!firstUnder10) missReason='DISCOVERED_AFTER_10';
+        else if(!firstShortlisted) missReason='DISCOVERED_UNDER_10_NOT_SHORTLISTED';
+        else if(!firstEligible) missReason='SHORTLISTED_NOT_ELIGIBLE';
+        else missReason='ELIGIBLE_NOT_ENTERED';
+      }
+      const latestDiscovery=ds.at(-1)??null;
+      return {
+        rank:Number(g.rank),symbol:String(g.symbol),
+        current_gain_pct:g.percent_change==null?(latestDiscovery?.day_change_pct??null):Number(g.percent_change),
+        current_price:g.price==null?(latestDiscovery?.price??null):Number(g.price),
+        board_at:g.created_at,board_phase:g.phase,
+        first_seen_at:firstSeen?.created_at??null,first_seen_gain_pct:firstSeen==null?null:Number(firstSeen.day_change_pct),
+        first_seen_source:firstSeen?.source??null,first_seen_source_rank:firstSeen?.source_rank??null,
+        first_under_10_at:firstUnder10?.created_at??null,first_under_10_gain_pct:firstUnder10==null?null:Number(firstUnder10.day_change_pct),
+        first_shortlisted_at:firstShortlisted?.created_at??null,
+        first_eligible_at:firstEligible?.created_at??null,
+        first_entry_at:firstEntry?.opened_at??null,entry_gain_pct:entryGain,entry_asset:firstEntry?.asset_type??null,
+        caught_before_10:caughtBefore10,miss_reason:missReason,
+        latest_score:latestDiscovery==null?null:Number(latestDiscovery.score),
+        latest_spread_pct:latestDiscovery==null?null:Number(latestDiscovery.spread_pct),
+        latest_day_volume:latestDiscovery==null?null:Number(latestDiscovery.day_volume),
+        latest_minute_volume:latestDiscovery==null?null:Number(latestDiscovery.minute_volume),
+      };
+    });
+    const top10=rows.filter((x:any)=>x.rank<=10);
+    const summary={
+      board_size:boardRows.length,
+      caught_before_10:rows.filter((x:any)=>x.caught_before_10).length,
+      top10_caught_before_10:top10.filter((x:any)=>x.caught_before_10).length,
+      top10_count:top10.length,
+      discovered_under_10:rows.filter((x:any)=>x.first_under_10_at).length,
+      shortlisted_under_10:rows.filter((x:any)=>x.first_shortlisted_at).length,
+      eligible_under_10:rows.filter((x:any)=>x.first_eligible_at).length,
+    };
+    return Response.json({ok:true,read_only:true,limit,offset,count:rows.length,session_date:latest.session_date,
+      board_at:latest.created_at,board_phase:latest.phase,summary,rows},
+      {headers:{"cache-control":"no-store","x-content-type-options":"nosniff"}});
+  }catch(error){
+    const message=error instanceof Error?error.message:'gainer audit unavailable';
+    return Response.json({ok:false,read_only:true,error:message.slice(0,300)},{status:503,
+      headers:{"cache-control":"no-store","x-content-type-options":"nosniff"}});
+  }
+}
+
 async function publicPaperRows(pathname: string, url: URL, env: Env): Promise<Response> {
   const {limit, offset} = publicPage(url);
   const queries: Record<string, string> = {
@@ -2396,6 +2505,7 @@ export default {
         enabled:env.SCOUT_ENABLED==="true" && !state?.paused,time:new Date().toISOString(),market:easternParts(),feed:stockFeed(),paper_enabled:env.PAPER_ENABLED!=="false",...state});
     }
     if (url.pathname === "/status" && req.method === "GET") return publicStatus(env);
+    if (url.pathname === "/status/hunt/gainers" && req.method === "GET") return publicGainerAudit(url,env);
     if (["/status/trades","/status/positions","/status/decisions","/status/hunt","/status/hunt/positions"].includes(url.pathname) && req.method === "GET") {
       return publicPaperRows(url.pathname,url,env);
     }
