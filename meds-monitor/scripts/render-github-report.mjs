@@ -97,8 +97,12 @@ ${table(status.diagnostics?.rejected_entries_24h || [], [["Reason","reason"],["C
 - Max fresh signals per cycle: ${cell(status.leader_hunt?.max_new_signals_per_cycle)}
 - Max open positions per account: ${cell(status.leader_hunt?.max_open_per_account)}
 - Position size: ${status.leader_hunt?.position_pct == null ? "" : (Number(status.leader_hunt.position_pct)*100).toFixed(1)+"% of starting equity"}
+- Profit ladder: ${(status.leader_hunt?.profit_ladder || []).map(x=>"+"+(Number(x.return_pct)*100).toFixed(0)+"%: sell "+(Number(x.fraction)*100).toFixed(1)+"%").join(" | ")}
+- Main target: ${status.leader_hunt?.take_profit_return_pct == null ? "" : "+"+(Number(status.leader_hunt.take_profit_return_pct)*100).toFixed(0)+"% return; sell "+(Number(status.leader_hunt.take_profit_fraction)*100).toFixed(0)+"%"}
+- Peak runner: ${status.leader_hunt?.runner_fraction == null ? "" : (Number(status.leader_hunt.runner_fraction)*100).toFixed(0)+"% remaining; "+(Number(status.leader_hunt.runner_trail_pct)*100).toFixed(0)+"% high-water retrace exit"}
+- Max pre-target hold: ${cell(status.leader_hunt?.max_hold_minutes)} minutes
+- Max runner hold after target: ${cell(status.leader_hunt?.runner_max_hold_minutes)} minutes
 - Max minute-volume participation: ${status.leader_hunt?.max_minute_participation == null ? "" : (Number(status.leader_hunt.max_minute_participation)*100).toFixed(1)+"%"}
-- Max research hold: ${cell(status.leader_hunt?.max_hold_minutes)} minutes
 - Telemetry warning: ${cell(status.leader_hunt?.error || huntPage.error)}
 
 ### Capital-tier accounts
