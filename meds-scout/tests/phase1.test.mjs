@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {readFileSync} from 'node:fs';
 import {validQuote,equityExit,optionQuote,riskCapacity,SIM_VERSION,EXEC_VERSION} from '../src/paper-accounting.ts';
-import {ensurePaperSchema,valueLedger,markLedger,manageEquityPositions,manageOptionPositions,enterEquityProposal,enterOptionsForCandidate,scanTick,leaderHuntEligible,runLeaderHunt,manageHuntAccountPositions,markHuntAccounts,enterLeaderHuntOptions,manageHuntOptionPositions,HUNT_VERSION} from '../src/index.ts';
+import worker,{ensurePaperSchema,valueLedger,markLedger,manageEquityPositions,manageOptionPositions,enterEquityProposal,enterOptionsForCandidate,scanTick,leaderHuntEligible,runLeaderHunt,manageHuntAccountPositions,markHuntAccounts,enterLeaderHuntOptions,manageHuntOptionPositions,HUNT_VERSION} from '../src/index.ts';
 class D1 {
  constructor(){this.db=new DatabaseSync(':memory:');}
  prepare(sql){const db=this.db;return {args:[],bind(...a){this.args=a;return this;},async run(){const r=db.prepare(sql).run(...this.args);return {meta:{changes:Number(r.changes)}};},async all(){return {results:db.prepare(sql).all(...this.args)};},async first(){return db.prepare(sql).get(...this.args)??null;}};}
@@ -44,7 +44,7 @@ test('migration preserves historical trades and drawdown, and is idempotent',asy
  await ensurePaperSchema(env);await ensurePaperSchema(env);
  assert.equal(JSON.stringify(db.prepare('SELECT * FROM paper_trades').all()),trades);
  assert.equal(db.prepare("SELECT max_drawdown_pct AS dd FROM paper_ledgers WHERE ledger_id='C'").get().dd,.51);
- assert.equal(db.prepare('SELECT version FROM paper_meta').get().version,8);
+ assert.equal(db.prepare('SELECT version FROM paper_meta').get().version,9);
  assert.equal(db.prepare('SELECT simulator_version FROM paper_trades').get().simulator_version,'legacy-untrusted');
  db.close();
 });
@@ -206,7 +206,7 @@ test('leader hunt includes true penny stocks without loosening execution discipl
  assert.equal(leaderHuntEligible(penny),true);
  assert.equal(leaderHuntEligible({...penny,price:.09}),false);
  assert.equal(leaderHuntEligible({...penny,spreadPct:8.1}),false);
- assert.equal(db.prepare("SELECT version FROM paper_meta WHERE id=1").get().version,8);
+ assert.equal(db.prepare("SELECT version FROM paper_meta WHERE id=1").get().version,9);
  db.close();
 });
 
@@ -249,4 +249,40 @@ test('leader hunt options share account cash, use whole contracts and follow +20
  }finally{
    globalThis.fetch=NativeFetch;db.close();
  }
+});
+
+
+test('top-gainer audit records broad discovery and explains late discovery',async()=>{
+ const NativeDate=Date,oldFetch=globalThis.fetch;const clock=NativeDate.parse('2026-09-18T15:00:00Z');
+ globalThis.Date=class extends NativeDate {constructor(...a){super(...(a.length?a:[clock]));}static now(){return clock;}};
+ const {env,db}=await setup();
+ globalThis.fetch=async(url)=>{
+   url=String(url);
+   if(url.includes('most-actives')) return Response.json({most_actives:[]});
+   if(url.includes('/movers')) return Response.json({gainers:[{symbol:'MOON',price:2,change:1,percent_change:100}],losers:[]});
+   if(url.includes('/stocks/snapshots')){
+     return Response.json({MOON:{
+       latestQuote:{bp:1.99,ap:2.01,bs:100,as:100,t:new Date(clock).toISOString()},
+       latestTrade:{p:2,t:new Date(clock).toISOString()},
+       minuteBar:{o:1.95,h:2.05,l:1.9,c:2,v:50000,t:new Date(clock).toISOString()},
+       dailyBar:{v:500000},prevDailyBar:{c:1,v:100000}
+     }});
+   }
+   if(url.includes('/news')) return Response.json({news:[]});
+   if(url.includes('/options/')) return Response.json({snapshots:{}});
+   throw new Error('unexpected '+url);
+ };
+ try{
+   await scanTick({...env,PAPER_ENABLED:'false'});
+   assert.equal(db.prepare("SELECT COUNT(*) n FROM hunt_gainer_board WHERE symbol='MOON'").get().n,1);
+   const d=db.prepare("SELECT * FROM hunt_discovery_observations WHERE symbol='MOON'").get();
+   assert.equal(Math.round(d.day_change_pct),100);
+   assert.equal(d.shortlisted,0);
+   const res=await worker.fetch(new Request('https://test/status/hunt/gainers?limit=10'),env);
+   assert.equal(res.status,200);
+   const body=await res.json();
+   assert.equal(body.rows[0].symbol,'MOON');
+   assert.equal(body.rows[0].miss_reason,'DISCOVERED_AFTER_10');
+   assert.equal(body.rows[0].caught_before_10,false);
+ }finally{globalThis.Date=NativeDate;globalThis.fetch=oldFetch;db.close();}
 });
