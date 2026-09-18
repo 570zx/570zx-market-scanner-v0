@@ -44,7 +44,7 @@ test('migration preserves historical trades and drawdown, and is idempotent',asy
  await ensurePaperSchema(env);await ensurePaperSchema(env);
  assert.equal(JSON.stringify(db.prepare('SELECT * FROM paper_trades').all()),trades);
  assert.equal(db.prepare("SELECT max_drawdown_pct AS dd FROM paper_ledgers WHERE ledger_id='C'").get().dd,.51);
- assert.equal(db.prepare('SELECT version FROM paper_meta').get().version,7);
+ assert.equal(db.prepare('SELECT version FROM paper_meta').get().version,8);
  assert.equal(db.prepare('SELECT simulator_version FROM paper_trades').get().simulator_version,'legacy-untrusted');
  db.close();
 });
