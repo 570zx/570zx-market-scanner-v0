@@ -993,13 +993,16 @@ async function runTick(env: Env, source: string) {
   if (!inScanWindow()) return {ok:true,skipped:"outside scan window"};
   const owner = crypto.randomUUID();
   const lockNow=Date.now();
-  const lockLeaseMs=2*60_000;
+  // Keep the lease longer than a normal scan but shorter than two scheduled
+  // cadences. This prevents the one-minute overlap storm that previously
+  // amplified slow scans while still allowing watchdog recovery.
+  const lockLeaseMs=6*60_000;
   const lastSuccessMs=state.last_success_at?Date.parse(state.last_success_at):0;
   const scannerStale=!lastSuccessMs || lockNow-lastSuccessMs>PAPER_CYCLE_STALE_MS;
   // Older deployments used a 15-minute lease, so a failed invocation could
-  // suppress every cron tick long after the scanner was known stale. Reclaim
-  // only an abnormally long legacy/stuck lease; normal two-minute overlap
-  // protection remains intact.
+  // suppress scheduled recovery long after the scanner was known stale.
+  // Reclaim only an abnormally long legacy/stuck lease; the six-minute lease
+  // protects normal five-minute cadence overlap.
   if(scannerStale && Number(state.lock_until??0)>lockNow+lockLeaseMs){
     await env.MEDS_DB.prepare(`UPDATE service_state SET lock_owner=NULL,lock_until=NULL,last_error=? WHERE id=1 AND lock_until=?`)
       .bind('watchdog reclaimed stale scan lock',state.lock_until).run();
@@ -1055,9 +1058,12 @@ async function publicStatus(env: Env): Promise<Response> {
   const secondsSinceTick = secondsSince(state?.last_tick_at);
   const secondsSinceSuccess = secondsSince(state?.last_success_at);
   const scannerEnabled = env.SCOUT_ENABLED === "true" && !state?.paused;
+  // The production cron runs every five minutes. Allow one full cadence plus
+  // recovery slack before declaring scanner telemetry stale.
+  const healthFreshSeconds = Math.floor(PAPER_CYCLE_STALE_MS / 1000);
   const scannerHealthy = env.TRADING_MODE === "shadow" && scannerEnabled && !state?.last_error &&
-    secondsSinceTick !== null && secondsSinceTick <= 180 &&
-    (!activeSession || (secondsSinceSuccess !== null && secondsSinceSuccess <= 180));
+    secondsSinceTick !== null && secondsSinceTick <= healthFreshSeconds &&
+    (!activeSession || (secondsSinceSuccess !== null && secondsSinceSuccess <= healthFreshSeconds));
 
   const scanner = {
     enabled: scannerEnabled,
@@ -1187,7 +1193,24 @@ async function publicStatus(env: Env): Promise<Response> {
           aggregate_reserved_risk:v.complete?exposures.reduce((n,e)=>n+e.risk+Math.max(0,-e.unrealized),0):null};
       }),
       prospective_metrics:epochs.results??[],rejected_entries_24h:rejections.results??[]};
-    if((valuations.results??[]).length!==4 || (valuations.results??[]).some(v=>!v.complete || (activeSession && (secondsSince(v.created_at)??Infinity)>180))){paper.healthy=false;paper.paper_error='incomplete or stale portfolio valuation';body.ok=false;}
+    const valuationRows=valuations.results??[];
+    const optionsOpen=phase(now)==='regular';
+    const valuationIncomplete=valuationRows.some(v=>{
+      if(v.complete) return false;
+      // Outside regular option hours, stale option quotes are expected. Keep
+      // the valuation visibly incomplete (so affected ledgers cannot add new
+      // risk), but do not call the paper engine unhealthy unless some other
+      // valuation defect is present.
+      if(!optionsOpen){
+        try {
+          const diagnostics=JSON.parse(v.diagnostics??'[]');
+          return !Array.isArray(diagnostics) || diagnostics.some((d:any)=>!String(d).startsWith('option quote unavailable/stale/invalid:'));
+        } catch { return true; }
+      }
+      return true;
+    });
+    const valuationStale=activeSession && valuationRows.some(v=>(secondsSince(v.created_at)??Infinity)>healthFreshSeconds);
+    if(valuationRows.length!==4 || valuationIncomplete || valuationStale){paper.healthy=false;paper.paper_error='incomplete or stale portfolio valuation';body.ok=false;}
   } catch {body.diagnostics={simulator_version:SIM_VERSION,execution_version:EXEC_VERSION,warning:'phase1 diagnostics unavailable'};paper.healthy=false;body.ok=false;}
   return Response.json(body, {headers:{"cache-control":"no-store","x-content-type-options":"nosniff"}});
 }
