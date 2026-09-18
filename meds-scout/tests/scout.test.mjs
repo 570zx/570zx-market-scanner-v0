@@ -123,3 +123,82 @@ test('simulated cron, persistent SQL, exact +20%, runner, dedupe, auth, pause an
   assert.ok(requests.every(r=>r.method==='GET'||r.url==='https://discord.com/api/webhooks/test'));
  }finally{globalThis.Date=NativeDate;globalThis.fetch=nativeFetch;db.db.close();rmSync(dir,{recursive:true,force:true});}
 });
+
+
+test('Leader Hunt keeps its own positions in the snapshot universe and accepts quote-led premarket research',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'meds-hunt-continuity-'));const file=join(dir,'state.sqlite');
+ const db=new D1(file);for(const m of ['0001_init.sql','0002_operations.sql','0003_tick_counter.sql'])db.db.exec(readFileSync(new URL('../migrations/'+m,import.meta.url),'utf8'));
+ const NativeDate=globalThis.Date;const nativeFetch=globalThis.fetch;
+ let clock=NativeDate.parse('2026-09-18T12:00:00Z'); // 08:00 ET, premarket
+ globalThis.Date=class extends NativeDate{constructor(...args){super(...(args.length?args:[clock]));}static now(){return clock;}};
+ const snapshotRequests=[];
+ globalThis.fetch=async(url,init={})=>{
+   url=String(url);
+   if(url.includes('most-actives'))return Response.json({most_actives:[{symbol:'TEST'}]});
+   if(url.includes('/movers'))return Response.json({gainers:[],losers:[]});
+   if(url.includes('/news'))return Response.json({news:[]});
+   if(url.includes('/options/snapshots'))return Response.json({snapshots:{}});
+   if(url.includes('/stocks/snapshots')){
+     const syms=new URL(url).searchParams.get('symbols').split(',');snapshotRequests.push(syms);
+     const result={};
+     for(const symbol of syms)result[symbol]={
+       latestTrade:{p:1,t:new NativeDate(clock-10*60_000).toISOString()},
+       latestQuote:{bp:.995,ap:1.005,t:new NativeDate(clock).toISOString()},
+       minuteBar:{c:1,v:100,t:new NativeDate(clock).toISOString()},
+       dailyBar:{v:20000},prevDailyBar:{c:1,v:10000}
+     };
+     return Response.json(result);
+   }
+   throw Error('Unexpected URL '+url);
+ };
+ const env={MEDS_DB:db,TRADING_MODE:'shadow',SCOUT_ENABLED:'true',ALPACA_API_KEY:'test-only',ALPACA_API_SECRET:'test-only'};
+ try{
+   await worker.fetch(new Request('https://test/status'),env); // apply additive schema
+   db.db.prepare(`INSERT INTO hunt_account_positions(account_id,symbol,opened_at,entry_price,quantity,entry_notional,stop_price,target_price,highest_price,lowest_price,entry_score,entry_day_change_pct,opened_phase,features,status,version,remaining_qty,locked_realized_pnl,take200_done)
+     VALUES('H100','HOLD',?,1,1,1,.5,3,1,1,50,0,'overnight','{}','open','leader-hunt-v3-200-runner',1,0,0)`).run(new NativeDate(clock-60_000).toISOString());
+   const result=await runTick(env,'cron');
+   assert.equal(result.ok,true);
+   assert.ok(snapshotRequests.some(batch=>batch.includes('HOLD')),'open Leader symbol must always be quoted');
+   assert.ok(db.db.prepare("SELECT COUNT(*) AS n FROM hunt_observations WHERE symbol='TEST'").get().n>0,
+     'fresh premarket quote must create research observation even when latest trade is stale');
+ }finally{
+   globalThis.Date=NativeDate;globalThis.fetch=nativeFetch;db.db.close();rmSync(dir,{recursive:true,force:true});
+ }
+});
+
+test('Leader Hunt can record quiet overnight research without treating a stale quote as executable',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'meds-hunt-quiet-'));const file=join(dir,'state.sqlite');
+ const db=new D1(file);for(const m of ['0001_init.sql','0002_operations.sql','0003_tick_counter.sql'])db.db.exec(readFileSync(new URL('../migrations/'+m,import.meta.url),'utf8'));
+ const NativeDate=globalThis.Date;const nativeFetch=globalThis.fetch;
+ let clock=NativeDate.parse('2026-09-18T05:00:00Z'); // 01:00 ET, overnight
+ globalThis.Date=class extends NativeDate{constructor(...args){super(...(args.length?args:[clock]));}static now(){return clock;}};
+ globalThis.fetch=async(url,init={})=>{
+   url=String(url);
+   if(url.includes('most-actives'))return Response.json({most_actives:[{symbol:'QUIET'}]});
+   if(url.includes('/movers'))return Response.json({gainers:[],losers:[]});
+   if(url.includes('/news'))return Response.json({news:[]});
+   if(url.includes('/options/snapshots'))return Response.json({snapshots:{}});
+   if(url.includes('/stocks/snapshots')){
+     const syms=new URL(url).searchParams.get('symbols').split(',');const result={};
+     for(const symbol of syms)result[symbol]={
+       latestTrade:{p:1,t:new NativeDate(clock-10*60_000).toISOString()},
+       latestQuote:{bp:.995,ap:1.005,t:new NativeDate(clock-10*60_000).toISOString()},
+       minuteBar:{c:1,v:100,t:new NativeDate(clock-10*60_000).toISOString()},
+       dailyBar:{v:20000},prevDailyBar:{c:1,v:10000}
+     };
+     return Response.json(result);
+   }
+   throw Error('Unexpected URL '+url);
+ };
+ const env={MEDS_DB:db,TRADING_MODE:'shadow',SCOUT_ENABLED:'true',ALPACA_API_KEY:'test-only',ALPACA_API_SECRET:'test-only'};
+ try{
+   const result=await runTick(env,'cron');
+   assert.equal(result.ok,true);
+   assert.ok(db.db.prepare("SELECT COUNT(*) AS n FROM hunt_observations WHERE symbol='QUIET'").get().n>0,
+     'quiet overnight quote should remain in research dataset');
+   assert.equal(db.db.prepare("SELECT COUNT(*) AS n FROM hunt_account_positions").get().n,0,
+     'quote older than execution freshness limit must never create a paper position');
+ }finally{
+   globalThis.Date=NativeDate;globalThis.fetch=nativeFetch;db.db.close();rmSync(dir,{recursive:true,force:true});
+ }
+});
