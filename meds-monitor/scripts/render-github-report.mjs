@@ -59,6 +59,13 @@ const huntPositions = (huntPositionsPage.rows || []).map((row) => {
     minute_participation: features.minute_participation == null ? "" : (Number(features.minute_participation)*100).toFixed(2)+"%",
   };
 });
+const compoundingRows=(status.leader_hunt?.compounding_scoreboard || []).map((row)=>({
+  ...row,
+  current_multiple:Number(row.current_multiple||0).toFixed(3)+"x",
+  next_multiple:row.next_multiple==null?"COMPLETE":Number(row.next_multiple)+"x",
+  progress_to_next_pct:row.progress_to_next_pct==null?"":Number(row.progress_to_next_pct).toFixed(1)+"%",
+  max_drawdown_pct:row.max_drawdown_pct==null?"":(Number(row.max_drawdown_pct)*100).toFixed(2)+"%",
+}));
 const generatedAt = new Date().toISOString();
 // Leader Hunt telemetry is supplemental research data and must not make the
 // core system look unhealthy during a rolling deployment.
@@ -133,6 +140,15 @@ ${table(status.leader_hunt?.accounts || [], [
   ["Account","label"],["Starting","starting_equity"],["Cash","cash"],["Equity","current_equity"],
   ["Realized P&L","realized_pnl"],["Max DD","max_drawdown_pct"],["Open","open_positions"],
   ["Closed","closed_trades"],["Trades 24h","trades_24h"],["Winners 24h","winners_24h"],["Updated","updated_at"],
+])}
+
+### Compounding scoreboard — target 10x to 100x
+
+${table(compoundingRows, [
+  ["Account","label"],["Current","current_multiple"],["Equity","current_equity"],["Next","next_multiple"],
+  ["Next target $","next_target_equity"],["Progress","progress_to_next_pct"],["Max DD","max_drawdown_pct"],
+  ["2x","milestone_2x_at"],["5x","milestone_5x_at"],["10x","milestone_10x_at"],
+  ["25x","milestone_25x_at"],["50x","milestone_50x_at"],["100x","milestone_100x_at"],
 ])}
 
 ### Performance by entry session
