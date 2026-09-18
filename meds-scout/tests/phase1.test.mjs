@@ -256,6 +256,7 @@ test('top-gainer audit records broad discovery and explains late discovery',asyn
  const NativeDate=Date,oldFetch=globalThis.fetch;const clock=NativeDate.parse('2026-09-18T15:00:00Z');
  globalThis.Date=class extends NativeDate {constructor(...a){super(...(a.length?a:[clock]));}static now(){return clock;}};
  const {env,db}=await setup();
+ for(const m of ['0001_init.sql','0002_operations.sql','0003_tick_counter.sql'])db.exec(readFileSync(new URL('../migrations/'+m,import.meta.url),'utf8'));
  globalThis.fetch=async(url)=>{
    url=String(url);
    if(url.includes('most-actives')) return Response.json({most_actives:[]});
