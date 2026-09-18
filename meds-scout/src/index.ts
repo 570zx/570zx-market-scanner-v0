@@ -194,16 +194,16 @@ async function persistBroadDiscovery(env:Env,rows:Candidate[],discovery:Discover
   const bucket=bucket5(now),sessionDate=easternParts(now).date;
   for(let i=0;i<rows.length;i+=40){
     const chunk=rows.slice(i,i+40);
-    const values=chunk.map(()=>"(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").join(",");
+    const values=chunk.map(()=>"(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").join(",");
     const args:any[]=[];
     for(const x of chunk){
       const src=discovery.sourceBySymbol.get(x.symbol)??{source:'held_or_recent',rank:null};
       args.push(bucket,sessionDate,now.toISOString(),x.symbol,src.source,src.rank,x.price,x.dayChangePct,x.score,x.spreadPct,
-        (x as any).executionFresh===true?1:0,leaderHuntEligible(x)?1:0,shortlisted.has(x.symbol)?1:0,HUNT_VERSION);
+        x.dayVolume,x.minuteVolume,(x as any).executionFresh===true?1:0,leaderHuntEligible(x)?1:0,shortlisted.has(x.symbol)?1:0,HUNT_VERSION);
     }
     await env.MEDS_DB.prepare(`INSERT OR REPLACE INTO hunt_discovery_observations
       (bucket,session_date,created_at,symbol,source,source_rank,price,day_change_pct,score,spread_pct,
-       execution_fresh,eligible,shortlisted,version)
+       day_volume,minute_volume,execution_fresh,eligible,shortlisted,version)
       VALUES ${values}`).bind(...args).run();
   }
 }
@@ -632,8 +632,9 @@ async function ensurePaperSchema(env:PaperEnv){
     env.MEDS_DB.prepare(`CREATE TABLE IF NOT EXISTS hunt_discovery_observations(
       id INTEGER PRIMARY KEY AUTOINCREMENT,bucket TEXT NOT NULL,session_date TEXT NOT NULL,created_at TEXT NOT NULL,
       symbol TEXT NOT NULL,source TEXT NOT NULL,source_rank INTEGER,price REAL NOT NULL,day_change_pct REAL NOT NULL,
-      score REAL NOT NULL,spread_pct REAL NOT NULL,execution_fresh INTEGER NOT NULL,eligible INTEGER NOT NULL,
-      shortlisted INTEGER NOT NULL DEFAULT 0,version TEXT NOT NULL,UNIQUE(bucket,symbol))`),
+      score REAL NOT NULL,spread_pct REAL NOT NULL,day_volume REAL NOT NULL,minute_volume REAL NOT NULL,
+      execution_fresh INTEGER NOT NULL,eligible INTEGER NOT NULL,shortlisted INTEGER NOT NULL DEFAULT 0,
+      version TEXT NOT NULL,UNIQUE(bucket,symbol))`),
     env.MEDS_DB.prepare(`CREATE INDEX IF NOT EXISTS idx_hunt_discovery_symbol_time
       ON hunt_discovery_observations(session_date,symbol,created_at)`),
     env.MEDS_DB.prepare(`CREATE INDEX IF NOT EXISTS idx_hunt_discovery_under10
