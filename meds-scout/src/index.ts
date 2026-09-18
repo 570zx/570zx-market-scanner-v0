@@ -198,7 +198,8 @@ function scoreCandidate(c: Candidate, isRegular: boolean): Candidate {
   let s = 0;
   const r: string[] = [];
 
-  if (c.price >= 0.5 && c.price <= 10) { s += 8; r.push("low-dollar asymmetric range"); }
+  if (c.price >= HUNT_MIN_STOCK_PRICE && c.price < 0.5) { s += 10; r.push("sub-$0.50 penny asymmetric range"); }
+  else if (c.price >= 0.5 && c.price <= 10) { s += 8; r.push("low-dollar asymmetric range"); }
   if (c.dayChangePct >= -3 && c.dayChangePct <= 12) { s += 16; r.push("still early / not extended"); }
   else if (c.dayChangePct > 12 && c.dayChangePct <= 25) { s += 7; r.push("momentum active but less early"); }
   else if (c.dayChangePct > 25) { s -= 18; r.push("already extended"); }
@@ -416,7 +417,7 @@ INSERT INTO paper_meta(id,version,initialized_at) VALUES(1,2,strftime('%Y-%m-%dT
 async function ensurePaperSchema(env:PaperEnv){
   try {
     const row=await env.MEDS_DB.prepare(`SELECT version FROM paper_meta WHERE id=1`).first<any>();
-    if(Number(row?.version)>=7) return;
+    if(Number(row?.version)>=8) return;
   } catch { /* first boot before paper tables exist */ }
   // D1 exec() treats newline-delimited input as separate statements, which
   // breaks the multiline INSERT ... SELECT seed below. Prepare complete
@@ -532,7 +533,41 @@ async function ensurePaperSchema(env:PaperEnv){
     account_id TEXT NOT NULL,multiple REAL NOT NULL,reached_at TEXT NOT NULL,equity REAL NOT NULL,
     max_drawdown_pct REAL NOT NULL,version TEXT NOT NULL,PRIMARY KEY(account_id,multiple))`).run();
   await env.MEDS_DB.prepare(`CREATE INDEX IF NOT EXISTS idx_hunt_milestone_time ON hunt_account_milestones(reached_at DESC)`).run();
-  await env.MEDS_DB.prepare(`UPDATE paper_meta SET version=7 WHERE id=1`).run();
+
+  // v8 adds options to the same Leader Hunt capital accounts. Existing equity
+  // positions/trades are untouched; options use dedicated tables but share
+  // account cash, equity, drawdown and compounding milestones.
+  await env.MEDS_DB.batch([
+    env.MEDS_DB.prepare(`CREATE TABLE IF NOT EXISTS hunt_account_option_positions(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,account_id TEXT NOT NULL,underlying TEXT NOT NULL,symbol TEXT NOT NULL,
+      opened_at TEXT NOT NULL,entry_price REAL NOT NULL,quantity REAL NOT NULL,entry_notional REAL NOT NULL,
+      stop_price REAL NOT NULL,target_price REAL NOT NULL,highest_price REAL NOT NULL,lowest_price REAL NOT NULL,
+      entry_score REAL NOT NULL,entry_day_change_pct REAL NOT NULL,opened_phase TEXT NOT NULL,features TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'open',version TEXT NOT NULL,remaining_qty REAL NOT NULL,
+      locked_realized_pnl REAL NOT NULL DEFAULT 0,take200_done INTEGER NOT NULL DEFAULT 0,take200_price REAL,
+      take200_at TEXT,runner_high REAL,data_quality TEXT NOT NULL DEFAULT 'indicative')`),
+    env.MEDS_DB.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS idx_hunt_option_open_contract
+      ON hunt_account_option_positions(account_id,symbol) WHERE status='open'`),
+    env.MEDS_DB.prepare(`CREATE INDEX IF NOT EXISTS idx_hunt_option_open
+      ON hunt_account_option_positions(account_id,status)`),
+    env.MEDS_DB.prepare(`CREATE TABLE IF NOT EXISTS hunt_account_option_trades(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,account_id TEXT NOT NULL,underlying TEXT NOT NULL,symbol TEXT NOT NULL,
+      opened_at TEXT NOT NULL,closed_at TEXT NOT NULL,entry_price REAL NOT NULL,exit_price REAL NOT NULL,
+      quantity REAL NOT NULL,entry_notional REAL NOT NULL,exit_value REAL NOT NULL,realized_pnl REAL NOT NULL,
+      return_pct REAL NOT NULL,mfe_pct REAL NOT NULL,mae_pct REAL NOT NULL,minutes_held REAL NOT NULL,
+      exit_reason TEXT NOT NULL,entry_score REAL NOT NULL,entry_day_change_pct REAL NOT NULL,opened_phase TEXT NOT NULL,
+      features TEXT NOT NULL,version TEXT NOT NULL,take200_hit INTEGER NOT NULL DEFAULT 0,take200_price REAL,
+      runner_quantity REAL,peak_gap_pct REAL,data_quality TEXT NOT NULL DEFAULT 'indicative')`),
+    env.MEDS_DB.prepare(`CREATE INDEX IF NOT EXISTS idx_hunt_option_trade_time
+      ON hunt_account_option_trades(account_id,closed_at DESC)`),
+    env.MEDS_DB.prepare(`CREATE TABLE IF NOT EXISTS hunt_account_option_events(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,account_id TEXT NOT NULL,position_id INTEGER NOT NULL,
+      underlying TEXT NOT NULL,symbol TEXT NOT NULL,created_at TEXT NOT NULL,event_type TEXT NOT NULL,
+      price REAL NOT NULL,quantity REAL NOT NULL,realized_pnl REAL NOT NULL,details TEXT NOT NULL,version TEXT NOT NULL)`),
+    env.MEDS_DB.prepare(`CREATE INDEX IF NOT EXISTS idx_hunt_option_event_time
+      ON hunt_account_option_events(account_id,created_at DESC)`)
+  ]);
+  await env.MEDS_DB.prepare(`UPDATE paper_meta SET version=8 WHERE id=1`).run();
 }
 const LEDGER_POLICY: Record<string,{maxRiskPct:number;maxAllocPct:number;primaryMax:number;shadowMax:number}> = {
   A: {maxRiskPct:0.05,maxAllocPct:0.25,primaryMax:3,shadowMax:7},
@@ -568,9 +603,14 @@ function bucket5(date=new Date()){
   const ms=5*60*1000; return new Date(Math.floor(date.getTime()/ms)*ms).toISOString();
 }
 
-const HUNT_VERSION='leader-hunt-v3.1-continuity';
+const HUNT_VERSION='leader-hunt-v4-multi-asset';
 const HUNT_TRACKED_PER_CYCLE=12;
-const HUNT_MAX_OPEN=24;
+const HUNT_MAX_OPEN=32;
+const HUNT_MIN_STOCK_PRICE=0.10;
+const HUNT_MAX_OPTION_SIGNALS_PER_CYCLE=3;
+const HUNT_OPTION_STOP_PCT=0.35;
+const HUNT_OPTION_MAX_HOLD_MIN=24*60;
+const HUNT_OPTION_SLIPPAGE_PCT=0.005;
 const HUNT_MAX_NEW_PER_CYCLE=6;
 const HUNT_MAX_HOLD_MIN=12*60;
 const HUNT_RUNNER_MAX_HOLD_MIN=24*60;
@@ -602,8 +642,8 @@ function leaderHuntEligible(c:PaperCandidate){
   // and the candidate is not completely unranked. Bad samples are useful
   // negative labels here because no live capital is attached.
   const early=c.dayChangePct>=-8 && c.dayChangePct<=10;
-  const liquid=c.spreadPct<=6;
-  return early && liquid && c.score>=15;
+  const liquid=c.spreadPct<=(c.price<0.5?8:6);
+  return c.price>=HUNT_MIN_STOCK_PRICE && early && liquid && c.score>=15;
 }
 
 function huntFeatures(c:PaperCandidate,marketPhase:ReturnType<typeof phase>){
@@ -1287,7 +1327,8 @@ async function runPaperLab(env:PaperEnv,candidates:PaperCandidate[],snaps:Record
 
 async function scanTick(env: Env) {
   if (!inScanWindow()) return { ok: true, skipped: "outside scan window" };
-  const minPrice = num(env.MIN_PRICE, 0.5);
+  const coreMinPrice = num(env.MIN_PRICE, 0.5);
+  const minPrice = Math.min(coreMinPrice,HUNT_MIN_STOCK_PRICE);
   const maxPrice = Math.max(num(env.MAX_PRICE, 20), 500);
   const maxChange = num(env.MAX_DAY_CHANGE_PCT, 25);
   const threshold = num(env.MIN_SIGNAL_SCORE, 67);
@@ -1380,7 +1421,7 @@ async function scanTick(env: Env) {
     await persistCandidate(env, c, status, snapshots[c.symbol]);
   }
   research.sort((a,b)=>b.score-a.score);
-  const top = research.filter(c=>c.executionFresh===true).slice(0, Math.min(8, num(env.MAX_WATCH_SYMBOLS, 8)));
+  const top = research.filter(c=>c.executionFresh===true && c.price>=coreMinPrice).slice(0, Math.min(8, num(env.MAX_WATCH_SYMBOLS, 8)));
   for (const c of top) {
     const previous = priorMap.get(c.symbol);
     const oldAlert = previous?.last_alert_at ? Date.parse(previous.last_alert_at) : 0;
