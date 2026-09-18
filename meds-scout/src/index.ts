@@ -724,7 +724,7 @@ async function manageLeaderHuntPositions(env:PaperEnv,snaps:Record<string,PaperS
 }
 
 
-async function markHuntAccounts(env:PaperEnv,snaps:Record<string,PaperSnapshot>,now=new Date()){
+async function markHuntAccounts(env:PaperEnv,snaps:Record<string,PaperSnapshot>,now=new Date(),huntOptionMarks:Record<string,OptionSnap>={}){
   const accounts=await env.MEDS_DB.prepare("SELECT * FROM hunt_accounts ORDER BY starting_equity").all<any>();
   for(const a of accounts.results??[]){
     let equity=Number(a.cash),complete=Number.isFinite(equity);
@@ -733,6 +733,12 @@ async function markHuntAccounts(env:PaperEnv,snaps:Record<string,PaperSnapshot>,
       const q=snaps[p.symbol]?.latestQuote;
       if(!validQuote(q,now.getTime())){complete=false;continue;}
       equity+=Number(q.bp)*Number(p.remaining_qty??p.quantity);
+    }
+    const optionPositions=await env.MEDS_DB.prepare("SELECT * FROM hunt_account_option_positions WHERE account_id=? AND status='open'").bind(a.account_id).all<any>();
+    for(const p of optionPositions.results??[]){
+      const q=huntOptionMarks[p.symbol]?.latestQuote;
+      if(phase(now)!=='regular' || !validQuote(q,now.getTime())){complete=false;continue;}
+      equity+=Number(q.bp)*100*Number(p.remaining_qty??p.quantity);
     }
     if(!complete) continue;
     const peak=Math.max(Number(a.max_equity),equity);
@@ -896,7 +902,9 @@ async function manageHuntAccountPositions(env:PaperEnv,snaps:Record<string,Paper
 
 async function runHuntAccounts(env:PaperEnv,candidates:PaperCandidate[],snaps:Record<string,PaperSnapshot>,now=new Date()){
   const marketPhase=phase(now);
+  const optionMarksMap=await fetchHuntOptionMarks(env,now);
   const management=await manageHuntAccountPositions(env,snaps,now);
+  const optionManagement=await manageHuntOptionPositions(env,optionMarksMap,now);
   const eligible=candidates.filter(leaderHuntEligible).slice(0,HUNT_MAX_NEW_PER_CYCLE);
   let accountEntries=0,signalsEntered=0;
   for(const c of eligible){
@@ -906,8 +914,11 @@ async function runHuntAccounts(env:PaperEnv,candidates:PaperCandidate[],snaps:Re
     for(const account of HUNT_ACCOUNTS){
       const row=await env.MEDS_DB.prepare("SELECT * FROM hunt_accounts WHERE account_id=?").bind(account.account_id).first<any>();
       if(!row) continue;
-      const open=Number((await env.MEDS_DB.prepare("SELECT COUNT(*) AS n FROM hunt_account_positions WHERE account_id=? AND status='open'").bind(account.account_id).first<any>())?.n??0);
-      if(open>=HUNT_MAX_OPEN) continue;
+      const openRow=await env.MEDS_DB.prepare(`SELECT
+        (SELECT COUNT(*) FROM hunt_account_positions WHERE account_id=? AND status='open')+
+        (SELECT COUNT(*) FROM hunt_account_option_positions WHERE account_id=? AND status='open') AS n`)
+        .bind(account.account_id,account.account_id).first<any>();
+      if(Number(openRow?.n??0)>=HUNT_MAX_OPEN) continue;
       const duplicate=await env.MEDS_DB.prepare("SELECT id FROM hunt_account_positions WHERE account_id=? AND symbol=? AND status='open' LIMIT 1").bind(account.account_id,c.symbol).first<any>();
       if(duplicate) continue;
       const cooldownAfter=new Date(now.getTime()-HUNT_REENTRY_COOLDOWN_MIN*60000).toISOString();
@@ -931,7 +942,7 @@ async function runHuntAccounts(env:PaperEnv,candidates:PaperCandidate[],snaps:Re
       const cost=qty*execution.fill;
       if(!(cost>0.01) || cost>cash+1e-8) continue;
       const stop=execution.fill*0.95,target=execution.fill*(1+HUNT_TAKE_RETURN_PCT);
-      const features=JSON.stringify({...huntFeatures(c,marketPhase),account:account.label,target_notional:targetNotional,
+      const features=JSON.stringify({...huntFeatures(c,marketPhase),asset_type:'equity',account:account.label,target_notional:targetNotional,
         actual_notional:cost,quantity:qty,entry_slippage_pct:execution.slipPct,
         capacity_limited:qty+1e-12<targetQty,minute_participation:qty/minuteLiquidity,fractional_paper:true}).slice(0,12000);
       await env.MEDS_DB.batch([
@@ -944,10 +955,20 @@ async function runHuntAccounts(env:PaperEnv,candidates:PaperCandidate[],snaps:Re
     }
     if(signalUsed) signalsEntered++;
   }
-  await markHuntAccounts(env,snaps,now);
-  return {exits:management.exits,take200s:management.take200s,ladder_sells:management.ladderSells,account_entries:accountEntries,signals_entered:signalsEntered};
-}
 
+  const optionEntries=await enterLeaderHuntOptions(env,eligible,snaps as any,now,optionMarksMap);
+  await markHuntAccounts(env,snaps,now,optionMarksMap);
+  return {
+    exits:management.exits+optionManagement.exits,
+    equity_exits:management.exits,option_exits:optionManagement.exits,
+    take200s:management.take200s+optionManagement.take200s,
+    ladder_sells:management.ladderSells+optionManagement.ladderSells,
+    account_entries:accountEntries+optionEntries.account_entries,
+    equity_account_entries:accountEntries,option_account_entries:optionEntries.account_entries,
+    signals_entered:signalsEntered+optionEntries.signals_entered,
+    equity_signals_entered:signalsEntered,option_signals_entered:optionEntries.signals_entered
+  };
+}
 async function runLeaderHunt(env:PaperEnv,candidates:PaperCandidate[],snaps:Record<string,PaperSnapshot>,now=new Date()){
   await ensurePaperSchema(env);
   const marketPhase=phase(now),bucket=bucket5(now);
@@ -965,11 +986,18 @@ async function runLeaderHunt(env:PaperEnv,candidates:PaperCandidate[],snaps:Reco
   for(const c of tracked.filter(c=>leaderHuntEligible(c) && (c as any).executionFresh===true).slice(0,HUNT_MAX_NEW_PER_CYCLE)){
     await env.MEDS_DB.prepare("UPDATE hunt_observations SET status='ACCOUNT_SAMPLED' WHERE bucket=? AND symbol=?").bind(bucket,c.symbol).run();
   }
-  const open=Number((await env.MEDS_DB.prepare("SELECT COUNT(*) AS n FROM hunt_account_positions WHERE status='open'").first<any>())?.n??0);
+  const openRow=await env.MEDS_DB.prepare(`SELECT
+    (SELECT COUNT(*) FROM hunt_account_positions WHERE status='open')+
+    (SELECT COUNT(*) FROM hunt_account_option_positions WHERE status='open') AS n`).first<any>();
+  const open=Number(openRow?.n??0);
   return {version:HUNT_VERSION,tracked:tracked.length,
     research_eligible:tracked.filter(leaderHuntEligible).length,
     eligible:tracked.filter(c=>leaderHuntEligible(c) && (c as any).executionFresh===true).length,
-    signals_entered:accounts.signals_entered,account_entries:accounts.account_entries,exits:accounts.exits,take200s:accounts.take200s,
+    signals_entered:accounts.signals_entered,equity_signals_entered:accounts.equity_signals_entered,
+    option_signals_entered:accounts.option_signals_entered,
+    account_entries:accounts.account_entries,equity_account_entries:accounts.equity_account_entries,
+    option_account_entries:accounts.option_account_entries,
+    exits:accounts.exits,equity_exits:accounts.equity_exits,option_exits:accounts.option_exits,take200s:accounts.take200s,
     ladder_sells:accounts.ladder_sells,legacy_exits:legacyExits,open};
 }
 
