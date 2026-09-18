@@ -2229,15 +2229,22 @@ async function publicPaperRows(pathname: string, url: URL, env: Env): Promise<Re
       d.strategy,d.decision,d.score,d.reference_price,d.spread_pct,d.reason,d.data_quality
       FROM paper_decisions d LEFT JOIN paper_ledgers l ON l.ledger_id=d.ledger_id
       ORDER BY d.created_at DESC,d.id DESC LIMIT ? OFFSET ?`,
-    "/status/hunt": `SELECT t.id,a.label AS account,t.symbol,t.opened_at,t.closed_at,t.entry_price,t.exit_price,t.quantity,
-      t.entry_notional,t.exit_value,t.realized_pnl,t.return_pct,t.mfe_pct,t.mae_pct,t.minutes_held,t.exit_reason,
-      t.entry_score,t.entry_day_change_pct,t.opened_phase,t.version
+    "/status/hunt": `SELECT t.id,a.label AS account,a.starting_equity,'equity' AS asset_type,t.symbol AS underlying,t.symbol,
+      t.opened_at,t.closed_at,t.entry_price,t.exit_price,t.quantity,t.entry_notional,t.exit_value,t.realized_pnl,t.return_pct,
+      t.mfe_pct,t.mae_pct,t.minutes_held,t.exit_reason,t.entry_score,t.entry_day_change_pct,t.opened_phase,t.version,
+      'market-data' AS data_quality
       FROM hunt_account_trades t LEFT JOIN hunt_accounts a ON a.account_id=t.account_id
-      ORDER BY t.closed_at DESC,t.id DESC LIMIT ? OFFSET ?`,
-    "/status/hunt/positions": `SELECT p.id,a.label AS account,p.account_id,p.symbol,p.opened_at,p.entry_price,p.quantity,
-      p.remaining_qty,p.entry_notional,p.stop_price,p.target_price,p.highest_price,p.lowest_price,p.entry_score,
-      p.entry_day_change_pct,p.opened_phase,p.locked_realized_pnl,p.take200_done,p.take200_price,p.take200_at,p.runner_high,
-      p.features,p.version,s.last_bid AS current_bid,s.last_ask AS current_ask,s.last_price AS current_price,s.last_seen_at AS mark_at,
+      UNION ALL
+      SELECT t.id,a.label AS account,a.starting_equity,'option' AS asset_type,t.underlying,t.symbol,
+      t.opened_at,t.closed_at,t.entry_price,t.exit_price,t.quantity,t.entry_notional,t.exit_value,t.realized_pnl,t.return_pct,
+      t.mfe_pct,t.mae_pct,t.minutes_held,t.exit_reason,t.entry_score,t.entry_day_change_pct,t.opened_phase,t.version,t.data_quality
+      FROM hunt_account_option_trades t LEFT JOIN hunt_accounts a ON a.account_id=t.account_id
+      ORDER BY closed_at DESC,id DESC LIMIT ? OFFSET ?`,
+    "/status/hunt/positions": `SELECT p.id,a.label AS account,a.starting_equity,p.account_id,'equity' AS asset_type,
+      p.symbol AS underlying,p.symbol,p.opened_at,p.entry_price,p.quantity,p.remaining_qty,p.entry_notional,p.stop_price,p.target_price,
+      p.highest_price,p.lowest_price,p.entry_score,p.entry_day_change_pct,p.opened_phase,p.locked_realized_pnl,p.take200_done,
+      p.take200_price,p.take200_at,p.runner_high,p.features,p.version,'market-data' AS data_quality,
+      s.last_bid AS current_bid,s.last_ask AS current_ask,s.last_price AS current_price,s.last_seen_at AS mark_at,
       CASE WHEN s.last_bid>0 THEN (s.last_bid/p.entry_price-1)*100 ELSE NULL END AS unrealized_return_pct,
       CASE WHEN s.last_bid>0 THEN ((p.entry_price*3.0)/s.last_bid-1)*100 ELSE NULL END AS distance_to_200_pct,
       (SELECT COUNT(*) FROM hunt_account_events e WHERE e.position_id=p.id AND e.event_type='LADDER_25') AS ladder25_done,
@@ -2247,7 +2254,21 @@ async function publicPaperRows(pathname: string, url: URL, env: Env): Promise<Re
       LEFT JOIN hunt_accounts a ON a.account_id=p.account_id
       LEFT JOIN symbol_state s ON s.symbol=p.symbol
       WHERE p.status='open'
-      ORDER BY a.starting_equity ASC,p.opened_at DESC,p.id DESC LIMIT ? OFFSET ?`,
+      UNION ALL
+      SELECT p.id,a.label AS account,a.starting_equity,p.account_id,'option' AS asset_type,
+      p.underlying,p.symbol,p.opened_at,p.entry_price,p.quantity,p.remaining_qty,p.entry_notional,p.stop_price,p.target_price,
+      p.highest_price,p.lowest_price,p.entry_score,p.entry_day_change_pct,p.opened_phase,p.locked_realized_pnl,p.take200_done,
+      p.take200_price,p.take200_at,p.runner_high,p.features,p.version,p.data_quality,
+      p.current_mark AS current_bid,NULL AS current_ask,p.current_mark AS current_price,p.current_mark_at AS mark_at,
+      CASE WHEN p.current_mark>0 THEN (p.current_mark/p.entry_price-1)*100 ELSE NULL END AS unrealized_return_pct,
+      CASE WHEN p.current_mark>0 THEN ((p.entry_price*3.0)/p.current_mark-1)*100 ELSE NULL END AS distance_to_200_pct,
+      (SELECT COUNT(*) FROM hunt_account_option_events e WHERE e.position_id=p.id AND e.event_type='LADDER_25') AS ladder25_done,
+      (SELECT COUNT(*) FROM hunt_account_option_events e WHERE e.position_id=p.id AND e.event_type='LADDER_50') AS ladder50_done,
+      (SELECT COUNT(*) FROM hunt_account_option_events e WHERE e.position_id=p.id AND e.event_type='LADDER_100') AS ladder100_done
+      FROM hunt_account_option_positions p
+      LEFT JOIN hunt_accounts a ON a.account_id=p.account_id
+      WHERE p.status='open'
+      ORDER BY starting_equity ASC,opened_at DESC,id DESC LIMIT ? OFFSET ?`,
   };
   try {
     const rows = await env.MEDS_DB.prepare(queries[pathname]).bind(limit, offset).all();
