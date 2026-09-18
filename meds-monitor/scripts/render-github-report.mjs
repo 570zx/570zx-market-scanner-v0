@@ -24,18 +24,22 @@ function table(rows, columns) {
   return [head, rule, ...body].join("\n");
 }
 
-const [status, tradesPage, positionsPage, decisionsPage] = await Promise.all([
+const [status, tradesPage, positionsPage, decisionsPage, huntPage] = await Promise.all([
   get("/status"),
   get("/status/trades?limit=100"),
   get("/status/positions?limit=100"),
   get("/status/decisions?limit=100"),
+  get("/status/hunt?limit=100"),
 ]);
 
 const ledgers = status.ledgers || [];
 const trades = tradesPage.rows || [];
 const positions = positionsPage.rows || [];
 const decisions = (decisionsPage.rows || []).slice(0, 50);
+const huntTrades = huntPage.rows || [];
 const generatedAt = new Date().toISOString();
+// Leader Hunt telemetry is supplemental research data and must not make the
+// core system look unhealthy during a rolling deployment.
 const retrievalErrors=[status,tradesPage,positionsPage,decisionsPage].filter(x=>x.error).map(x=>x.error);
 
 const report = `# MEDS Scout — Live Paper-Trading Monitor
@@ -84,6 +88,29 @@ ${table(status.diagnostics?.prospective_metrics || [], [["Ledger ID","ledger_id"
 ${table(status.diagnostics?.rejected_entries_24h || [], [["Reason","reason"],["Count","count"]])}
 
 </details>
+
+## Leader Hunt — high-volume research
+
+- Version: ${cell(status.leader_hunt?.version || "unavailable")}
+- Objective: ${cell(status.leader_hunt?.objective || "catch eventual top gainers before +10%")}
+- Tracked per cycle: ${cell(status.leader_hunt?.tracked_per_cycle)}
+- Max fresh entries per cycle: ${cell(status.leader_hunt?.max_new_per_cycle)}
+- Max concurrent research positions: ${cell(status.leader_hunt?.max_open)}
+- Max research hold: ${cell(status.leader_hunt?.max_hold_minutes)} minutes
+- Telemetry warning: ${cell(status.leader_hunt?.error || huntPage.error)}
+
+| Observations 24h | Open research positions | Closed trades 24h | Winners 24h | Win rate | Avg return % | Best % | Worst % | Latest observation | Latest close |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| ${cell(status.leader_hunt?.observations_24h)} | ${cell(status.leader_hunt?.open_positions)} | ${cell(status.leader_hunt?.trades_24h)} | ${cell(status.leader_hunt?.winners_24h)} | ${status.leader_hunt?.win_rate_24h == null ? "" : (Number(status.leader_hunt.win_rate_24h)*100).toFixed(1)+"%"} | ${cell(status.leader_hunt?.avg_return_pct_24h)} | ${cell(status.leader_hunt?.best_return_pct_24h)} | ${cell(status.leader_hunt?.worst_return_pct_24h)} | ${cell(status.leader_hunt?.latest_observation_at)} | ${cell(status.leader_hunt?.latest_trade_at)} |
+
+### Recent Leader Hunt closes (${huntTrades.length})
+
+${table(huntTrades, [
+  ["Symbol","symbol"],["Entry % up","entry_day_change_pct"],["Entry score","entry_score"],
+  ["Entry","entry_price"],["Exit","exit_price"],["Return %","return_pct"],
+  ["MFE %","mfe_pct"],["MAE %","mae_pct"],["Minutes","minutes_held"],
+  ["Reason","exit_reason"],["Phase","opened_phase"],["Closed","closed_at"],
+])}
 
 ## Open paper positions (${positions.length})
 
