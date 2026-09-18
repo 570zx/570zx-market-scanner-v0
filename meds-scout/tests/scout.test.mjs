@@ -123,7 +123,7 @@ test('simulated cron, persistent SQL, exact +20%, runner, dedupe, auth, pause an
   for(const m of ['0001_init.sql','0002_operations.sql','0003_tick_counter.sql'])missingDb.db.exec(readFileSync(new URL('../migrations/'+m,import.meta.url),'utf8'));
   const missingStatus=await (await worker.fetch(request('/status',undefined,false),{...env,MEDS_DB:missingDb})).json();
   assert.equal(missingStatus.scanner.healthy,false);
-  assert.equal(missingStatus.paper.schema_version,8);
+  assert.equal(missingStatus.paper.schema_version,9);
   assert.equal(missingDb.db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='hunt_observations'").get().n,1);
   assert.doesNotMatch(String(missingStatus.paper.paper_error??''),/missing tables/);
   missingDb.db.close();rmSync(missingDir,{recursive:true,force:true});
