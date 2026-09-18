@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {readFileSync} from 'node:fs';
 import {validQuote,equityExit,optionQuote,riskCapacity,SIM_VERSION,EXEC_VERSION} from '../src/paper-accounting.ts';
-import worker,{ensurePaperSchema,valueLedger,markLedger,manageEquityPositions,manageOptionPositions,enterEquityProposal,enterOptionsForCandidate,scanTick,leaderHuntEligible,runLeaderHunt,manageHuntAccountPositions,markHuntAccounts,enterLeaderHuntOptions,manageHuntOptionPositions,HUNT_VERSION} from '../src/index.ts';
+import worker,{ensurePaperSchema,valueLedger,markLedger,manageEquityPositions,manageOptionPositions,enterEquityProposal,enterOptionsForCandidate,scanTick,leaderHuntEligible,leaderEquityRunnerEligible,leaderEquityRunnerScore,runLeaderHunt,manageHuntAccountPositions,markHuntAccounts,enterLeaderHuntOptions,manageHuntOptionPositions,HUNT_VERSION} from '../src/index.ts';
 class D1 {
  constructor(){this.db=new DatabaseSync(':memory:');}
  prepare(sql){const db=this.db;return {args:[],bind(...a){this.args=a;return this;},async run(){const r=db.prepare(sql).run(...this.args);return {meta:{changes:Number(r.changes)}};},async all(){return {results:db.prepare(sql).all(...this.args)};},async first(){return db.prepare(sql).get(...this.args)??null;}};}
@@ -137,19 +137,31 @@ test('scanner retrieves held paper symbols even if discovery omits them',async()
 });
 
 
+test('leader v7 reserves equity entries for asymmetric runner candidates',()=>{
+ const cheap={...candidate,price:4.5,bid:4.49,ask:4.51,spreadPct:.45,dayChangePct:3.5,dayVolume:900000,previousDayVolume:400000,minuteVolume:50000,volumeAccel:.18,consecutiveHits:2,catalystScore:0,catalystSummary:'',score:52,reasons:['fixture'],executionFresh:true,discoverySource:'top_gainer',discoveryRank:8};
+ const bluechip={...cheap,symbol:'BLUE',price:280,bid:279.9,ask:280.1,spreadPct:.07,score:80,discoverySource:'most_active_volume'};
+ assert.equal(leaderHuntEligible(cheap),true);
+ assert.equal(leaderEquityRunnerEligible(cheap),true);
+ assert.equal(leaderHuntEligible(bluechip),true);
+ assert.equal(leaderEquityRunnerEligible(bluechip),false);
+ assert.ok(leaderEquityRunnerScore(cheap)>leaderEquityRunnerScore({...cheap,price:20,discoverySource:'most_active_volume',volumeAccel:.08}));
+ assert.equal(leaderEquityRunnerEligible({...cheap,catalystScore:-22}),false);
+ assert.equal(leaderEquityRunnerEligible({...cheap,dayChangePct:-4}),false);
+});
+
 test('leader hunt ladders small profits, takes 85% at +200%, then peak-tests a 5% runner',async()=>{
  const {env,db}=await setup();
  const accounts=db.prepare("SELECT label,starting_equity,cash FROM hunt_accounts ORDER BY starting_equity").all();
  assert.deepEqual(accounts.map(x=>x.starting_equity),[100,1000,10000,100000,500000]);
- const c={...candidate,dayChangePct:4,dayVolume:100000,previousDayVolume:100000,minuteVolume:100000,spreadPct:.1,volumeAccel:.10,consecutiveHits:3,catalystScore:0,catalystSummary:'',score:60,reasons:['fixture'],executionFresh:true};
+ const c={...candidate,price:4,bid:4,ask:4.01,dayChangePct:4,dayVolume:100000,previousDayVolume:100000,minuteVolume:100000,spreadPct:.25,volumeAccel:.10,consecutiveHits:3,catalystScore:0,catalystSummary:'',score:60,reasons:['fixture'],executionFresh:true,discoverySource:'top_gainer'};
  assert.equal(leaderHuntEligible(c),true);
  assert.equal(leaderHuntEligible({...c,dayChangePct:10.01}),false);
- const snaps={TEST:{latestQuote:quote(100,100.1),minuteBar:{o:100,h:100.2,l:99.9,c:100.1,v:100000,t:new Date().toISOString()}}};
+ const snaps={TEST:{latestQuote:quote(4,4.01),minuteBar:{o:4,h:4.02,l:3.99,c:4.01,v:100000,t:new Date().toISOString()}}};
  const run=await runLeaderHunt(env,[c],snaps);
  assert.equal(run.signals_entered,1);assert.equal(run.account_entries,5);assert.equal(run.open,5);assert.equal(run.version,HUNT_VERSION);
  assert.equal(db.prepare("SELECT COUNT(*) n FROM hunt_account_positions WHERE status='open'").get().n,5);
 
- for(const [bp,ap,event] of [[126,126.1,'LADDER_25'],[151,151.1,'LADDER_50'],[202,202.1,'LADDER_100']]){
+ for(const [bp,ap,event] of [[5.1,5.11,'LADDER_25'],[6.1,6.11,'LADDER_50'],[8.2,8.21,'LADDER_100']]){
   snaps.TEST.latestQuote=quote(bp,ap);
   const m=await manageHuntAccountPositions(env,snaps);
   assert.equal(m.ladderSells,5);
@@ -158,16 +170,16 @@ test('leader hunt ladders small profits, takes 85% at +200%, then peak-tests a 5
  const before200=db.prepare("SELECT quantity,remaining_qty FROM hunt_account_positions WHERE account_id='H1K'").get();
  assert.ok(Math.abs(before200.remaining_qty-before200.quantity*.90)<1e-8);
 
- snaps.TEST.latestQuote=quote(303,303.1);
+ snaps.TEST.latestQuote=quote(12.3,12.31);
  const take=await manageHuntAccountPositions(env,snaps);
  assert.equal(take.take200s,5);
  const runner=db.prepare("SELECT quantity,remaining_qty,take200_done,locked_realized_pnl FROM hunt_account_positions WHERE account_id='H1K'").get();
  assert.equal(runner.take200_done,1);assert.ok(Math.abs(runner.remaining_qty-runner.quantity*.05)<1e-8);assert.ok(runner.locked_realized_pnl>0);
  assert.equal(db.prepare("SELECT COUNT(*) n FROM hunt_account_events WHERE event_type='TAKE_200'").get().n,5);
 
- snaps.TEST.latestQuote=quote(350,350.1);let hold=await manageHuntAccountPositions(env,snaps);
+ snaps.TEST.latestQuote=quote(14,14.01);let hold=await manageHuntAccountPositions(env,snaps);
  assert.equal(hold.exits,0);
- snaps.TEST.latestQuote=quote(295,295.1);const close=await manageHuntAccountPositions(env,snaps);
+ snaps.TEST.latestQuote=quote(11.5,11.51);const close=await manageHuntAccountPositions(env,snaps);
  assert.equal(close.exits,5);
  const trades=db.prepare("SELECT * FROM hunt_account_trades WHERE symbol='TEST' ORDER BY entry_notional").all();
  assert.equal(trades.length,5);
