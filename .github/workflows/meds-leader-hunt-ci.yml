@@ -1,0 +1,31 @@
+name: MEDS Leader Hunt CI
+
+on:
+  push:
+    branches: [meds-leader-hunt-v1, meds-scout-native-cloudflare]
+    paths:
+      - "meds-scout/**"
+      - ".github/workflows/meds-leader-hunt-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: meds-scout
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: meds-scout/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run check
+      - run: npx wrangler deploy --dry-run --outdir /tmp/meds-wrangler
