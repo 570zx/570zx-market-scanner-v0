@@ -57,6 +57,8 @@ type Candidate = {
   reasons: string[];
   executionFresh?: boolean;
   quoteAgeMs?: number;
+  discoverySource?: string;
+  discoveryRank?: number|null;
 };
 
 const ALPACA_DATA = "https://data.alpaca.markets";
@@ -223,7 +225,7 @@ async function persistBroadDiscovery(env:Env,rows:Candidate[],discovery:Discover
          day_volume,minute_volume,execution_fresh,eligible,shortlisted,version)
         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(bucket,sessionDate,now.toISOString(),x.symbol,src.source,src.rank,
           x.price,x.dayChangePct,x.score,x.spreadPct,x.dayVolume,x.minuteVolume,(x as any).executionFresh===true?1:0,
-          leaderHuntEligible(x)?1:0,shortlisted.has(x.symbol)?1:0,HUNT_VERSION);
+          leaderEquityRunnerEligible(x)?1:0,shortlisted.has(x.symbol)?1:0,HUNT_VERSION);
     });
     if(statements.length) await env.MEDS_DB.batch(statements);
   }
@@ -477,6 +479,10 @@ type PaperCandidate = {
   catalystSummary: string;
   score: number;
   reasons: string[];
+  executionFresh?: boolean;
+  quoteAgeMs?: number;
+  discoverySource?: string;
+  discoveryRank?: number|null;
 };
 
 type Ledger = {
@@ -744,17 +750,18 @@ function bucket5(date=new Date()){
   const ms=5*60*1000; return new Date(Math.floor(date.getTime()/ms)*ms).toISOString();
 }
 
-const HUNT_VERSION='leader-hunt-v6-entry-gate';
+const HUNT_VERSION='leader-hunt-v7-asymmetric-runner';
 const HUNT_TRACKED_PER_CYCLE=24;
 const HUNT_EARLY_SOURCE_RESERVE=12;
 const HUNT_DISCOVERY_MAX_SYMBOLS=260;
 const HUNT_SCAN_MAX_SYMBOLS=320;
 const HUNT_CAPITAL_RESERVE_PCT=0.12;
-// One-time migration behavior for pre-v6 research positions: old versions
-// used essentially all available cash/capacity, which prevented the v5
-// discovery reserve from ever being usable. New v6 positions keep the normal
-// 12-hour/24-hour holds; only legacy positions get accelerated recycling.
+// Equity inventory is explicitly optimized for an asymmetric +200% runner.
+// Higher-priced liquid names remain in research and can feed the options lane,
+// but they no longer consume the six equity-runner entry slots.
+const HUNT_EQUITY_RUNNER_MAX_PRICE=25;
 const HUNT_LEGACY_MIGRATION_MAX_HOLD_MIN=120;
+const HUNT_LEGACY_BLUECHIP_EXIT_MIN=15;
 const HUNT_MAX_OPEN=32;
 const HUNT_MIN_STOCK_PRICE=0.10;
 const HUNT_MAX_OPTION_SIGNALS_PER_CYCLE=3;
@@ -786,14 +793,46 @@ const HUNT_ACCOUNTS=[
 ] as const;
 
 function leaderHuntEligible(c:PaperCandidate){
-  // Research lane intentionally samples aggressively. The broad scanner has
-  // already ranked these names; Leader Hunt only insists that the move is
-  // still early enough to study, the spread is executable enough to model,
-  // and the candidate is not completely unranked. Bad samples are useful
-  // negative labels here because no live capital is attached.
+  // Broad research eligibility stays permissive so large liquid names remain
+  // available for options/control samples. Equity entries use the narrower
+  // asymmetric-runner gate below.
   const early=c.dayChangePct>=-8 && c.dayChangePct<=10;
   const liquid=c.spreadPct<=(c.price<0.5?8:6);
   return c.price>=HUNT_MIN_STOCK_PRICE && early && liquid && c.score>=15;
+}
+
+function leaderEquityRunnerScore(c:PaperCandidate){
+  const dayVolRatio=c.previousDayVolume>0?c.dayVolume/c.previousDayVolume:0;
+  let s=c.score;
+  if(c.price<0.5) s+=36;
+  else if(c.price<=2) s+=32;
+  else if(c.price<=5) s+=28;
+  else if(c.price<=10) s+=22;
+  else if(c.price<=HUNT_EQUITY_RUNNER_MAX_PRICE) s+=12;
+  if(c.dayChangePct>=0&&c.dayChangePct<=10) s+=20;
+  else if(c.dayChangePct>=-3) s+=8;
+  if(c.discoverySource==='top_gainer') s+=24;
+  else if(c.discoverySource==='fresh_news') s+=18;
+  else if(c.discoverySource==='most_active_volume') s+=8;
+  if(c.catalystScore>0) s+=Math.min(20,c.catalystScore);
+  if(c.volumeAccel>=0.20) s+=16;
+  else if(c.volumeAccel>=0.08) s+=10;
+  if(dayVolRatio>=1.5) s+=14;
+  else if(dayVolRatio>=0.6) s+=8;
+  if(c.consecutiveHits>=2) s+=Math.min(10,c.consecutiveHits*2);
+  s-=Math.max(0,c.spreadPct-1.5)*2;
+  return s;
+}
+
+function leaderEquityRunnerEligible(c:PaperCandidate){
+  const dayVolRatio=c.previousDayVolume>0?c.dayVolume/c.previousDayVolume:0;
+  const earlySource=c.discoverySource==='top_gainer'||c.discoverySource==='fresh_news';
+  const ignition=earlySource||c.catalystScore>0||c.volumeAccel>=0.08||dayVolRatio>=0.6||c.consecutiveHits>=2;
+  return leaderHuntEligible(c) &&
+    c.price<=HUNT_EQUITY_RUNNER_MAX_PRICE &&
+    c.dayChangePct>=-3 &&
+    c.catalystScore>=0 &&
+    ignition;
 }
 
 function huntFeatures(c:PaperCandidate,marketPhase:ReturnType<typeof phase>){
@@ -802,6 +841,8 @@ function huntFeatures(c:PaperCandidate,marketPhase:ReturnType<typeof phase>){
     phase:marketPhase,score:c.score,price:c.price,day_change_pct:c.dayChangePct,spread_pct:c.spreadPct,
     volume_accel:c.volumeAccel,day_volume_ratio:c.previousDayVolume>0?c.dayVolume/c.previousDayVolume:0,
     consecutive_hits:c.consecutiveHits,catalyst_score:c.catalystScore,catalyst_summary:c.catalystSummary,
+    discovery_source:c.discoverySource??null,discovery_rank:c.discoveryRank??null,
+    equity_runner_score:leaderEquityRunnerScore(c),equity_runner_eligible:leaderEquityRunnerEligible(c),
     reasons:c.reasons,within_10pct:c.dayChangePct<=10,
     execution_quote_fresh:x.executionFresh===true,
     quote_age_seconds:Number.isFinite(x.quoteAgeMs)?Number(x.quoteAgeMs)/1000:null,
@@ -1028,8 +1069,9 @@ async function manageHuntAccountPositions(env:PaperEnv,snaps:Record<string,Paper
     }
 
     const stop=bid<=Number(p.stop_price);
+    const legacyBluechipExit=positionVersion!==HUNT_VERSION && Number(p.entry_price)>HUNT_EQUITY_RUNNER_MAX_PRICE && ageMin>=HUNT_LEGACY_BLUECHIP_EXIT_MIN;
     const maxHoldMin=positionVersion===HUNT_VERSION?HUNT_MAX_HOLD_MIN:HUNT_LEGACY_MIGRATION_MAX_HOLD_MIN;
-    const timeExit=ageMin>=maxHoldMin;
+    const timeExit=legacyBluechipExit || ageMin>=maxHoldMin;
     if(!stop&&!timeExit){
       deferredMarks.push(env.MEDS_DB.prepare("UPDATE hunt_account_positions SET highest_price=?,lowest_price=? WHERE id=?").bind(high,low,p.id));
       continue;
@@ -1064,14 +1106,15 @@ async function runHuntAccounts(env:PaperEnv,candidates:PaperCandidate[],snaps:Re
   const optionMarksMap=await fetchHuntOptionMarks(env,now);
   const management=await manageHuntAccountPositions(env,snaps,now,false);
   const optionManagement=await manageHuntOptionPositions(env,optionMarksMap,now);
-  // Freshness must be applied before the six-signal cap. Previously a stale
-  // candidate could consume one of the six slots and then be skipped below,
-  // starving a later executable early mover.
-  const eligible=candidates
-    .filter(c=>leaderHuntEligible(c) && (c as any).executionFresh===true)
+  // Equity capital is reserved for candidates with plausible asymmetric-runner
+  // characteristics. Large liquid names can still be researched and routed to
+  // options, but cannot crowd these six equity slots.
+  const equityEligible=candidates
+    .filter(c=>leaderEquityRunnerEligible(c) && (c as any).executionFresh===true)
+    .sort((a,b)=>leaderEquityRunnerScore(b)-leaderEquityRunnerScore(a))
     .slice(0,HUNT_MAX_NEW_PER_CYCLE);
   let accountEntries=0,signalsEntered=0;
-  for(const c of eligible){
+  for(const c of equityEligible){
     const quote=snaps[c.symbol]?.latestQuote;
     if(!validQuote(quote,now.getTime())) continue;
     let signalUsed=false;
@@ -1122,7 +1165,7 @@ async function runHuntAccounts(env:PaperEnv,candidates:PaperCandidate[],snaps:Re
     if(signalUsed) signalsEntered++;
   }
 
-  const optionEntries=await enterLeaderHuntOptions(env,eligible,now,optionMarksMap);
+  const optionEntries=await enterLeaderHuntOptions(env,candidates,now,optionMarksMap);
   await markHuntAccounts(env,snaps,now,optionMarksMap);
   return {
     exits:management.exits+optionManagement.exits,
@@ -1146,10 +1189,10 @@ async function runLeaderHunt(env:PaperEnv,candidates:PaperCandidate[],snaps:Reco
     await env.MEDS_DB.prepare(`INSERT OR IGNORE INTO hunt_observations(bucket,created_at,symbol,phase,price,bid,ask,day_change_pct,score,spread_pct,volume_accel,day_volume_ratio,consecutive_hits,catalyst_score,status,features,version)
       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       .bind(bucket,now.toISOString(),c.symbol,marketPhase,c.price,c.bid,c.ask,c.dayChangePct,c.score,c.spreadPct,c.volumeAccel,dayVolumeRatio,c.consecutiveHits,c.catalystScore,
-        leaderHuntEligible(c) && (c as any).executionFresh===true ? 'ELIGIBLE':'TRACKED',features,HUNT_VERSION).run();
+        leaderEquityRunnerEligible(c) && (c as any).executionFresh===true ? 'ELIGIBLE':'TRACKED',features,HUNT_VERSION).run();
   }
   const accounts=await runHuntAccounts(env,tracked,snaps,now);
-  for(const c of tracked.filter(c=>leaderHuntEligible(c) && (c as any).executionFresh===true).slice(0,HUNT_MAX_NEW_PER_CYCLE)){
+  for(const c of tracked.filter(c=>leaderEquityRunnerEligible(c) && (c as any).executionFresh===true).sort((a,b)=>leaderEquityRunnerScore(b)-leaderEquityRunnerScore(a)).slice(0,HUNT_MAX_NEW_PER_CYCLE)){
     await env.MEDS_DB.prepare("UPDATE hunt_observations SET status='ACCOUNT_SAMPLED' WHERE bucket=? AND symbol=?").bind(bucket,c.symbol).run();
   }
   const openRow=await env.MEDS_DB.prepare(`SELECT
@@ -1158,7 +1201,8 @@ async function runLeaderHunt(env:PaperEnv,candidates:PaperCandidate[],snaps:Reco
   const open=Number(openRow?.n??0);
   return {version:HUNT_VERSION,tracked:tracked.length,
     research_eligible:tracked.filter(leaderHuntEligible).length,
-    eligible:tracked.filter(c=>leaderHuntEligible(c) && (c as any).executionFresh===true).length,
+    equity_runner_eligible:tracked.filter(leaderEquityRunnerEligible).length,
+    eligible:tracked.filter(c=>leaderEquityRunnerEligible(c) && (c as any).executionFresh===true).length,
     signals_entered:accounts.signals_entered,equity_signals_entered:accounts.equity_signals_entered,
     option_signals_entered:accounts.option_signals_entered,
     account_entries:accounts.account_entries,equity_account_entries:accounts.equity_account_entries,
@@ -1874,11 +1918,12 @@ async function scanTick(env: Env) {
     const minuteVolume = s?.minuteBar?.v ?? 0;
     const priorMinuteVolume = state?.last_minute_volume ?? minuteVolume;
     const volumeAccel = priorMinuteVolume > 0 ? (minuteVolume - priorMinuteVolume) / priorMinuteVolume : 0;
+    const discoveryInfo=discovered.sourceBySymbol.get(symbol);
     const candidate:Candidate={
       symbol, price, bid, ask, spreadPct, dayChangePct, dayVolume, previousDayVolume: priorDayVolume,
       minuteVolume, volumeAccel, consecutiveHits: (state && Date.now()-Date.parse(state.last_seen_at)<150000 ? state.consecutive_hits : 0) + 1,
       catalystScore: 0, catalystSummary: "", score: 0, reasons: [],
-      executionFresh, quoteAgeMs
+      executionFresh, quoteAgeMs, discoverySource:discoveryInfo?.source, discoveryRank:discoveryInfo?.rank??null
     };
     scoreCandidate(candidate,regularSession());
     auditRough.push(candidate);
