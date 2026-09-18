@@ -607,11 +607,14 @@ function leaderHuntEligible(c:PaperCandidate){
 }
 
 function huntFeatures(c:PaperCandidate,marketPhase:ReturnType<typeof phase>){
+  const x=c as PaperCandidate & {executionFresh?:boolean;quoteAgeMs?:number};
   return {
     phase:marketPhase,score:c.score,price:c.price,day_change_pct:c.dayChangePct,spread_pct:c.spreadPct,
     volume_accel:c.volumeAccel,day_volume_ratio:c.previousDayVolume>0?c.dayVolume/c.previousDayVolume:0,
     consecutive_hits:c.consecutiveHits,catalyst_score:c.catalystScore,catalyst_summary:c.catalystSummary,
     reasons:c.reasons,within_10pct:c.dayChangePct<=10,
+    execution_quote_fresh:x.executionFresh===true,
+    quote_age_seconds:Number.isFinite(x.quoteAgeMs)?Number(x.quoteAgeMs)/1000:null,
   };
 }
 
@@ -710,6 +713,7 @@ async function manageHuntAccountPositions(env:PaperEnv,snaps:Record<string,Paper
   const rows=await env.MEDS_DB.prepare("SELECT * FROM hunt_account_positions WHERE status='open' ORDER BY id").all<any>();
   let exits=0,take200s=0,ladderSells=0;
   for(const p of rows.results??[]){
+    const positionVersion=String(p.version??HUNT_VERSION);
     const snap=snaps[p.symbol],q=snap?.latestQuote;
     if(!validQuote(q,now.getTime())) continue;
     const bid=Number(q.bp),ask=Number(q.ap),mid=(bid+ask)/2;
@@ -750,7 +754,7 @@ async function manageHuntAccountPositions(env:PaperEnv,snaps:Record<string,Paper
             VALUES(?,?,?,?,?,?,?,?,?,?)`)
             .bind(p.account_id,p.id,p.symbol,now.toISOString(),rung.event,sell.fill,qty,partialPnl,
               JSON.stringify({threshold_return_pct:rung.returnPct,fraction:rung.fraction,remaining_qty:remaining,
-                slippage_pct:sell.slipPct,observed_bid:bid}),HUNT_VERSION)
+                slippage_pct:sell.slipPct,observed_bid:bid}),positionVersion)
         ]);
         ladderSells++;
       }
@@ -774,7 +778,7 @@ async function manageHuntAccountPositions(env:PaperEnv,snaps:Record<string,Paper
             VALUES(?,?,?,?,?,?,?,?,?,?)`)
             .bind(p.account_id,p.id,p.symbol,now.toISOString(),'TAKE_200',sell.fill,takeQty,partialPnl,
               JSON.stringify({fraction:HUNT_TAKE_FRACTION,remaining_qty:remaining,runner_fraction:HUNT_RUNNER_FRACTION,
-                slippage_pct:sell.slipPct,observed_bid:bid,high}),HUNT_VERSION)
+                slippage_pct:sell.slipPct,observed_bid:bid,high}),positionVersion)
         ]);
         take200s++;
       }
@@ -810,11 +814,11 @@ async function manageHuntAccountPositions(env:PaperEnv,snaps:Record<string,Paper
           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
           .bind(p.account_id,p.symbol,p.opened_at,now.toISOString(),p.entry_price,sell.fill,p.quantity,p.entry_notional,
             Number(p.entry_notional)+totalPnl,totalPnl,ret,mfe,mae,ageMin,reason,p.entry_score,p.entry_day_change_pct,p.opened_phase,
-            p.features,HUNT_VERSION,1,p.take200_price,remaining,peakGap),
+            p.features,positionVersion,1,p.take200_price,remaining,peakGap),
         env.MEDS_DB.prepare(`INSERT INTO hunt_account_events(account_id,position_id,symbol,created_at,event_type,price,quantity,realized_pnl,details,version)
           VALUES(?,?,?,?,?,?,?,?,?,?)`)
           .bind(p.account_id,p.id,p.symbol,now.toISOString(),'RUNNER_EXIT',sell.fill,remaining,runnerPnl,
-            JSON.stringify({reason,runner_high:runnerHigh,peak_gap_pct:peakGap,retrace,slippage_pct:sell.slipPct}),HUNT_VERSION)
+            JSON.stringify({reason,runner_high:runnerHigh,peak_gap_pct:peakGap,retrace,slippage_pct:sell.slipPct}),positionVersion)
       ]);
       exits++;
       continue;
@@ -842,7 +846,7 @@ async function manageHuntAccountPositions(env:PaperEnv,snaps:Record<string,Paper
         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
         .bind(p.account_id,p.symbol,p.opened_at,now.toISOString(),p.entry_price,sell.fill,p.quantity,p.entry_notional,
           Number(p.entry_notional)+totalPnl,totalPnl,ret,mfe,mae,ageMin,reason,p.entry_score,p.entry_day_change_pct,p.opened_phase,
-          p.features,HUNT_VERSION,0,null,0,null)
+          p.features,positionVersion,0,null,0,null)
     ]);
     exits++;
   }
