@@ -168,6 +168,46 @@ async function discoverSymbols(env: Env): Promise<DiscoveryResult> {
   return {symbols:[...symbols].slice(0,180),sourceBySymbol,gainers:gainers.slice(0,50)};
 }
 
+async function persistGainerBoard(env:Env,gainers:any[],now=new Date()){
+  if(!gainers.length) return;
+  const bucket=bucket5(now),sessionDate=easternParts(now).date,marketPhase=phase(now);
+  const rows=gainers.slice(0,50).map((x:any,i:number)=>({
+    rank:i+1,symbol:String(x.symbol??'').toUpperCase(),
+    price:Number(x.price??x.last_price??x.lastPrice),
+    change:Number(x.change),
+    percentChange:Number(x.percent_change??x.percentChange??x.change_percent??x.changePercentage),
+    raw:JSON.stringify(x).slice(0,2000)
+  })).filter((x:any)=>x.symbol);
+  if(!rows.length) return;
+  const values=rows.map(()=>"(?,?,?,?,?,?,?,?,?,?,?)").join(",");
+  const args:any[]=[];
+  for(const x of rows) args.push(bucket,sessionDate,now.toISOString(),marketPhase,x.rank,x.symbol,
+    Number.isFinite(x.price)?x.price:null,Number.isFinite(x.change)?x.change:null,
+    Number.isFinite(x.percentChange)?x.percentChange:null,x.raw,HUNT_VERSION);
+  await env.MEDS_DB.prepare(`INSERT OR REPLACE INTO hunt_gainer_board
+    (bucket,session_date,created_at,phase,rank,symbol,price,change,percent_change,raw_json,version)
+    VALUES ${values}`).bind(...args).run();
+}
+
+async function persistBroadDiscovery(env:Env,rows:Candidate[],discovery:DiscoveryResult,shortlisted:Set<string>,now=new Date()){
+  if(!rows.length) return;
+  const bucket=bucket5(now),sessionDate=easternParts(now).date;
+  for(let i=0;i<rows.length;i+=40){
+    const chunk=rows.slice(i,i+40);
+    const values=chunk.map(()=>"(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").join(",");
+    const args:any[]=[];
+    for(const x of chunk){
+      const src=discovery.sourceBySymbol.get(x.symbol)??{source:'held_or_recent',rank:null};
+      args.push(bucket,sessionDate,now.toISOString(),x.symbol,src.source,src.rank,x.price,x.dayChangePct,x.score,x.spreadPct,
+        (x as any).executionFresh===true?1:0,leaderHuntEligible(x)?1:0,shortlisted.has(x.symbol)?1:0,HUNT_VERSION);
+    }
+    await env.MEDS_DB.prepare(`INSERT OR REPLACE INTO hunt_discovery_observations
+      (bucket,session_date,created_at,symbol,source,source_rank,price,day_change_pct,score,spread_pct,
+       execution_fresh,eligible,shortlisted,version)
+      VALUES ${values}`).bind(...args).run();
+  }
+}
+
 async function fetchSnapshots(env: Env, symbols: string[]): Promise<Record<string, Snapshot>> {
   const feed = stockFeed();
   const batches:string[][]=[];
@@ -1680,6 +1720,8 @@ async function scanTick(env: Env) {
 
   await ensurePaperSchema(env);
   const discovered = await discoverSymbols(env);
+  const auditNow=new Date();
+  await persistGainerBoard(env,discovered.gainers,auditNow);
   const paperHeld=await env.MEDS_DB.prepare("SELECT symbol FROM paper_positions WHERE status='open' UNION SELECT underlying AS symbol FROM paper_option_positions WHERE status='open'").all<{symbol:string}>();
   const held = await env.MEDS_DB.prepare(`SELECT symbol FROM shadow_positions WHERE status='open'`).all<{symbol:string}>();
   const huntHeld=await env.MEDS_DB.prepare(`SELECT DISTINCT symbol FROM hunt_account_positions WHERE status='open'
@@ -1693,7 +1735,7 @@ async function scanTick(env: Env) {
     ...(held.results ?? []).map(p=>p.symbol),
     ...(huntHeld.results??[]).map(p=>p.symbol),
     ...(huntRecent.results??[]).map(p=>p.symbol),
-    ...discovered
+    ...discovered.symbols
   ])].slice(0,240);
   const prior = await env.MEDS_DB.prepare(`SELECT * FROM symbol_state WHERE last_seen_at >= ?`).bind(new Date(Date.now()-12*60*60000).toISOString()).all<any>();
   const priorMap = new Map((prior.results ?? []).map(p=>[p.symbol,p]));
@@ -1701,6 +1743,7 @@ async function scanTick(env: Env) {
   await manageShadowPositions(env, snapshots);
 
   const rough: Candidate[] = [];
+  const auditRough: Candidate[] = [];
   for (const symbol of symbols) {
     const s = snapshots[symbol];
     const marketPhase=phase();
@@ -1729,7 +1772,6 @@ async function scanTick(env: Env) {
     // fresh trade/bar exists, but it must never look executable.
     const spreadPct = quoteResearchFresh ? ((rawAsk - rawBid) / ((rawAsk + rawBid)/2)) * 100 : 99;
     const dayChangePct = prevClose > 0 ? (price / prevClose - 1) * 100 : 0;
-    if (dayChangePct > maxChange + 20 || dayChangePct < -15) continue;
     const previousState = priorMap.get(symbol);
     const state = previousState && easternParts(new Date(previousState.last_seen_at)).date === easternParts().date ? previousState : null;
     const dayVolume = s?.dailyBar?.v ?? 0;
@@ -1737,12 +1779,16 @@ async function scanTick(env: Env) {
     const minuteVolume = s?.minuteBar?.v ?? 0;
     const priorMinuteVolume = state?.last_minute_volume ?? minuteVolume;
     const volumeAccel = priorMinuteVolume > 0 ? (minuteVolume - priorMinuteVolume) / priorMinuteVolume : 0;
-    rough.push({
+    const candidate:Candidate={
       symbol, price, bid, ask, spreadPct, dayChangePct, dayVolume, previousDayVolume: priorDayVolume,
       minuteVolume, volumeAccel, consecutiveHits: (state && Date.now()-Date.parse(state.last_seen_at)<150000 ? state.consecutive_hits : 0) + 1,
       catalystScore: 0, catalystSummary: "", score: 0, reasons: [],
       executionFresh, quoteAgeMs
-    });
+    };
+    scoreCandidate(candidate,regularSession());
+    auditRough.push(candidate);
+    if (dayChangePct > maxChange + 20 || dayChangePct < -15) continue;
+    rough.push(candidate);
   }
 
   // Pre-rank the broad discovery set, then deeply enrich a larger research
@@ -1751,6 +1797,7 @@ async function scanTick(env: Env) {
   for (const c of rough) scoreCandidate(c, regularSession());
   rough.sort((a,b) => b.score - a.score);
   const research = rough.slice(0,HUNT_TRACKED_PER_CYCLE);
+  await persistBroadDiscovery(env,auditRough,discovered,new Set(research.map(x=>x.symbol)),auditNow);
   const news = await fetchNewsForSymbols(env, research.map(x => x.symbol));
   const borrow: Record<string,any> = {}; // No verified free borrow provider configured.
 
@@ -1791,6 +1838,7 @@ async function scanTick(env: Env) {
     paper = { ok: false, error: error instanceof Error ? error.message : "paper lab failed" };
   }
   return { ok: true, feed: stockFeed(), scanned: symbols.length, shortlisted: top.length, research_shortlist:research.length,
+    broad_discovery_observations:auditRough.length,gainer_board_size:discovered.gainers.length,
     research_execution_fresh:research.filter(x=>x.executionFresh===true).length,
     hunt_universe_open_symbols:(huntHeld.results??[]).length,
     leaders: top.slice(0,5).map(x => ({symbol:x.symbol,score:x.score,price:x.price})), hunt, paper };
