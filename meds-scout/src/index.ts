@@ -135,14 +135,23 @@ type DiscoveryResult={
   symbols:string[];
   sourceBySymbol:Map<string,{source:string;rank:number|null}>;
   gainers:any[];
+  warnings:string[];
 };
 
 async function discoverSymbols(env: Env): Promise<DiscoveryResult> {
-  // Broad real-time discovery sources. We deliberately do NOT rely on gainers alone.
-  const [active, movers] = await Promise.all([
+  // Screeners are discovery aids, not a reason to kill the whole scan. A
+  // single provider timeout must degrade the universe, not stop position
+  // management, paper accounting, or Leader continuity.
+  const [activeResult,moversResult]=await Promise.allSettled([
     alpacaJson(env, "/v1beta1/screener/stocks/most-actives?by=trades&top=100"),
     alpacaJson(env, "/v1beta1/screener/stocks/movers?top=50"),
   ]);
+  const active=activeResult.status==='fulfilled'?activeResult.value:{};
+  const movers=moversResult.status==='fulfilled'?moversResult.value:{};
+  const warnings:string[]=[];
+  if(activeResult.status==='rejected') warnings.push('most-actives unavailable');
+  if(moversResult.status==='rejected') warnings.push('movers unavailable');
+
   const symbols = new Set<string>();
   const sourceBySymbol=new Map<string,{source:string;rank:number|null}>();
   const actives=active?.most_actives ?? active?.mostActives ?? [];
@@ -158,16 +167,14 @@ async function discoverSymbols(env: Env): Promise<DiscoveryResult> {
     symbols.add(x.symbol);if(!sourceBySymbol.has(x.symbol)) sourceBySymbol.set(x.symbol,{source:'top_loser',rank:i+1});
   }
 
-  // Keep recently interesting names alive even if they temporarily fall off screeners.
   const recent = await env.MEDS_DB.prepare(
     `SELECT symbol FROM symbol_state WHERE last_seen_at >= strftime('%Y-%m-%dT%H:%M:%fZ','now','-90 minutes') ORDER BY score DESC LIMIT 80`
   ).all<{symbol:string}>();
   for (const r of recent.results ?? []){
     symbols.add(r.symbol);if(!sourceBySymbol.has(r.symbol)) sourceBySymbol.set(r.symbol,{source:'recent',rank:null});
   }
-  return {symbols:[...symbols].slice(0,180),sourceBySymbol,gainers:gainers.slice(0,50)};
+  return {symbols:[...symbols].slice(0,180),sourceBySymbol,gainers:gainers.slice(0,50),warnings};
 }
-
 async function persistGainerBoard(env:Env,gainers:any[],now=new Date()){
   if(!gainers.length) return;
   const bucket=bucket5(now),sessionDate=easternParts(now).date,marketPhase=phase(now);
@@ -209,10 +216,12 @@ async function fetchSnapshots(env: Env, symbols: string[]): Promise<Record<strin
   const feed = stockFeed();
   const batches:string[][]=[];
   for (let i = 0; i < symbols.length; i += 45) batches.push(symbols.slice(i,i+45));
-  const pages=await Promise.all(batches.map(async batch=>{
+  const results=await Promise.allSettled(batches.map(async batch=>{
     const q=encodeURIComponent(batch.join(","));
     return alpacaJson(env,`/v2/stocks/snapshots?symbols=${q}&feed=${feed}`);
   }));
+  const pages=results.filter((x):x is PromiseFulfilledResult<any>=>x.status==='fulfilled').map(x=>x.value);
+  if(symbols.length && !pages.length) throw new Error('all stock snapshot batches unavailable');
   return Object.assign({},...pages);
 }
 
@@ -1796,7 +1805,8 @@ async function scanTick(env: Env) {
   rough.sort((a,b) => b.score - a.score);
   const research = rough.slice(0,HUNT_TRACKED_PER_CYCLE);
   await persistBroadDiscovery(env,auditRough,discovered,new Set(research.map(x=>x.symbol)),auditNow);
-  const news = await fetchNewsForSymbols(env, research.map(x => x.symbol));
+  let news:any[]=[];
+  try{news=await fetchNewsForSymbols(env,research.map(x=>x.symbol));}catch{/* non-fatal discovery enrichment */}
   const borrow: Record<string,any> = {}; // No verified free borrow provider configured.
 
   for (const c of research) {
@@ -1837,6 +1847,7 @@ async function scanTick(env: Env) {
   }
   return { ok: true, feed: stockFeed(), scanned: symbols.length, shortlisted: top.length, research_shortlist:research.length,
     broad_discovery_observations:auditRough.length,gainer_board_size:discovered.gainers.length,
+    discovery_warnings:discovered.warnings,
     research_execution_fresh:research.filter(x=>x.executionFresh===true).length,
     hunt_universe_open_symbols:(huntHeld.results??[]).length,
     leaders: top.slice(0,5).map(x => ({symbol:x.symbol,score:x.score,price:x.price})), hunt, paper };
