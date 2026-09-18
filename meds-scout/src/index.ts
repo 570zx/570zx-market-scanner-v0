@@ -511,17 +511,14 @@ const HUNT_MAX_HOLD_MIN=45;
 const HUNT_REENTRY_COOLDOWN_MIN=15;
 
 function leaderHuntEligible(c:PaperCandidate){
-  const dayVolumeRatio=c.previousDayVolume>0?c.dayVolume/c.previousDayVolume:0;
-  const early=c.dayChangePct>=-5 && c.dayChangePct<=10;
-  const liquid=c.spreadPct<=4.5;
-  const evidence=[
-    c.volumeAccel>=0.03,
-    c.consecutiveHits>=2,
-    dayVolumeRatio>=0.25,
-    c.catalystScore>0,
-    c.score>=55,
-  ].filter(Boolean).length;
-  return early && liquid && c.score>=30 && evidence>=2;
+  // Research lane intentionally samples aggressively. The broad scanner has
+  // already ranked these names; Leader Hunt only insists that the move is
+  // still early enough to study, the spread is executable enough to model,
+  // and the candidate is not completely unranked. Bad samples are useful
+  // negative labels here because no live capital is attached.
+  const early=c.dayChangePct>=-8 && c.dayChangePct<=10;
+  const liquid=c.spreadPct<=6;
+  return early && liquid && c.score>=15;
 }
 
 function huntFeatures(c:PaperCandidate,marketPhase:ReturnType<typeof phase>){
@@ -1354,7 +1351,16 @@ async function publicStatus(env: Env): Promise<Response> {
       if(!optionsOpen){
         try {
           const diagnostics=JSON.parse(v.diagnostics??'[]');
-          return !Array.isArray(diagnostics) || diagnostics.some((d:any)=>!String(d).startsWith('option quote unavailable/stale/invalid:'));
+          // Outside the regular session, some held equities have no usable
+          // extended-hours print and listed options are closed. Those are
+          // incomplete marks, not a system outage. The ledger remains blocked
+          // from adding new risk because valueLedger.complete is still false.
+          const expectedClosedMarketGap=(d:any)=>{
+            const s=String(d);
+            return s.startsWith('option quote unavailable/stale/invalid:') ||
+              s.startsWith('equity quote unavailable/stale:');
+          };
+          return !Array.isArray(diagnostics) || diagnostics.some((d:any)=>!expectedClosedMarketGap(d));
         } catch { return true; }
       }
       return true;
