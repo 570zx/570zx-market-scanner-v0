@@ -141,7 +141,7 @@ test('leader hunt ladders small profits, takes 85% at +200%, then peak-tests a 5
  const {env,db}=await setup();
  const accounts=db.prepare("SELECT label,starting_equity,cash FROM hunt_accounts ORDER BY starting_equity").all();
  assert.deepEqual(accounts.map(x=>x.starting_equity),[100,1000,10000,100000,500000]);
- const c={...candidate,dayChangePct:4,dayVolume:100000,previousDayVolume:100000,minuteVolume:100000,spreadPct:.1,volumeAccel:.10,consecutiveHits:3,catalystScore:0,catalystSummary:'',score:60,reasons:['fixture']};
+ const c={...candidate,dayChangePct:4,dayVolume:100000,previousDayVolume:100000,minuteVolume:100000,spreadPct:.1,volumeAccel:.10,consecutiveHits:3,catalystScore:0,catalystSummary:'',score:60,reasons:['fixture'],executionFresh:true};
  assert.equal(leaderHuntEligible(c),true);
  assert.equal(leaderHuntEligible({...c,dayChangePct:10.01}),false);
  const snaps={TEST:{latestQuote:quote(100,100.1),minuteBar:{o:100,h:100.2,l:99.9,c:100.1,v:100000,t:new Date().toISOString()}}};
