@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {readFileSync} from 'node:fs';
 import {validQuote,equityExit,optionQuote,riskCapacity,SIM_VERSION,EXEC_VERSION} from '../src/paper-accounting.ts';
-import worker,{ensurePaperSchema,valueLedger,markLedger,manageEquityPositions,manageOptionPositions,enterEquityProposal,enterOptionsForCandidate,scanTick,leaderHuntEligible,runLeaderHunt,manageHuntAccountPositions,markHuntAccounts,enterLeaderHuntOptions,manageHuntOptionPositions,HUNT_VERSION} from '../src/index.ts';
+import worker,{ensurePaperSchema,valueLedger,markLedger,manageEquityPositions,manageOptionPositions,enterEquityProposal,enterOptionsForCandidate,scanTick,leaderHuntEligible,leaderEquityRunnerEligible,leaderEquityRunnerScore,runLeaderHunt,manageHuntAccountPositions,markHuntAccounts,enterLeaderHuntOptions,manageHuntOptionPositions,HUNT_VERSION} from '../src/index.ts';
 class D1 {
  constructor(){this.db=new DatabaseSync(':memory:');}
  prepare(sql){const db=this.db;return {args:[],bind(...a){this.args=a;return this;},async run(){const r=db.prepare(sql).run(...this.args);return {meta:{changes:Number(r.changes)}};},async all(){return {results:db.prepare(sql).all(...this.args)};},async first(){return db.prepare(sql).get(...this.args)??null;}};}
@@ -136,6 +136,18 @@ test('scanner retrieves held paper symbols even if discovery omits them',async()
  finally{globalThis.Date=NativeDate;globalThis.fetch=oldFetch;db.close();}
 });
 
+
+test('leader v7 reserves equity entries for asymmetric runner candidates',()=>{
+ const cheap={...candidate,price:4.5,bid:4.49,ask:4.51,spreadPct:.45,dayChangePct:3.5,dayVolume:900000,previousDayVolume:400000,minuteVolume:50000,volumeAccel:.18,consecutiveHits:2,catalystScore:0,catalystSummary:'',score:52,reasons:['fixture'],executionFresh:true,discoverySource:'top_gainer',discoveryRank:8};
+ const bluechip={...cheap,symbol:'BLUE',price:280,bid:279.9,ask:280.1,spreadPct:.07,score:80,discoverySource:'most_active_volume'};
+ assert.equal(leaderHuntEligible(cheap),true);
+ assert.equal(leaderEquityRunnerEligible(cheap),true);
+ assert.equal(leaderHuntEligible(bluechip),true);
+ assert.equal(leaderEquityRunnerEligible(bluechip),false);
+ assert.ok(leaderEquityRunnerScore(cheap)>leaderEquityRunnerScore({...cheap,price:20,discoverySource:'most_active_volume',volumeAccel:.08}));
+ assert.equal(leaderEquityRunnerEligible({...cheap,catalystScore:-22}),false);
+ assert.equal(leaderEquityRunnerEligible({...cheap,dayChangePct:-4}),false);
+});
 
 test('leader hunt ladders small profits, takes 85% at +200%, then peak-tests a 5% runner',async()=>{
  const {env,db}=await setup();
