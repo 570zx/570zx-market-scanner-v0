@@ -1621,6 +1621,21 @@ async function publicStatus(env: Env): Promise<Response> {
       (SELECT MAX(created_at) FROM hunt_observations) AS latest_observation_at,
       (SELECT MAX(closed_at) FROM hunt_account_trades) AS latest_trade_at`)
       .bind(...Array(6).fill(since)).first<any>();
+    let lastScan:any=null;
+    try { lastScan=state?.last_result?JSON.parse(state.last_result):null; } catch {}
+    const observationAgeSeconds=secondsSince(h?.latest_observation_at??null);
+    const lastHunt=lastScan?.hunt??null;
+    const lastResearchCount=Number(lastScan?.research_shortlist??0);
+    const huntStreamHealthy=!activeSession || (
+      observationAgeSeconds!==null && observationAgeSeconds<=15*60 &&
+      !lastHunt?.error && lastResearchCount>0
+    );
+    const huntWarning=huntStreamHealthy?null:
+      lastHunt?.error?String(lastHunt.error):
+      lastResearchCount<=0?'latest scan produced no Leader Hunt research candidates':
+      observationAgeSeconds==null?'Leader Hunt has no recorded observations':
+      `Leader Hunt observations stale by ${observationAgeSeconds}s`;
+    if(!huntStreamHealthy) body.ok=false;
     const accounts=await env.MEDS_DB.prepare(`SELECT a.account_id,a.label,a.starting_equity,a.cash,a.current_equity,a.realized_pnl,a.max_equity,a.max_drawdown_pct,a.updated_at,
       (SELECT COUNT(*) FROM hunt_account_positions p WHERE p.account_id=a.account_id AND p.status='open') AS open_positions,
       (SELECT COUNT(*) FROM hunt_account_trades t WHERE t.account_id=a.account_id) AS closed_trades,
@@ -1695,7 +1710,13 @@ async function publicStatus(env: Env): Promise<Response> {
       };
     });
     body.leader_hunt={
-      version:HUNT_VERSION,objective:'catch eventual top gainers before +10%',tracked_per_cycle:HUNT_TRACKED_PER_CYCLE,
+      version:HUNT_VERSION,healthy:huntStreamHealthy,warning:huntWarning,
+      observation_age_seconds:observationAgeSeconds,
+      last_scan_research_shortlist:lastResearchCount,
+      last_scan_execution_fresh:Number(lastScan?.research_execution_fresh??0),
+      last_scan_hunt_open:Number(lastHunt?.open??0),
+      last_scan_hunt_error:lastHunt?.error??null,
+      objective:'catch eventual top gainers before +10%',tracked_per_cycle:HUNT_TRACKED_PER_CYCLE,
       max_new_signals_per_cycle:HUNT_MAX_NEW_PER_CYCLE,max_open_per_account:HUNT_MAX_OPEN,max_hold_minutes:HUNT_MAX_HOLD_MIN,
       runner_max_hold_minutes:HUNT_RUNNER_MAX_HOLD_MIN,position_pct:HUNT_POSITION_PCT,max_minute_participation:HUNT_MAX_MINUTE_PARTICIPATION,
       take_profit_return_pct:HUNT_TAKE_RETURN_PCT,take_profit_fraction:HUNT_TAKE_FRACTION,runner_fraction:HUNT_RUNNER_FRACTION,
