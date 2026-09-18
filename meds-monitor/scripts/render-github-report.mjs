@@ -24,12 +24,13 @@ function table(rows, columns) {
   return [head, rule, ...body].join("\n");
 }
 
-const [status, tradesPage, positionsPage, decisionsPage, huntPage] = await Promise.all([
+const [status, tradesPage, positionsPage, decisionsPage, huntPage, huntPositionsPage] = await Promise.all([
   get("/status"),
   get("/status/trades?limit=100"),
   get("/status/positions?limit=100"),
   get("/status/decisions?limit=100"),
   get("/status/hunt?limit=100"),
+  get("/status/hunt/positions?limit=100"),
 ]);
 
 const ledgers = status.ledgers || [];
@@ -37,6 +38,25 @@ const trades = tradesPage.rows || [];
 const positions = positionsPage.rows || [];
 const decisions = (decisionsPage.rows || []).slice(0, 50);
 const huntTrades = huntPage.rows || [];
+const huntPositions = (huntPositionsPage.rows || []).map((row) => {
+  let features = {};
+  try { features = JSON.parse(row.features || "{}"); } catch {}
+  const stage = Number(row.take200_done)
+    ? "5% RUNNER"
+    : Number(row.ladder100_done) ? "NEXT +200%"
+    : Number(row.ladder50_done) ? "NEXT +100%"
+    : Number(row.ladder25_done) ? "NEXT +50%"
+    : "NEXT +25%";
+  return {
+    ...row,
+    stage,
+    remaining: row.remaining_qty == null ? row.quantity : row.remaining_qty,
+    capacity_limited: features.capacity_limited === true ? "YES" : "no",
+    target_notional: features.target_notional,
+    actual_notional: features.actual_notional,
+    minute_participation: features.minute_participation == null ? "" : (Number(features.minute_participation)*100).toFixed(2)+"%",
+  };
+});
 const generatedAt = new Date().toISOString();
 // Leader Hunt telemetry is supplemental research data and must not make the
 // core system look unhealthy during a rolling deployment.
@@ -103,7 +123,7 @@ ${table(status.diagnostics?.rejected_entries_24h || [], [["Reason","reason"],["C
 - Max pre-target hold: ${cell(status.leader_hunt?.max_hold_minutes)} minutes
 - Max runner hold after target: ${cell(status.leader_hunt?.runner_max_hold_minutes)} minutes
 - Max minute-volume participation: ${status.leader_hunt?.max_minute_participation == null ? "" : (Number(status.leader_hunt.max_minute_participation)*100).toFixed(1)+"%"}
-- Telemetry warning: ${cell(status.leader_hunt?.error || huntPage.error)}
+- Telemetry warning: ${cell(status.leader_hunt?.error || huntPage.error || huntPositionsPage.error)}
 
 ### Capital-tier accounts
 
@@ -116,6 +136,16 @@ ${table(status.leader_hunt?.accounts || [], [
 | Observations 24h | Open research positions | Closed trades 24h | Winners 24h | Win rate | Avg return % | Best % | Worst % | Latest observation | Latest close |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | ${cell(status.leader_hunt?.observations_24h)} | ${cell(status.leader_hunt?.open_positions)} | ${cell(status.leader_hunt?.trades_24h)} | ${cell(status.leader_hunt?.winners_24h)} | ${status.leader_hunt?.win_rate_24h == null ? "" : (Number(status.leader_hunt.win_rate_24h)*100).toFixed(1)+"%"} | ${cell(status.leader_hunt?.avg_return_pct_24h)} | ${cell(status.leader_hunt?.best_return_pct_24h)} | ${cell(status.leader_hunt?.worst_return_pct_24h)} | ${cell(status.leader_hunt?.latest_observation_at)} | ${cell(status.leader_hunt?.latest_trade_at)} |
+
+### Leader Hunt open positions (${huntPositions.length})
+
+${table(huntPositions, [
+  ["Account","account"],["Symbol","symbol"],["Entry","entry_price"],["Bid/mark","current_bid"],
+  ["Unrealized %","unrealized_return_pct"],["Entry day %","entry_day_change_pct"],["Stage","stage"],
+  ["Qty","quantity"],["Remaining","remaining"],["Locked P&L","locked_realized_pnl"],
+  ["Distance to +200 %","distance_to_200_pct"],["Capacity limited","capacity_limited"],
+  ["Actual notional","actual_notional"],["Minute participation","minute_participation"],["Mark time","mark_at"],
+])}
 
 ### Recent Leader Hunt closes (${huntTrades.length})
 
