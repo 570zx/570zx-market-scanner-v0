@@ -6,9 +6,8 @@ keep_vars = true
 [version_metadata]
 binding = "CF_VERSION_METADATA"
 
-# Every five minutes. The code itself gates scans to US market windows.
-[triggers]
-crons = ["*/5 * * * *"]
+# Scheduled scans paused to conserve daily usage.
+# Manual/read-only endpoints remain available.
 
 [[d1_databases]]
 binding = "MEDS_DB"
@@ -17,7 +16,7 @@ database_id = "4c51e6c1-6d95-4002-800a-a7c74da64b24"
 
 [vars]
 TRADING_MODE = "shadow"
-SCOUT_ENABLED = "true"
+SCOUT_ENABLED = "false"
 MIN_PRICE = "0.50"
 MAX_PRICE = "20.00"
 MAX_DAY_CHANGE_PCT = "25"
