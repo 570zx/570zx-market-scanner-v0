@@ -131,23 +131,41 @@ async function alpacaJson(env: Env, path: string): Promise<any> {
   return r.json();
 }
 
-async function discoverSymbols(env: Env): Promise<string[]> {
+type DiscoveryResult={
+  symbols:string[];
+  sourceBySymbol:Map<string,{source:string;rank:number|null}>;
+  gainers:any[];
+};
+
+async function discoverSymbols(env: Env): Promise<DiscoveryResult> {
   // Broad real-time discovery sources. We deliberately do NOT rely on gainers alone.
   const [active, movers] = await Promise.all([
     alpacaJson(env, "/v1beta1/screener/stocks/most-actives?by=trades&top=100"),
     alpacaJson(env, "/v1beta1/screener/stocks/movers?top=50"),
   ]);
   const symbols = new Set<string>();
-  for (const x of active?.most_actives ?? active?.mostActives ?? []) if (x.symbol) symbols.add(x.symbol);
-  for (const x of movers?.gainers ?? []) if (x.symbol) symbols.add(x.symbol);
-  for (const x of movers?.losers ?? []) if (x.symbol) symbols.add(x.symbol);
+  const sourceBySymbol=new Map<string,{source:string;rank:number|null}>();
+  const actives=active?.most_actives ?? active?.mostActives ?? [];
+  const gainers=movers?.gainers ?? [];
+  const losers=movers?.losers ?? [];
+  for (const [i,x] of actives.entries()) if (x.symbol){
+    symbols.add(x.symbol);sourceBySymbol.set(x.symbol,{source:'most_active',rank:i+1});
+  }
+  for (const [i,x] of gainers.entries()) if (x.symbol){
+    symbols.add(x.symbol);sourceBySymbol.set(x.symbol,{source:'top_gainer',rank:i+1});
+  }
+  for (const [i,x] of losers.entries()) if (x.symbol){
+    symbols.add(x.symbol);if(!sourceBySymbol.has(x.symbol)) sourceBySymbol.set(x.symbol,{source:'top_loser',rank:i+1});
+  }
 
   // Keep recently interesting names alive even if they temporarily fall off screeners.
   const recent = await env.MEDS_DB.prepare(
     `SELECT symbol FROM symbol_state WHERE last_seen_at >= strftime('%Y-%m-%dT%H:%M:%fZ','now','-90 minutes') ORDER BY score DESC LIMIT 80`
   ).all<{symbol:string}>();
-  for (const r of recent.results ?? []) symbols.add(r.symbol);
-  return [...symbols].slice(0, 180);
+  for (const r of recent.results ?? []){
+    symbols.add(r.symbol);if(!sourceBySymbol.has(r.symbol)) sourceBySymbol.set(r.symbol,{source:'recent',rank:null});
+  }
+  return {symbols:[...symbols].slice(0,180),sourceBySymbol,gainers:gainers.slice(0,50)};
 }
 
 async function fetchSnapshots(env: Env, symbols: string[]): Promise<Record<string, Snapshot>> {
@@ -416,7 +434,7 @@ INSERT INTO paper_meta(id,version,initialized_at) VALUES(1,2,strftime('%Y-%m-%dT
 async function ensurePaperSchema(env:PaperEnv){
   try {
     const row=await env.MEDS_DB.prepare(`SELECT version FROM paper_meta WHERE id=1`).first<any>();
-    if(Number(row?.version)>=8) return;
+    if(Number(row?.version)>=9) return;
   } catch { /* first boot before paper tables exist */ }
   // D1 exec() treats newline-delimited input as separate statements, which
   // breaks the multiline INSERT ... SELECT seed below. Prepare complete
@@ -567,6 +585,27 @@ async function ensurePaperSchema(env:PaperEnv){
       ON hunt_account_option_events(account_id,created_at DESC)`)
   ]);
   await env.MEDS_DB.prepare(`UPDATE paper_meta SET version=8 WHERE id=1`).run();
+
+  // v9 records the broad discovery universe and the live top-gainer board so
+  // Leader Hunt can grade misses instead of only measuring trades it took.
+  await env.MEDS_DB.batch([
+    env.MEDS_DB.prepare(`CREATE TABLE IF NOT EXISTS hunt_discovery_observations(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,bucket TEXT NOT NULL,session_date TEXT NOT NULL,created_at TEXT NOT NULL,
+      symbol TEXT NOT NULL,source TEXT NOT NULL,source_rank INTEGER,price REAL NOT NULL,day_change_pct REAL NOT NULL,
+      score REAL NOT NULL,spread_pct REAL NOT NULL,execution_fresh INTEGER NOT NULL,eligible INTEGER NOT NULL,
+      shortlisted INTEGER NOT NULL DEFAULT 0,version TEXT NOT NULL,UNIQUE(bucket,symbol))`),
+    env.MEDS_DB.prepare(`CREATE INDEX IF NOT EXISTS idx_hunt_discovery_symbol_time
+      ON hunt_discovery_observations(session_date,symbol,created_at)`),
+    env.MEDS_DB.prepare(`CREATE INDEX IF NOT EXISTS idx_hunt_discovery_under10
+      ON hunt_discovery_observations(session_date,symbol,day_change_pct,created_at)`),
+    env.MEDS_DB.prepare(`CREATE TABLE IF NOT EXISTS hunt_gainer_board(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,bucket TEXT NOT NULL,session_date TEXT NOT NULL,created_at TEXT NOT NULL,
+      phase TEXT NOT NULL,rank INTEGER NOT NULL,symbol TEXT NOT NULL,price REAL,change REAL,percent_change REAL,
+      raw_json TEXT NOT NULL,version TEXT NOT NULL,UNIQUE(bucket,symbol))`),
+    env.MEDS_DB.prepare(`CREATE INDEX IF NOT EXISTS idx_hunt_gainer_board_time
+      ON hunt_gainer_board(session_date,bucket,rank)`)
+  ]);
+  await env.MEDS_DB.prepare(`UPDATE paper_meta SET version=9 WHERE id=1`).run();
 }
 const LEDGER_POLICY: Record<string,{maxRiskPct:number;maxAllocPct:number;primaryMax:number;shadowMax:number}> = {
   A: {maxRiskPct:0.05,maxAllocPct:0.25,primaryMax:3,shadowMax:7},
