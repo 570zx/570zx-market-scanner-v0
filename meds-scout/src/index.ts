@@ -1702,7 +1702,7 @@ async function publicPaperRows(pathname: string, url: URL, env: Env): Promise<Re
       p.entry_day_change_pct,p.opened_phase,p.locked_realized_pnl,p.take200_done,p.take200_price,p.take200_at,p.runner_high,
       p.features,p.version,s.last_bid AS current_bid,s.last_ask AS current_ask,s.last_price AS current_price,s.last_seen_at AS mark_at,
       CASE WHEN s.last_bid>0 THEN (s.last_bid/p.entry_price-1)*100 ELSE NULL END AS unrealized_return_pct,
-      CASE WHEN s.last_bid>0 THEN (p.target_price/s.last_bid-1)*100 ELSE NULL END AS distance_to_200_pct,
+      CASE WHEN s.last_bid>0 THEN ((p.entry_price*(1+HUNT_TAKE_RETURN_PCT))/s.last_bid-1)*100 ELSE NULL END AS distance_to_200_pct,
       (SELECT COUNT(*) FROM hunt_account_events e WHERE e.position_id=p.id AND e.event_type='LADDER_25') AS ladder25_done,
       (SELECT COUNT(*) FROM hunt_account_events e WHERE e.position_id=p.id AND e.event_type='LADDER_50') AS ladder50_done,
       (SELECT COUNT(*) FROM hunt_account_events e WHERE e.position_id=p.id AND e.event_type='LADDER_100') AS ladder100_done
