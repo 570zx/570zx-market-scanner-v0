@@ -542,7 +542,7 @@ async function ensurePaperSchema(env:PaperEnv){
       id INTEGER PRIMARY KEY AUTOINCREMENT,account_id TEXT NOT NULL,underlying TEXT NOT NULL,symbol TEXT NOT NULL,
       opened_at TEXT NOT NULL,entry_price REAL NOT NULL,quantity REAL NOT NULL,entry_notional REAL NOT NULL,
       stop_price REAL NOT NULL,target_price REAL NOT NULL,highest_price REAL NOT NULL,lowest_price REAL NOT NULL,
-      entry_score REAL NOT NULL,entry_day_change_pct REAL NOT NULL,opened_phase TEXT NOT NULL,features TEXT NOT NULL,
+      current_mark REAL NOT NULL,current_mark_at TEXT NOT NULL,entry_score REAL NOT NULL,entry_day_change_pct REAL NOT NULL,opened_phase TEXT NOT NULL,features TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'open',version TEXT NOT NULL,remaining_qty REAL NOT NULL,
       locked_realized_pnl REAL NOT NULL DEFAULT 0,take200_done INTEGER NOT NULL DEFAULT 0,take200_price REAL,
       take200_at TEXT,runner_high REAL,data_quality TEXT NOT NULL DEFAULT 'indicative')`),
@@ -700,6 +700,8 @@ async function manageLeaderHuntPositions(env:PaperEnv,snaps:Record<string,PaperS
     const q=snaps[p.symbol]?.latestQuote;
     if(!validQuote(q,now.getTime())) continue;
     const bid=Number(q.bp),ask=Number(q.ap),mid=(bid+ask)/2;
+    await env.MEDS_DB.prepare("UPDATE hunt_account_option_positions SET current_mark=?,current_mark_at=? WHERE id=?")
+      .bind(bid,now.toISOString(),p.id).run();
     const high=Math.max(Number(p.highest_price),mid),low=Math.min(Number(p.lowest_price),mid);
     const ageMin=Math.max(0,(now.getTime()-Date.parse(p.opened_at))/60000);
     const stop=bid<=Number(p.stop_price),target=bid>=Number(p.target_price),timeExit=ageMin>=HUNT_MAX_HOLD_MIN;
@@ -956,7 +958,7 @@ async function runHuntAccounts(env:PaperEnv,candidates:PaperCandidate[],snaps:Re
     if(signalUsed) signalsEntered++;
   }
 
-  const optionEntries=await enterLeaderHuntOptions(env,eligible,snaps as any,now,optionMarksMap);
+  const optionEntries=await enterLeaderHuntOptions(env,eligible,now,optionMarksMap);
   await markHuntAccounts(env,snaps,now,optionMarksMap);
   return {
     exits:management.exits+optionManagement.exits,
@@ -1434,10 +1436,10 @@ async function enterLeaderHuntOptions(env:PaperEnv,candidates:PaperCandidate[],n
         target_notional:targetNotional,actual_notional:cost,displayed_ask_contracts:displayedAsk,
         entry_slippage_pct:HUNT_OPTION_SLIPPAGE_PCT,whole_contracts:true}).slice(0,12000);
       await env.MEDS_DB.batch([
-        env.MEDS_DB.prepare(`INSERT INTO hunt_account_option_positions(account_id,underlying,symbol,opened_at,entry_price,quantity,entry_notional,stop_price,target_price,highest_price,lowest_price,entry_score,entry_day_change_pct,opened_phase,features,status,version,remaining_qty,locked_realized_pnl,take200_done,data_quality)
-          VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'open',?,?,0,0,'indicative')`)
+        env.MEDS_DB.prepare(`INSERT INTO hunt_account_option_positions(account_id,underlying,symbol,opened_at,entry_price,quantity,entry_notional,stop_price,target_price,highest_price,lowest_price,current_mark,current_mark_at,entry_score,entry_day_change_pct,opened_phase,features,status,version,remaining_qty,locked_realized_pnl,take200_done,data_quality)
+          VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'open',?,?,0,0,'indicative')`)
           .bind(account.account_id,c.symbol,choice.symbol,now.toISOString(),entryFill,qty,cost,stop,target,entryFill,entryFill,
-            c.score,c.dayChangePct,phase(now),features,HUNT_VERSION,qty),
+            entryFill,now.toISOString(),c.score,c.dayChangePct,phase(now),features,HUNT_VERSION,qty),
         env.MEDS_DB.prepare("UPDATE hunt_accounts SET cash=cash-?,updated_at=? WHERE account_id=?")
           .bind(cost,now.toISOString(),account.account_id)
       ]);
@@ -1637,7 +1639,8 @@ async function scanTick(env: Env) {
   const paperHeld=await env.MEDS_DB.prepare("SELECT symbol FROM paper_positions WHERE status='open' UNION SELECT underlying AS symbol FROM paper_option_positions WHERE status='open'").all<{symbol:string}>();
   const held = await env.MEDS_DB.prepare(`SELECT symbol FROM shadow_positions WHERE status='open'`).all<{symbol:string}>();
   const huntHeld=await env.MEDS_DB.prepare(`SELECT DISTINCT symbol FROM hunt_account_positions WHERE status='open'
-    UNION SELECT DISTINCT symbol FROM hunt_positions WHERE status='open'`).all<{symbol:string}>();
+    UNION SELECT DISTINCT symbol FROM hunt_positions WHERE status='open'
+    UNION SELECT DISTINCT underlying AS symbol FROM hunt_account_option_positions WHERE status='open'`).all<{symbol:string}>();
   const huntRecent=await env.MEDS_DB.prepare(`SELECT symbol,MAX(created_at) AS last_seen
     FROM hunt_observations WHERE created_at>=? GROUP BY symbol ORDER BY last_seen DESC LIMIT 80`)
     .bind(new Date(Date.now()-12*60*60000).toISOString()).all<{symbol:string}>();
