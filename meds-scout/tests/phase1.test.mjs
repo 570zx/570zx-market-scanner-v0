@@ -234,7 +234,7 @@ test('leader hunt options share account cash, use whole contracts and follow +20
    assert.equal(db.prepare("SELECT COUNT(*) n FROM hunt_account_option_positions WHERE quantity!=CAST(quantity AS INTEGER)").get().n,0,
      'option sizing must remain whole-contract');
 
-   marks[optionSymbol]={latestQuote:{bp:1.55,ap:1.60,bs:50,as:50,t:now.toISOString()}};
+   marks[optionSymbol]={latestQuote:{bp:1.55,ap:1.60,bs:50,as:50,t:new Date(now.getTime()+5*60000).toISOString()}};
    const hit=await manageHuntOptionPositions(huntEnv,marks,new Date(now.getTime()+5*60000));
    assert.ok(hit.take200s>=3);
    assert.equal(db.prepare("SELECT COUNT(*) n FROM hunt_account_option_trades WHERE exit_reason='take_200'").get().n,1,
