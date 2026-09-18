@@ -1219,7 +1219,7 @@ async function selectLeaderOption(env:PaperEnv,c:PaperCandidate,now=new Date()):
     return am-bm || a.meta!.expiration.localeCompare(b.meta!.expiration);
   });
   const x=usable[0]; if(!x) return null;
-  return {underlying:c.symbol,symbol:x.symbol,direction:x.meta!.type,quote:x.s,
+  return {underlying:c.symbol,symbol:x.symbol,direction:x.meta!.type as 'call'|'put',quote:x.s,
     strike:x.meta!.strike,expiration:x.meta!.expiration};
 }
 
