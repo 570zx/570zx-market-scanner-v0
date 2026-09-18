@@ -95,7 +95,7 @@ test('simulated cron, persistent SQL, exact +20%, runner, dedupe, auth, pause an
    positions:db.db.prepare("SELECT COUNT(*) AS n FROM paper_positions WHERE status='open'").get().n,
    decisions:db.db.prepare('SELECT COUNT(*) AS n FROM paper_decisions').get().n,
   };
-  for(const path of ['/status/trades','/status/positions','/status/decisions']){
+  for(const path of ['/status/trades','/status/positions','/status/decisions','/status/hunt','/status/hunt/positions']){
    const response=await worker.fetch(request(path+'?limit=2&offset=0',undefined,false),env);
    assert.equal(response.status,200);const page=await response.json();
    assert.equal(page.ok,true);assert.equal(page.read_only,true);assert.ok(page.rows.length<=2);
