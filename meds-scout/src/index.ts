@@ -414,7 +414,7 @@ INSERT INTO paper_meta(id,version,initialized_at) VALUES(1,2,strftime('%Y-%m-%dT
 async function ensurePaperSchema(env:PaperEnv){
   try {
     const row=await env.MEDS_DB.prepare(`SELECT version FROM paper_meta WHERE id=1`).first<any>();
-    if(Number(row?.version)>=4) return;
+    if(Number(row?.version)>=5) return;
   } catch { /* first boot before paper tables exist */ }
   // D1 exec() treats newline-delimited input as separate statements, which
   // breaks the multiline INSERT ... SELECT seed below. Prepare complete
@@ -466,7 +466,34 @@ async function ensurePaperSchema(env:PaperEnv){
       minutes_held REAL NOT NULL,exit_reason TEXT NOT NULL,entry_score REAL NOT NULL,entry_day_change_pct REAL NOT NULL,
       opened_phase TEXT NOT NULL,features TEXT NOT NULL,version TEXT NOT NULL)`),
     env.MEDS_DB.prepare(`CREATE INDEX IF NOT EXISTS idx_hunt_trade_time ON hunt_trades(closed_at DESC)`),
-    env.MEDS_DB.prepare(`UPDATE paper_meta SET version=4 WHERE id=1`)
+    env.MEDS_DB.prepare(`CREATE TABLE IF NOT EXISTS hunt_accounts(
+      account_id TEXT PRIMARY KEY,label TEXT NOT NULL,starting_equity REAL NOT NULL,cash REAL NOT NULL,current_equity REAL NOT NULL,
+      realized_pnl REAL NOT NULL DEFAULT 0,max_equity REAL NOT NULL,max_drawdown_pct REAL NOT NULL DEFAULT 0,updated_at TEXT NOT NULL)`),
+    env.MEDS_DB.prepare(`INSERT OR IGNORE INTO hunt_accounts(account_id,label,starting_equity,cash,current_equity,realized_pnl,max_equity,max_drawdown_pct,updated_at)
+      VALUES('H100','$100',100,100,100,0,100,0,strftime('%Y-%m-%dT%H:%M:%fZ','now'))`),
+    env.MEDS_DB.prepare(`INSERT OR IGNORE INTO hunt_accounts(account_id,label,starting_equity,cash,current_equity,realized_pnl,max_equity,max_drawdown_pct,updated_at)
+      VALUES('H1K','$1K',1000,1000,1000,0,1000,0,strftime('%Y-%m-%dT%H:%M:%fZ','now'))`),
+    env.MEDS_DB.prepare(`INSERT OR IGNORE INTO hunt_accounts(account_id,label,starting_equity,cash,current_equity,realized_pnl,max_equity,max_drawdown_pct,updated_at)
+      VALUES('H10K','$10K',10000,10000,10000,0,10000,0,strftime('%Y-%m-%dT%H:%M:%fZ','now'))`),
+    env.MEDS_DB.prepare(`INSERT OR IGNORE INTO hunt_accounts(account_id,label,starting_equity,cash,current_equity,realized_pnl,max_equity,max_drawdown_pct,updated_at)
+      VALUES('H100K','$100K',100000,100000,100000,0,100000,0,strftime('%Y-%m-%dT%H:%M:%fZ','now'))`),
+    env.MEDS_DB.prepare(`INSERT OR IGNORE INTO hunt_accounts(account_id,label,starting_equity,cash,current_equity,realized_pnl,max_equity,max_drawdown_pct,updated_at)
+      VALUES('H500K','$500K',500000,500000,500000,0,500000,0,strftime('%Y-%m-%dT%H:%M:%fZ','now'))`),
+    env.MEDS_DB.prepare(`CREATE TABLE IF NOT EXISTS hunt_account_positions(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,account_id TEXT NOT NULL,symbol TEXT NOT NULL,opened_at TEXT NOT NULL,
+      entry_price REAL NOT NULL,quantity REAL NOT NULL,entry_notional REAL NOT NULL,stop_price REAL NOT NULL,target_price REAL NOT NULL,
+      highest_price REAL NOT NULL,lowest_price REAL NOT NULL,entry_score REAL NOT NULL,entry_day_change_pct REAL NOT NULL,
+      opened_phase TEXT NOT NULL,features TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'open',version TEXT NOT NULL)`),
+    env.MEDS_DB.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS idx_hunt_account_open_symbol ON hunt_account_positions(account_id,symbol) WHERE status='open'`),
+    env.MEDS_DB.prepare(`CREATE INDEX IF NOT EXISTS idx_hunt_account_position_open ON hunt_account_positions(account_id,status)`),
+    env.MEDS_DB.prepare(`CREATE TABLE IF NOT EXISTS hunt_account_trades(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,account_id TEXT NOT NULL,symbol TEXT NOT NULL,opened_at TEXT NOT NULL,closed_at TEXT NOT NULL,
+      entry_price REAL NOT NULL,exit_price REAL NOT NULL,quantity REAL NOT NULL,entry_notional REAL NOT NULL,exit_value REAL NOT NULL,
+      realized_pnl REAL NOT NULL,return_pct REAL NOT NULL,mfe_pct REAL NOT NULL,mae_pct REAL NOT NULL,minutes_held REAL NOT NULL,
+      exit_reason TEXT NOT NULL,entry_score REAL NOT NULL,entry_day_change_pct REAL NOT NULL,opened_phase TEXT NOT NULL,
+      features TEXT NOT NULL,version TEXT NOT NULL)`),
+    env.MEDS_DB.prepare(`CREATE INDEX IF NOT EXISTS idx_hunt_account_trade_time ON hunt_account_trades(account_id,closed_at DESC)`),
+    env.MEDS_DB.prepare(`UPDATE paper_meta SET version=5 WHERE id=1`)
   ]);
 }
 const LEDGER_POLICY: Record<string,{maxRiskPct:number;maxAllocPct:number;primaryMax:number;shadowMax:number}> = {
@@ -503,12 +530,21 @@ function bucket5(date=new Date()){
   const ms=5*60*1000; return new Date(Math.floor(date.getTime()/ms)*ms).toISOString();
 }
 
-const HUNT_VERSION='leader-hunt-v1';
+const HUNT_VERSION='leader-hunt-v2-capital-tiers';
 const HUNT_TRACKED_PER_CYCLE=12;
 const HUNT_MAX_OPEN=24;
 const HUNT_MAX_NEW_PER_CYCLE=6;
 const HUNT_MAX_HOLD_MIN=45;
 const HUNT_REENTRY_COOLDOWN_MIN=15;
+const HUNT_POSITION_PCT=0.04;
+const HUNT_MAX_MINUTE_PARTICIPATION=0.05;
+const HUNT_ACCOUNTS=[
+  {account_id:'H100',label:'$100',starting_equity:100},
+  {account_id:'H1K',label:'$1K',starting_equity:1000},
+  {account_id:'H10K',label:'$10K',starting_equity:10000},
+  {account_id:'H100K',label:'$100K',starting_equity:100000},
+  {account_id:'H500K',label:'$500K',starting_equity:500000},
+] as const;
 
 function leaderHuntEligible(c:PaperCandidate){
   // Research lane intentionally samples aggressively. The broad scanner has
@@ -595,10 +631,121 @@ async function manageLeaderHuntPositions(env:PaperEnv,snaps:Record<string,PaperS
   return exits;
 }
 
+
+async function markHuntAccounts(env:PaperEnv,snaps:Record<string,PaperSnapshot>,now=new Date()){
+  const accounts=await env.MEDS_DB.prepare("SELECT * FROM hunt_accounts ORDER BY starting_equity").all<any>();
+  for(const a of accounts.results??[]){
+    let equity=Number(a.cash),complete=Number.isFinite(equity);
+    const positions=await env.MEDS_DB.prepare("SELECT * FROM hunt_account_positions WHERE account_id=? AND status='open'").bind(a.account_id).all<any>();
+    for(const p of positions.results??[]){
+      const q=snaps[p.symbol]?.latestQuote;
+      if(!validQuote(q,now.getTime())){complete=false;continue;}
+      equity+=Number(q.bp)*Number(p.quantity);
+    }
+    if(!complete) continue;
+    const peak=Math.max(Number(a.max_equity),equity);
+    const dd=peak>0?1-equity/peak:0;
+    await env.MEDS_DB.prepare("UPDATE hunt_accounts SET current_equity=?,max_equity=?,max_drawdown_pct=MAX(max_drawdown_pct,?),updated_at=? WHERE account_id=?")
+      .bind(equity,peak,dd,now.toISOString(),a.account_id).run();
+  }
+}
+
+async function manageHuntAccountPositions(env:PaperEnv,snaps:Record<string,PaperSnapshot>,now=new Date()){
+  const rows=await env.MEDS_DB.prepare("SELECT * FROM hunt_account_positions WHERE status='open' ORDER BY id").all<any>();
+  let exits=0;
+  for(const p of rows.results??[]){
+    const snap=snaps[p.symbol],q=snap?.latestQuote;
+    if(!validQuote(q,now.getTime())) continue;
+    const bid=Number(q.bp),ask=Number(q.ap),mid=(bid+ask)/2;
+    const high=Math.max(Number(p.highest_price),mid),low=Math.min(Number(p.lowest_price),mid);
+    const ageMin=Math.max(0,(now.getTime()-Date.parse(p.opened_at))/60000);
+    const stop=bid<=Number(p.stop_price),target=bid>=Number(p.target_price),timeExit=ageMin>=HUNT_MAX_HOLD_MIN;
+    if(!stop&&!target&&!timeExit){
+      await env.MEDS_DB.prepare("UPDATE hunt_account_positions SET highest_price=?,lowest_price=? WHERE id=?").bind(high,low,p.id).run();
+      continue;
+    }
+    const reason=stop?'stop':target?'target':'time';
+    const minuteLiquidity=Math.max(1,Number(snap?.minuteBar?.v??1));
+    const participation=Number(p.quantity)/minuteLiquidity;
+    const slipPct=paperClamp(0.0002+participation*0.025,0.0002,0.01);
+    const fill=Math.max(0,bid*(1-slipPct));
+    const exitValue=fill*Number(p.quantity);
+    const pnl=exitValue-Number(p.entry_notional);
+    const ret=Number(p.entry_notional)>0?pnl/Number(p.entry_notional)*100:0;
+    const mfe=(high/Number(p.entry_price)-1)*100;
+    const mae=(low/Number(p.entry_price)-1)*100;
+    await env.MEDS_DB.batch([
+      env.MEDS_DB.prepare("UPDATE hunt_account_positions SET status='closed',highest_price=?,lowest_price=? WHERE id=?").bind(high,low,p.id),
+      env.MEDS_DB.prepare("UPDATE hunt_accounts SET cash=cash+?,realized_pnl=realized_pnl+?,updated_at=? WHERE account_id=?")
+        .bind(exitValue,pnl,now.toISOString(),p.account_id),
+      env.MEDS_DB.prepare(`INSERT INTO hunt_account_trades(account_id,symbol,opened_at,closed_at,entry_price,exit_price,quantity,entry_notional,exit_value,realized_pnl,return_pct,mfe_pct,mae_pct,minutes_held,exit_reason,entry_score,entry_day_change_pct,opened_phase,features,version)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        .bind(p.account_id,p.symbol,p.opened_at,now.toISOString(),p.entry_price,fill,p.quantity,p.entry_notional,exitValue,pnl,ret,mfe,mae,ageMin,reason,p.entry_score,p.entry_day_change_pct,p.opened_phase,p.features,HUNT_VERSION)
+    ]);
+    exits++;
+  }
+  await markHuntAccounts(env,snaps,now);
+  return exits;
+}
+
+async function runHuntAccounts(env:PaperEnv,candidates:PaperCandidate[],snaps:Record<string,PaperSnapshot>,now=new Date()){
+  const marketPhase=phase(now);
+  const exits=await manageHuntAccountPositions(env,snaps,now);
+  const eligible=candidates.filter(leaderHuntEligible).slice(0,HUNT_MAX_NEW_PER_CYCLE);
+  let accountEntries=0,signalsEntered=0;
+  for(const c of eligible){
+    const quote=snaps[c.symbol]?.latestQuote;
+    if(!validQuote(quote,now.getTime())) continue;
+    let signalUsed=false;
+    for(const account of HUNT_ACCOUNTS){
+      const row=await env.MEDS_DB.prepare("SELECT * FROM hunt_accounts WHERE account_id=?").bind(account.account_id).first<any>();
+      if(!row) continue;
+      const open=Number((await env.MEDS_DB.prepare("SELECT COUNT(*) AS n FROM hunt_account_positions WHERE account_id=? AND status='open'").bind(account.account_id).first<any>())?.n??0);
+      if(open>=HUNT_MAX_OPEN) continue;
+      const duplicate=await env.MEDS_DB.prepare("SELECT id FROM hunt_account_positions WHERE account_id=? AND symbol=? AND status='open' LIMIT 1").bind(account.account_id,c.symbol).first<any>();
+      if(duplicate) continue;
+      const cooldownAfter=new Date(now.getTime()-HUNT_REENTRY_COOLDOWN_MIN*60000).toISOString();
+      const recent=await env.MEDS_DB.prepare("SELECT id FROM hunt_account_trades WHERE account_id=? AND symbol=? AND closed_at>=? LIMIT 1").bind(account.account_id,c.symbol,cooldownAfter).first<any>();
+      if(recent) continue;
+
+      const cash=Number(row.cash);
+      const targetNotional=Math.min(Number(row.starting_equity)*HUNT_POSITION_PCT,cash);
+      if(!(targetNotional>0.01)) continue;
+      const ask=Number(quote.ap);
+      const targetQty=targetNotional/ask;
+      const minuteLiquidity=Math.max(1,Number(c.minuteVolume||0));
+      const liquidityQty=minuteLiquidity*HUNT_MAX_MINUTE_PARTICIPATION;
+      let qty=Math.min(targetQty,liquidityQty);
+      if(!(qty>0)) continue;
+      let execution=executablePrice(c,'long',qty);
+      if(qty*execution.fill>cash){
+        qty=cash/execution.fill;
+        execution=executablePrice(c,'long',qty);
+      }
+      const cost=qty*execution.fill;
+      if(!(cost>0.01) || cost>cash+1e-8) continue;
+      const stop=execution.fill*0.95,target=execution.fill*1.12;
+      const features=JSON.stringify({...huntFeatures(c,marketPhase),account:account.label,target_notional:targetNotional,
+        actual_notional:cost,quantity:qty,entry_slippage_pct:execution.slipPct,
+        capacity_limited:qty+1e-12<targetQty,minute_participation:qty/minuteLiquidity,fractional_paper:true}).slice(0,12000);
+      await env.MEDS_DB.batch([
+        env.MEDS_DB.prepare(`INSERT INTO hunt_account_positions(account_id,symbol,opened_at,entry_price,quantity,entry_notional,stop_price,target_price,highest_price,lowest_price,entry_score,entry_day_change_pct,opened_phase,features,status,version)
+          VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,'open',?)`)
+          .bind(account.account_id,c.symbol,now.toISOString(),execution.fill,qty,cost,stop,target,execution.fill,execution.fill,c.score,c.dayChangePct,marketPhase,features,HUNT_VERSION),
+        env.MEDS_DB.prepare("UPDATE hunt_accounts SET cash=cash-?,updated_at=? WHERE account_id=?").bind(cost,now.toISOString(),account.account_id)
+      ]);
+      accountEntries++;signalUsed=true;
+    }
+    if(signalUsed) signalsEntered++;
+  }
+  await markHuntAccounts(env,snaps,now);
+  return {exits,account_entries:accountEntries,signals_entered:signalsEntered};
+}
+
 async function runLeaderHunt(env:PaperEnv,candidates:PaperCandidate[],snaps:Record<string,PaperSnapshot>,now=new Date()){
   await ensurePaperSchema(env);
   const marketPhase=phase(now),bucket=bucket5(now);
-  const exits=await manageLeaderHuntPositions(env,snaps,now);
+  const legacyExits=await manageLeaderHuntPositions(env,snaps,now);
   const tracked=candidates.slice(0,HUNT_TRACKED_PER_CYCLE);
   for(const c of tracked){
     const features=JSON.stringify(huntFeatures(c,marketPhase)).slice(0,12000);
@@ -607,33 +754,13 @@ async function runLeaderHunt(env:PaperEnv,candidates:PaperCandidate[],snaps:Reco
       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       .bind(bucket,now.toISOString(),c.symbol,marketPhase,c.price,c.bid,c.ask,c.dayChangePct,c.score,c.spreadPct,c.volumeAccel,dayVolumeRatio,c.consecutiveHits,c.catalystScore,leaderHuntEligible(c)?'ELIGIBLE':'TRACKED',features,HUNT_VERSION).run();
   }
-
-  let open=Number((await env.MEDS_DB.prepare("SELECT COUNT(*) AS n FROM hunt_positions WHERE status='open'").first<any>())?.n??0);
-  let entries=0;
-  for(const c of tracked){
-    if(entries>=HUNT_MAX_NEW_PER_CYCLE || open>=HUNT_MAX_OPEN) break;
-    if(!leaderHuntEligible(c)) continue;
-    const quote=snaps[c.symbol]?.latestQuote;
-    if(!validQuote(quote,now.getTime())) continue;
-    const duplicate=await env.MEDS_DB.prepare("SELECT id FROM hunt_positions WHERE symbol=? AND status='open' LIMIT 1").bind(c.symbol).first<any>();
-    if(duplicate) continue;
-    const cooldownAfter=new Date(now.getTime()-HUNT_REENTRY_COOLDOWN_MIN*60000).toISOString();
-    const recent=await env.MEDS_DB.prepare("SELECT id FROM hunt_trades WHERE symbol=? AND closed_at>=? LIMIT 1").bind(c.symbol,cooldownAfter).first<any>();
-    if(recent) continue;
-
-    const entry=Number(quote.ap)*(1+0.0002);
-    if(!(entry>0)) continue;
-    const stop=entry*0.95,target=entry*1.12;
-    const features=JSON.stringify(huntFeatures(c,marketPhase)).slice(0,12000);
-    await env.MEDS_DB.batch([
-      env.MEDS_DB.prepare(`INSERT INTO hunt_positions(symbol,opened_at,entry_price,stop_price,target_price,highest_price,lowest_price,entry_score,entry_day_change_pct,opened_phase,features,status,version)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,'open',?)`)
-        .bind(c.symbol,now.toISOString(),entry,stop,target,entry,entry,c.score,c.dayChangePct,marketPhase,features,HUNT_VERSION),
-      env.MEDS_DB.prepare("UPDATE hunt_observations SET status='ENTERED' WHERE bucket=? AND symbol=?").bind(bucket,c.symbol)
-    ]);
-    entries++;open++;
+  const accounts=await runHuntAccounts(env,tracked,snaps,now);
+  for(const c of tracked.filter(leaderHuntEligible).slice(0,HUNT_MAX_NEW_PER_CYCLE)){
+    await env.MEDS_DB.prepare("UPDATE hunt_observations SET status='ACCOUNT_SAMPLED' WHERE bucket=? AND symbol=?").bind(bucket,c.symbol).run();
   }
-  return {version:HUNT_VERSION,tracked:tracked.length,eligible:tracked.filter(leaderHuntEligible).length,entries,exits,open};
+  const open=Number((await env.MEDS_DB.prepare("SELECT COUNT(*) AS n FROM hunt_account_positions WHERE status='open'").first<any>())?.n??0);
+  return {version:HUNT_VERSION,tracked:tracked.length,eligible:tracked.filter(leaderHuntEligible).length,
+    signals_entered:accounts.signals_entered,account_entries:accounts.account_entries,exits:accounts.exits,legacy_exits:legacyExits,open};
 }
 
 async function openCount(env:PaperEnv,ledger:string,lane:string,table='paper_positions'){
@@ -1294,26 +1421,38 @@ async function publicStatus(env: Env): Promise<Response> {
     activity,
   };
   try {
+    const since=new Date(Date.now()-86400000).toISOString();
     const h=await env.MEDS_DB.prepare(`SELECT
       (SELECT COUNT(*) FROM hunt_observations WHERE created_at>=?) AS observations_24h,
-      (SELECT COUNT(*) FROM hunt_positions WHERE status='open') AS open_positions,
-      (SELECT COUNT(*) FROM hunt_trades WHERE closed_at>=?) AS trades_24h,
-      (SELECT COUNT(*) FROM hunt_trades WHERE closed_at>=? AND return_pct>0) AS winners_24h,
-      (SELECT AVG(return_pct) FROM hunt_trades WHERE closed_at>=?) AS avg_return_pct_24h,
-      (SELECT MAX(return_pct) FROM hunt_trades WHERE closed_at>=?) AS best_return_pct_24h,
-      (SELECT MIN(return_pct) FROM hunt_trades WHERE closed_at>=?) AS worst_return_pct_24h,
+      (SELECT COUNT(*) FROM hunt_account_positions WHERE status='open') AS open_positions,
+      (SELECT COUNT(*) FROM hunt_account_trades WHERE closed_at>=?) AS trades_24h,
+      (SELECT COUNT(*) FROM hunt_account_trades WHERE closed_at>=? AND realized_pnl>0) AS winners_24h,
+      (SELECT AVG(return_pct) FROM hunt_account_trades WHERE closed_at>=?) AS avg_return_pct_24h,
+      (SELECT MAX(return_pct) FROM hunt_account_trades WHERE closed_at>=?) AS best_return_pct_24h,
+      (SELECT MIN(return_pct) FROM hunt_account_trades WHERE closed_at>=?) AS worst_return_pct_24h,
       (SELECT MAX(created_at) FROM hunt_observations) AS latest_observation_at,
-      (SELECT MAX(closed_at) FROM hunt_trades) AS latest_trade_at`)
-      .bind(...Array(6).fill(new Date(Date.now()-86400000).toISOString())).first<any>();
+      (SELECT MAX(closed_at) FROM hunt_account_trades) AS latest_trade_at`)
+      .bind(...Array(6).fill(since)).first<any>();
+    const accounts=await env.MEDS_DB.prepare(`SELECT a.account_id,a.label,a.starting_equity,a.cash,a.current_equity,a.realized_pnl,a.max_equity,a.max_drawdown_pct,a.updated_at,
+      (SELECT COUNT(*) FROM hunt_account_positions p WHERE p.account_id=a.account_id AND p.status='open') AS open_positions,
+      (SELECT COUNT(*) FROM hunt_account_trades t WHERE t.account_id=a.account_id) AS closed_trades,
+      (SELECT COUNT(*) FROM hunt_account_trades t WHERE t.account_id=a.account_id AND t.closed_at>=? AND t.realized_pnl>0) AS winners_24h,
+      (SELECT COUNT(*) FROM hunt_account_trades t WHERE t.account_id=a.account_id AND t.closed_at>=?) AS trades_24h
+      FROM hunt_accounts a ORDER BY a.starting_equity`).bind(since,since).all<any>();
     body.leader_hunt={
       version:HUNT_VERSION,objective:'catch eventual top gainers before +10%',tracked_per_cycle:HUNT_TRACKED_PER_CYCLE,
-      max_new_per_cycle:HUNT_MAX_NEW_PER_CYCLE,max_open:HUNT_MAX_OPEN,max_hold_minutes:HUNT_MAX_HOLD_MIN,
+      max_new_signals_per_cycle:HUNT_MAX_NEW_PER_CYCLE,max_open_per_account:HUNT_MAX_OPEN,max_hold_minutes:HUNT_MAX_HOLD_MIN,
+      position_pct:HUNT_POSITION_PCT,max_minute_participation:HUNT_MAX_MINUTE_PARTICIPATION,
       observations_24h:Number(h?.observations_24h??0),open_positions:Number(h?.open_positions??0),trades_24h:Number(h?.trades_24h??0),
       winners_24h:Number(h?.winners_24h??0),win_rate_24h:Number(h?.trades_24h??0)>0?Number(h.winners_24h)/Number(h.trades_24h):null,
       avg_return_pct_24h:h?.avg_return_pct_24h==null?null:Number(h.avg_return_pct_24h),
       best_return_pct_24h:h?.best_return_pct_24h==null?null:Number(h.best_return_pct_24h),
       worst_return_pct_24h:h?.worst_return_pct_24h==null?null:Number(h.worst_return_pct_24h),
       latest_observation_at:h?.latest_observation_at??null,latest_trade_at:h?.latest_trade_at??null,
+      accounts:(accounts.results??[]).map(a=>({...a,starting_equity:Number(a.starting_equity),cash:Number(a.cash),
+        current_equity:Number(a.current_equity),realized_pnl:Number(a.realized_pnl),max_equity:Number(a.max_equity),
+        max_drawdown_pct:Number(a.max_drawdown_pct),open_positions:Number(a.open_positions),closed_trades:Number(a.closed_trades),
+        winners_24h:Number(a.winners_24h),trades_24h:Number(a.trades_24h)})),
     };
   } catch(error) {
     body.leader_hunt={version:HUNT_VERSION,error:error instanceof Error?error.message:'leader hunt telemetry unavailable'};
@@ -1402,9 +1541,11 @@ async function publicPaperRows(pathname: string, url: URL, env: Env): Promise<Re
       d.strategy,d.decision,d.score,d.reference_price,d.spread_pct,d.reason,d.data_quality
       FROM paper_decisions d LEFT JOIN paper_ledgers l ON l.ledger_id=d.ledger_id
       ORDER BY d.created_at DESC,d.id DESC LIMIT ? OFFSET ?`,
-    "/status/hunt": `SELECT id,symbol,opened_at,closed_at,entry_price,exit_price,return_pct,mfe_pct,mae_pct,
-      minutes_held,exit_reason,entry_score,entry_day_change_pct,opened_phase,version
-      FROM hunt_trades ORDER BY closed_at DESC,id DESC LIMIT ? OFFSET ?`,
+    "/status/hunt": `SELECT t.id,a.label AS account,t.symbol,t.opened_at,t.closed_at,t.entry_price,t.exit_price,t.quantity,
+      t.entry_notional,t.exit_value,t.realized_pnl,t.return_pct,t.mfe_pct,t.mae_pct,t.minutes_held,t.exit_reason,
+      t.entry_score,t.entry_day_change_pct,t.opened_phase,t.version
+      FROM hunt_account_trades t LEFT JOIN hunt_accounts a ON a.account_id=t.account_id
+      ORDER BY t.closed_at DESC,t.id DESC LIMIT ? OFFSET ?`,
   };
   try {
     const rows = await env.MEDS_DB.prepare(queries[pathname]).bind(limit, offset).all();
@@ -1417,7 +1558,7 @@ async function publicPaperRows(pathname: string, url: URL, env: Env): Promise<Re
   }
 }
 
-export { runTick, scanTick, manageShadowPositions, inScanWindow, heuristicCatalyst, ensurePaperSchema, valueLedger, markLedger, manageEquityPositions, manageOptionPositions, enterEquityProposal, enterOptionsForCandidate, leaderHuntEligible, runLeaderHunt, manageLeaderHuntPositions, HUNT_VERSION };
+export { runTick, scanTick, manageShadowPositions, inScanWindow, heuristicCatalyst, ensurePaperSchema, valueLedger, markLedger, manageEquityPositions, manageOptionPositions, enterEquityProposal, enterOptionsForCandidate, leaderHuntEligible, runLeaderHunt, manageLeaderHuntPositions, runHuntAccounts, manageHuntAccountPositions, markHuntAccounts, HUNT_VERSION };
 export default {
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
     ctx.waitUntil(runTick(env,"cron"));
