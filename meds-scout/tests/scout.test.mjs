@@ -55,14 +55,21 @@ test('simulated cron, persistent SQL, exact +20%, runner, dedupe, auth, pause an
   let pending;await worker.scheduled({},env,{waitUntil(p){pending=p;}});await pending;
   assert.equal(db.db.prepare('SELECT last_source FROM service_state').get().last_source,'cron');
   assert.equal(db.db.prepare('SELECT consecutive_hits FROM symbol_state WHERE symbol=?').get('TEST').consecutive_hits,1);
-  const initialAlerts=alertCount;
+  const initialTestSignals=db.db.prepare("SELECT COUNT(*) AS n FROM alert_delivery WHERE event_key LIKE 'signal:TEST:%'").get().n;
+  const initialPositionAlerts=db.db.prepare("SELECT COUNT(*) AS n FROM alert_delivery WHERE event_key LIKE 'FRGT:%'").get().n;
   clock+=60000;minuteVol=150;price=1.2;
   assert.equal((await runTick(env,'cron')).ok,true);
   let p=db.db.prepare('SELECT * FROM shadow_positions WHERE symbol=?').get('FRGT');
   assert.equal(p.first_tp_done,1);assert.equal(p.remaining_qty,30);assert.ok(Math.abs(p.realized_pnl-14)<1e-8);
   assert.equal(db.db.prepare('SELECT consecutive_hits FROM symbol_state WHERE symbol=?').get('TEST').consecutive_hits,2);
-  assert.equal(alertCount,initialAlerts+1,'Only position alert, not repeated signal');
-  const before=alertCount;clock+=60000;await runTick(env,'cron');assert.equal(alertCount,before,'No duplicate position alert');
+  assert.equal(db.db.prepare("SELECT COUNT(*) AS n FROM alert_delivery WHERE event_key LIKE 'signal:TEST:%'").get().n,initialTestSignals,
+    'TEST signal must respect cooldown');
+  assert.equal(db.db.prepare("SELECT COUNT(*) AS n FROM alert_delivery WHERE event_key LIKE 'FRGT:%'").get().n,initialPositionAlerts+1,
+    'first take-profit must produce one position alert');
+  const beforePositionAlerts=db.db.prepare("SELECT COUNT(*) AS n FROM alert_delivery WHERE event_key LIKE 'FRGT:%'").get().n;
+  clock+=60000;await runTick(env,'cron');
+  assert.equal(db.db.prepare("SELECT COUNT(*) AS n FROM alert_delivery WHERE event_key LIKE 'FRGT:%'").get().n,beforePositionAlerts,
+    'No duplicate position alert');
   db.db.close();
   const restart=spawnSync(process.execPath,['--input-type=module','-e',`import {DatabaseSync} from 'node:sqlite';const d=new DatabaseSync(process.argv[1]);console.log(JSON.stringify(d.prepare("SELECT remaining_qty,first_tp_done FROM shadow_positions WHERE symbol='FRGT'").get()));`,file],{encoding:'utf8'});
   assert.equal(restart.status,0);assert.deepEqual(JSON.parse(restart.stdout),{remaining_qty:30,first_tp_done:1});
