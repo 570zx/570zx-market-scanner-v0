@@ -151,15 +151,14 @@ async function discoverSymbols(env: Env): Promise<string[]> {
 }
 
 async function fetchSnapshots(env: Env, symbols: string[]): Promise<Record<string, Snapshot>> {
-  const out: Record<string, Snapshot> = {};
   const feed = stockFeed();
-  for (let i = 0; i < symbols.length; i += 45) {
-    const batch = symbols.slice(i, i + 45);
-    const q = encodeURIComponent(batch.join(","));
-    const data = await alpacaJson(env, `/v2/stocks/snapshots?symbols=${q}&feed=${feed}`);
-    Object.assign(out, data);
-  }
-  return out;
+  const batches:string[][]=[];
+  for (let i = 0; i < symbols.length; i += 45) batches.push(symbols.slice(i,i+45));
+  const pages=await Promise.all(batches.map(async batch=>{
+    const q=encodeURIComponent(batch.join(","));
+    return alpacaJson(env,`/v2/stocks/snapshots?symbols=${q}&feed=${feed}`);
+  }));
+  return Object.assign({},...pages);
 }
 
 async function getPriorState(env: Env, symbol: string) {
@@ -757,8 +756,15 @@ async function markHuntAccounts(env:PaperEnv,snaps:Record<string,PaperSnapshot>,
   }
 }
 
-async function manageHuntAccountPositions(env:PaperEnv,snaps:Record<string,PaperSnapshot>,now=new Date()){
+async function manageHuntAccountPositions(env:PaperEnv,snaps:Record<string,PaperSnapshot>,now=new Date(),markAtEnd=true){
   const rows=await env.MEDS_DB.prepare("SELECT * FROM hunt_account_positions WHERE status='open' ORDER BY id").all<any>();
+  const ladderRows=await env.MEDS_DB.prepare("SELECT position_id,event_type FROM hunt_account_events WHERE event_type LIKE 'LADDER_%'").all<any>();
+  const ladderByPosition=new Map<number,Set<string>>();
+  for(const e of ladderRows.results??[]){
+    const id=Number(e.position_id),set=ladderByPosition.get(id)??new Set<string>();
+    set.add(String(e.event_type));ladderByPosition.set(id,set);
+  }
+  const deferredMarks:any[]=[];
   let exits=0,take200s=0,ladderSells=0;
   for(const p of rows.results??[]){
     const positionVersion=String(p.version??HUNT_VERSION);
@@ -781,10 +787,7 @@ async function manageHuntAccountPositions(env:PaperEnv,snaps:Record<string,Paper
     // the +200% objective. This locks incremental profit without turning the
     // monster-mover experiment into a scalp strategy.
     if(!Number(p.take200_done)){
-      const priorEvents=await env.MEDS_DB.prepare(
-        "SELECT event_type FROM hunt_account_events WHERE position_id=? AND event_type LIKE 'LADDER_%'"
-      ).bind(p.id).all<any>();
-      const done=new Set((priorEvents.results??[]).map((x:any)=>String(x.event_type)));
+      const done=ladderByPosition.get(Number(p.id))??new Set<string>();
       for(const rung of HUNT_LADDER){
         if(done.has(rung.event) || bid<Number(p.entry_price)*(1+rung.returnPct)) continue;
         const qty=Math.min(remaining,Number(p.quantity)*rung.fraction);
@@ -804,6 +807,7 @@ async function manageHuntAccountPositions(env:PaperEnv,snaps:Record<string,Paper
               JSON.stringify({threshold_return_pct:rung.returnPct,fraction:rung.fraction,remaining_qty:remaining,
                 slippage_pct:sell.slipPct,observed_bid:bid}),positionVersion)
         ]);
+        done.add(rung.event);
         ladderSells++;
       }
     }
@@ -840,8 +844,8 @@ async function manageHuntAccountPositions(env:PaperEnv,snaps:Record<string,Paper
       const peakExit=retrace>=HUNT_RUNNER_TRAIL_PCT;
       const runnerTimeout=runnerAgeMin>=HUNT_RUNNER_MAX_HOLD_MIN;
       if(!peakExit&&!runnerTimeout){
-        await env.MEDS_DB.prepare("UPDATE hunt_account_positions SET highest_price=?,lowest_price=?,runner_high=? WHERE id=?")
-          .bind(high,low,runnerHigh,p.id).run();
+        deferredMarks.push(env.MEDS_DB.prepare("UPDATE hunt_account_positions SET highest_price=?,lowest_price=?,runner_high=? WHERE id=?")
+          .bind(high,low,runnerHigh,p.id));
         continue;
       }
       const sell=modeledSell(remaining);
@@ -875,7 +879,7 @@ async function manageHuntAccountPositions(env:PaperEnv,snaps:Record<string,Paper
     const stop=bid<=Number(p.stop_price);
     const timeExit=ageMin>=HUNT_MAX_HOLD_MIN;
     if(!stop&&!timeExit){
-      await env.MEDS_DB.prepare("UPDATE hunt_account_positions SET highest_price=?,lowest_price=? WHERE id=?").bind(high,low,p.id).run();
+      deferredMarks.push(env.MEDS_DB.prepare("UPDATE hunt_account_positions SET highest_price=?,lowest_price=? WHERE id=?").bind(high,low,p.id));
       continue;
     }
     const reason=stop?'stop':'time';
@@ -898,14 +902,15 @@ async function manageHuntAccountPositions(env:PaperEnv,snaps:Record<string,Paper
     ]);
     exits++;
   }
-  await markHuntAccounts(env,snaps,now);
+  if(deferredMarks.length) await env.MEDS_DB.batch(deferredMarks);
+  if(markAtEnd) await markHuntAccounts(env,snaps,now);
   return {exits,take200s,ladderSells};
 }
 
 async function runHuntAccounts(env:PaperEnv,candidates:PaperCandidate[],snaps:Record<string,PaperSnapshot>,now=new Date()){
   const marketPhase=phase(now);
   const optionMarksMap=await fetchHuntOptionMarks(env,now);
-  const management=await manageHuntAccountPositions(env,snaps,now);
+  const management=await manageHuntAccountPositions(env,snaps,now,false);
   const optionManagement=await manageHuntOptionPositions(env,optionMarksMap,now);
   const eligible=candidates.filter(leaderHuntEligible).slice(0,HUNT_MAX_NEW_PER_CYCLE);
   let accountEntries=0,signalsEntered=0;
