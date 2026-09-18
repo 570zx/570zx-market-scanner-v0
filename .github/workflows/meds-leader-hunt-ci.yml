@@ -2,7 +2,7 @@ name: MEDS Leader Hunt CI
 
 on:
   push:
-    branches: [meds-leader-hunt-v1, meds-leader-hunt-capital-tiers, meds-leader-hunt-200-runner, meds-scout-native-cloudflare]
+    branches: [meds-leader-hunt-v1, meds-leader-hunt-capital-tiers, meds-leader-hunt-200-runner, meds-leader-positions-view, meds-scout-native-cloudflare]
     paths:
       - "meds-scout/**"
       - ".github/workflows/meds-leader-hunt-ci.yml"
