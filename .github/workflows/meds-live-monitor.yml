@@ -29,7 +29,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build read-only telemetry report
         env:
-          MEDS_BASE_URL: https://meds-monitor.pages.dev
+          MEDS_BASE_URL: https://meds-scout-agent.sucharda-dodge.workers.dev
         run: node meds-monitor/scripts/render-github-report.mjs > "$RUNNER_TEMP/meds-report.md"
       - name: Refresh GitHub monitor issue
         env:
