@@ -918,14 +918,17 @@ async function runLeaderHunt(env:PaperEnv,candidates:PaperCandidate[],snaps:Reco
     const dayVolumeRatio=c.previousDayVolume>0?c.dayVolume/c.previousDayVolume:0;
     await env.MEDS_DB.prepare(`INSERT OR IGNORE INTO hunt_observations(bucket,created_at,symbol,phase,price,bid,ask,day_change_pct,score,spread_pct,volume_accel,day_volume_ratio,consecutive_hits,catalyst_score,status,features,version)
       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-      .bind(bucket,now.toISOString(),c.symbol,marketPhase,c.price,c.bid,c.ask,c.dayChangePct,c.score,c.spreadPct,c.volumeAccel,dayVolumeRatio,c.consecutiveHits,c.catalystScore,leaderHuntEligible(c)?'ELIGIBLE':'TRACKED',features,HUNT_VERSION).run();
+      .bind(bucket,now.toISOString(),c.symbol,marketPhase,c.price,c.bid,c.ask,c.dayChangePct,c.score,c.spreadPct,c.volumeAccel,dayVolumeRatio,c.consecutiveHits,c.catalystScore,
+        leaderHuntEligible(c) && (c as any).executionFresh===true ? 'ELIGIBLE':'TRACKED',features,HUNT_VERSION).run();
   }
   const accounts=await runHuntAccounts(env,tracked,snaps,now);
-  for(const c of tracked.filter(leaderHuntEligible).slice(0,HUNT_MAX_NEW_PER_CYCLE)){
+  for(const c of tracked.filter(c=>leaderHuntEligible(c) && (c as any).executionFresh===true).slice(0,HUNT_MAX_NEW_PER_CYCLE)){
     await env.MEDS_DB.prepare("UPDATE hunt_observations SET status='ACCOUNT_SAMPLED' WHERE bucket=? AND symbol=?").bind(bucket,c.symbol).run();
   }
   const open=Number((await env.MEDS_DB.prepare("SELECT COUNT(*) AS n FROM hunt_account_positions WHERE status='open'").first<any>())?.n??0);
-  return {version:HUNT_VERSION,tracked:tracked.length,eligible:tracked.filter(leaderHuntEligible).length,
+  return {version:HUNT_VERSION,tracked:tracked.length,
+    research_eligible:tracked.filter(leaderHuntEligible).length,
+    eligible:tracked.filter(c=>leaderHuntEligible(c) && (c as any).executionFresh===true).length,
     signals_entered:accounts.signals_entered,account_entries:accounts.account_entries,exits:accounts.exits,take200s:accounts.take200s,
     ladder_sells:accounts.ladder_sells,legacy_exits:legacyExits,open};
 }
@@ -1315,26 +1318,33 @@ async function scanTick(env: Env) {
     const s = snapshots[symbol];
     const marketPhase=phase();
     const extended=marketPhase!=='regular';
-    const bid = s?.latestQuote?.bp ?? 0;
-    const ask = s?.latestQuote?.ap ?? 0;
+    const researchAgeMs=extended ? 20*60_000 : 5*60_000;
+    const rawBid = s?.latestQuote?.bp ?? 0;
+    const rawAsk = s?.latestQuote?.ap ?? 0;
     const quoteAt=Date.parse(s?.latestQuote?.t??'');
     const quoteAgeMs=Number.isFinite(quoteAt)?Math.max(0,Date.now()-quoteAt):Infinity;
-    // Research observations can tolerate a somewhat older extended-hours quote.
-    // Entries/exits remain protected by validQuote()'s strict 90-second rule.
-    const researchQuoteFresh=freshTimestamp(s?.latestQuote?.t, extended ? 20*60_000 : 5*60_000);
-    const tradeFresh=freshTimestamp(s?.latestTrade?.t, extended ? 20*60_000 : 5*60_000);
+    const quoteResearchFresh=freshTimestamp(s?.latestQuote?.t,researchAgeMs) && rawBid>0 && rawAsk>=rawBid;
+    const tradeResearchFresh=freshTimestamp(s?.latestTrade?.t,researchAgeMs) && Number(s?.latestTrade?.p)>0;
+    const minuteResearchFresh=freshTimestamp(s?.minuteBar?.t,researchAgeMs) && Number(s?.minuteBar?.c)>0;
     const executionFresh=validQuote(s?.latestQuote);
-    const price = extended && researchQuoteFresh && bid > 0 && ask >= bid
-      ? (bid + ask) / 2
-      : (tradeFresh ? s?.latestTrade?.p : s?.minuteBar?.c);
+
+    let price=0;
+    if(quoteResearchFresh) price=(rawBid+rawAsk)/2;
+    else if(tradeResearchFresh) price=Number(s?.latestTrade?.p);
+    else if(minuteResearchFresh) price=Number(s?.minuteBar?.c);
+    else continue;
+
     if (!price || price < minPrice || price > maxPrice) continue;
+    const bid=quoteResearchFresh?rawBid:price;
+    const ask=quoteResearchFresh?rawAsk:price;
     const prevClose = s?.prevDailyBar?.c ?? 0;
-    const spreadPct = bid > 0 && ask > 0 ? ((ask - bid) / ((ask + bid)/2)) * 100 : 99;
+    // A missing/stale quote is still useful for research continuity when a
+    // fresh trade/bar exists, but it must never look executable.
+    const spreadPct = quoteResearchFresh ? ((rawAsk - rawBid) / ((rawAsk + rawBid)/2)) * 100 : 99;
     const dayChangePct = prevClose > 0 ? (price / prevClose - 1) * 100 : 0;
     if (dayChangePct > maxChange + 20 || dayChangePct < -15) continue;
     const previousState = priorMap.get(symbol);
     const state = previousState && easternParts(new Date(previousState.last_seen_at)).date === easternParts().date ? previousState : null;
-    if (!researchQuoteFresh || !(bid > 0 && ask >= bid)) continue;
     const dayVolume = s?.dailyBar?.v ?? 0;
     const priorDayVolume = s?.prevDailyBar?.v ?? 0;
     const minuteVolume = s?.minuteBar?.v ?? 0;
