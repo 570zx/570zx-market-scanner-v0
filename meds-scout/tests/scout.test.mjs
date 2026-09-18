@@ -182,7 +182,7 @@ test('Leader Hunt can record quiet overnight research without treating a stale q
      const syms=new URL(url).searchParams.get('symbols').split(',');const result={};
      for(const symbol of syms)result[symbol]={
        latestTrade:{p:1,t:new NativeDate(clock-10*60_000).toISOString()},
-       latestQuote:{bp:.995,ap:1.005,t:new NativeDate(clock-10*60_000).toISOString()},
+       latestQuote:{bp:.995,ap:1.005,t:new NativeDate(clock-30*60_000).toISOString()},
        minuteBar:{c:1,v:100,t:new NativeDate(clock-10*60_000).toISOString()},
        dailyBar:{v:20000},prevDailyBar:{c:1,v:10000}
      };
@@ -195,7 +195,7 @@ test('Leader Hunt can record quiet overnight research without treating a stale q
    const result=await runTick(env,'cron');
    assert.equal(result.ok,true);
    assert.ok(db.db.prepare("SELECT COUNT(*) AS n FROM hunt_observations WHERE symbol='QUIET'").get().n>0,
-     'quiet overnight quote should remain in research dataset');
+     'fresh overnight trade/bar should keep research alive even when quote is too old');
    assert.equal(db.db.prepare("SELECT COUNT(*) AS n FROM hunt_account_positions").get().n,0,
      'quote older than execution freshness limit must never create a paper position');
  }finally{
