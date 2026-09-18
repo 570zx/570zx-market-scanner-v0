@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {readFileSync} from 'node:fs';
 import {validQuote,equityExit,optionQuote,riskCapacity,SIM_VERSION,EXEC_VERSION} from '../src/paper-accounting.ts';
-import {ensurePaperSchema,valueLedger,markLedger,manageEquityPositions,manageOptionPositions,enterEquityProposal,enterOptionsForCandidate,scanTick} from '../src/index.ts';
+import {ensurePaperSchema,valueLedger,markLedger,manageEquityPositions,manageOptionPositions,enterEquityProposal,enterOptionsForCandidate,scanTick,leaderHuntEligible,runLeaderHunt,manageLeaderHuntPositions,HUNT_VERSION} from '../src/index.ts';
 class D1 {
  constructor(){this.db=new DatabaseSync(':memory:');}
  prepare(sql){const db=this.db;return {args:[],bind(...a){this.args=a;return this;},async run(){const r=db.prepare(sql).run(...this.args);return {meta:{changes:Number(r.changes)}};},async all(){return {results:db.prepare(sql).all(...this.args)};},async first(){return db.prepare(sql).get(...this.args)??null;}};}
@@ -44,7 +44,7 @@ test('migration preserves historical trades and drawdown, and is idempotent',asy
  await ensurePaperSchema(env);await ensurePaperSchema(env);
  assert.equal(JSON.stringify(db.prepare('SELECT * FROM paper_trades').all()),trades);
  assert.equal(db.prepare("SELECT max_drawdown_pct AS dd FROM paper_ledgers WHERE ledger_id='C'").get().dd,.51);
- assert.equal(db.prepare('SELECT version FROM paper_meta').get().version,3);
+ assert.equal(db.prepare('SELECT version FROM paper_meta').get().version,4);
  assert.equal(db.prepare('SELECT simulator_version FROM paper_trades').get().simulator_version,'legacy-untrusted');
  db.close();
 });
@@ -134,4 +134,22 @@ test('scanner retrieves held paper symbols even if discovery omits them',async()
  globalThis.fetch=async(url)=>{url=String(url);if(url.includes('/snapshots?')){requested=new URL(url).searchParams.get('symbols').split(',');return Response.json({});}if(url.includes('/news'))return Response.json({news:[]});return Response.json({most_actives:[],gainers:[],losers:[]});};
  try {await scanTick({...env,PAPER_ENABLED:'false'});assert.ok(requested.includes('HELD'));}
  finally{globalThis.Date=NativeDate;globalThis.fetch=oldFetch;db.close();}
+});
+
+
+test('leader hunt enters early candidates independently and records target outcomes',async()=>{
+ const {env,db}=await setup();
+ const c={...candidate,dayChangePct:4,dayVolume:1000,previousDayVolume:1000,spreadPct:.1,volumeAccel:.10,consecutiveHits:3,catalystScore:0,catalystSummary:'',score:60,reasons:['fixture']};
+ assert.equal(leaderHuntEligible(c),true);
+ assert.equal(leaderHuntEligible({...c,dayChangePct:10.01}),false);
+ const snaps={TEST:{latestQuote:quote(100,100.1)}};
+ const run=await runLeaderHunt(env,[c],snaps);
+ assert.equal(run.entries,1);assert.equal(run.open,1);assert.equal(run.version,HUNT_VERSION);
+ assert.equal(db.prepare("SELECT status FROM hunt_observations WHERE symbol='TEST'").get().status,'ENTERED');
+ assert.equal(db.prepare("SELECT COUNT(*) n FROM paper_positions").get().n,0);
+ snaps.TEST.latestQuote=quote(113,113.1);
+ assert.equal(await manageLeaderHuntPositions(env,snaps),1);
+ const t=db.prepare("SELECT * FROM hunt_trades WHERE symbol='TEST'").get();
+ assert.equal(t.exit_reason,'target');assert.ok(t.return_pct>10);assert.equal(t.version,HUNT_VERSION);
+ db.close();
 });
