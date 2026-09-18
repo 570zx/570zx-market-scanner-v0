@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {readFileSync} from 'node:fs';
 import {validQuote,equityExit,optionQuote,riskCapacity,SIM_VERSION,EXEC_VERSION} from '../src/paper-accounting.ts';
-import {ensurePaperSchema,valueLedger,markLedger,manageEquityPositions,manageOptionPositions,enterEquityProposal,enterOptionsForCandidate,scanTick,leaderHuntEligible,runLeaderHunt,manageHuntAccountPositions,HUNT_VERSION} from '../src/index.ts';
+import {ensurePaperSchema,valueLedger,markLedger,manageEquityPositions,manageOptionPositions,enterEquityProposal,enterOptionsForCandidate,scanTick,leaderHuntEligible,runLeaderHunt,manageHuntAccountPositions,markHuntAccounts,HUNT_VERSION} from '../src/index.ts';
 class D1 {
  constructor(){this.db=new DatabaseSync(':memory:');}
  prepare(sql){const db=this.db;return {args:[],bind(...a){this.args=a;return this;},async run(){const r=db.prepare(sql).run(...this.args);return {meta:{changes:Number(r.changes)}};},async all(){return {results:db.prepare(sql).all(...this.args)};},async first(){return db.prepare(sql).get(...this.args)??null;}};}
@@ -44,7 +44,7 @@ test('migration preserves historical trades and drawdown, and is idempotent',asy
  await ensurePaperSchema(env);await ensurePaperSchema(env);
  assert.equal(JSON.stringify(db.prepare('SELECT * FROM paper_trades').all()),trades);
  assert.equal(db.prepare("SELECT max_drawdown_pct AS dd FROM paper_ledgers WHERE ledger_id='C'").get().dd,.51);
- assert.equal(db.prepare('SELECT version FROM paper_meta').get().version,6);
+ assert.equal(db.prepare('SELECT version FROM paper_meta').get().version,7);
  assert.equal(db.prepare('SELECT simulator_version FROM paper_trades').get().simulator_version,'legacy-untrusted');
  db.close();
 });
@@ -175,5 +175,26 @@ test('leader hunt ladders small profits, takes 85% at +200%, then peak-tests a 5
  assert.equal(db.prepare("SELECT COUNT(*) n FROM hunt_account_events WHERE event_type='RUNNER_EXIT'").get().n,5);
  const after=db.prepare("SELECT starting_equity,current_equity,realized_pnl FROM hunt_accounts ORDER BY starting_equity").all();
  assert.ok(after.every(a=>a.realized_pnl>0&&a.current_equity>a.starting_equity));
+ db.close();
+});
+
+
+test('leader hunt records compounding milestones once at first observed crossing',async()=>{
+ const {env,db}=await setup();
+ db.prepare("UPDATE hunt_accounts SET cash=250,current_equity=100,max_equity=100,max_drawdown_pct=0 WHERE account_id='H100'").run();
+ const t1=new Date('2026-09-18T03:00:00Z');
+ await markHuntAccounts(env,{},t1);
+ let rows=db.prepare("SELECT * FROM hunt_account_milestones WHERE account_id='H100' ORDER BY multiple").all();
+ assert.deepEqual(rows.map(x=>x.multiple),[2]);
+ assert.equal(rows[0].reached_at,t1.toISOString());
+ assert.ok(rows[0].equity>=200);
+
+ db.prepare("UPDATE hunt_accounts SET cash=12000 WHERE account_id='H100'").run();
+ const t2=new Date('2026-09-18T04:00:00Z');
+ await markHuntAccounts(env,{},t2);
+ rows=db.prepare("SELECT * FROM hunt_account_milestones WHERE account_id='H100' ORDER BY multiple").all();
+ assert.deepEqual(rows.map(x=>x.multiple),[2,5,10,25,50,100]);
+ assert.equal(rows[0].reached_at,t1.toISOString(),'first milestone time must be immutable');
+ assert.ok(rows.slice(1).every(x=>x.reached_at===t2.toISOString()));
  db.close();
 });
