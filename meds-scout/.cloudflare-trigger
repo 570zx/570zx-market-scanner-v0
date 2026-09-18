@@ -13,3 +13,4 @@ Trigger Leader scan runtime fix deployment.
 Trigger stale lock reclaim v2 deployment.
 Trigger top-gainer audit v1 deployment.
 Trigger top-gainer audit D1 hotfix deployment.
+Trigger provider-resilient top-gainer audit deployment.
