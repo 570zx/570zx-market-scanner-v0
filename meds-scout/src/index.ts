@@ -178,33 +178,30 @@ async function persistGainerBoard(env:Env,gainers:any[],now=new Date()){
     percentChange:Number(x.percent_change??x.percentChange??x.change_percent??x.changePercentage),
     raw:JSON.stringify(x).slice(0,2000)
   })).filter((x:any)=>x.symbol);
-  if(!rows.length) return;
-  const values=rows.map(()=>"(?,?,?,?,?,?,?,?,?,?,?)").join(",");
-  const args:any[]=[];
-  for(const x of rows) args.push(bucket,sessionDate,now.toISOString(),marketPhase,x.rank,x.symbol,
-    Number.isFinite(x.price)?x.price:null,Number.isFinite(x.change)?x.change:null,
-    Number.isFinite(x.percentChange)?x.percentChange:null,x.raw,HUNT_VERSION);
-  await env.MEDS_DB.prepare(`INSERT OR REPLACE INTO hunt_gainer_board
-    (bucket,session_date,created_at,phase,rank,symbol,price,change,percent_change,raw_json,version)
-    VALUES ${values}`).bind(...args).run();
+  for(let i=0;i<rows.length;i+=50){
+    const statements=rows.slice(i,i+50).map((x:any)=>env.MEDS_DB.prepare(`INSERT OR REPLACE INTO hunt_gainer_board
+      (bucket,session_date,created_at,phase,rank,symbol,price,change,percent_change,raw_json,version)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?)`).bind(bucket,sessionDate,now.toISOString(),marketPhase,x.rank,x.symbol,
+        Number.isFinite(x.price)?x.price:null,Number.isFinite(x.change)?x.change:null,
+        Number.isFinite(x.percentChange)?x.percentChange:null,x.raw,HUNT_VERSION));
+    if(statements.length) await env.MEDS_DB.batch(statements);
+  }
 }
 
 async function persistBroadDiscovery(env:Env,rows:Candidate[],discovery:DiscoveryResult,shortlisted:Set<string>,now=new Date()){
   if(!rows.length) return;
   const bucket=bucket5(now),sessionDate=easternParts(now).date;
-  for(let i=0;i<rows.length;i+=40){
-    const chunk=rows.slice(i,i+40);
-    const values=chunk.map(()=>"(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").join(",");
-    const args:any[]=[];
-    for(const x of chunk){
+  for(let i=0;i<rows.length;i+=50){
+    const statements=rows.slice(i,i+50).map((x:Candidate)=>{
       const src=discovery.sourceBySymbol.get(x.symbol)??{source:'held_or_recent',rank:null};
-      args.push(bucket,sessionDate,now.toISOString(),x.symbol,src.source,src.rank,x.price,x.dayChangePct,x.score,x.spreadPct,
-        x.dayVolume,x.minuteVolume,(x as any).executionFresh===true?1:0,leaderHuntEligible(x)?1:0,shortlisted.has(x.symbol)?1:0,HUNT_VERSION);
-    }
-    await env.MEDS_DB.prepare(`INSERT OR REPLACE INTO hunt_discovery_observations
-      (bucket,session_date,created_at,symbol,source,source_rank,price,day_change_pct,score,spread_pct,
-       day_volume,minute_volume,execution_fresh,eligible,shortlisted,version)
-      VALUES ${values}`).bind(...args).run();
+      return env.MEDS_DB.prepare(`INSERT OR REPLACE INTO hunt_discovery_observations
+        (bucket,session_date,created_at,symbol,source,source_rank,price,day_change_pct,score,spread_pct,
+         day_volume,minute_volume,execution_fresh,eligible,shortlisted,version)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(bucket,sessionDate,now.toISOString(),x.symbol,src.source,src.rank,
+          x.price,x.dayChangePct,x.score,x.spreadPct,x.dayVolume,x.minuteVolume,(x as any).executionFresh===true?1:0,
+          leaderHuntEligible(x)?1:0,shortlisted.has(x.symbol)?1:0,HUNT_VERSION);
+    });
+    if(statements.length) await env.MEDS_DB.batch(statements);
   }
 }
 
