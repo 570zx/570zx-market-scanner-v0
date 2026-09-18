@@ -135,6 +135,16 @@ ${table(status.leader_hunt?.accounts || [], [
   ["Closed","closed_trades"],["Trades 24h","trades_24h"],["Winners 24h","winners_24h"],["Updated","updated_at"],
 ])}
 
+### Performance by entry session
+
+${table(status.leader_hunt?.session_breakdown || [], [
+  ["Session","phase"],["Open signals","open_signals"],["Open positions","open_account_positions"],
+  ["Avg open %","avg_open_return_pct"],["Closed signals 24h","closed_signals_24h"],
+  ["Trades 24h","account_trades_24h"],["Winners 24h","winners_24h"],["Win rate","win_rate_24h"],
+  ["Avg closed %","avg_closed_return_pct"],["Avg MFE %","avg_mfe_pct"],["Avg MAE %","avg_mae_pct"],
+  ["Best %","best_return_pct"],["Worst %","worst_return_pct"],
+])}
+
 | Observations 24h | Open research positions | Closed trades 24h | Winners 24h | Win rate | Avg return % | Best % | Worst % | Latest observation | Latest close |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | ${cell(status.leader_hunt?.observations_24h)} | ${cell(status.leader_hunt?.open_positions)} | ${cell(status.leader_hunt?.trades_24h)} | ${cell(status.leader_hunt?.winners_24h)} | ${status.leader_hunt?.win_rate_24h == null ? "" : (Number(status.leader_hunt.win_rate_24h)*100).toFixed(1)+"%"} | ${cell(status.leader_hunt?.avg_return_pct_24h)} | ${cell(status.leader_hunt?.best_return_pct_24h)} | ${cell(status.leader_hunt?.worst_return_pct_24h)} | ${cell(status.leader_hunt?.latest_observation_at)} | ${cell(status.leader_hunt?.latest_trade_at)} |
