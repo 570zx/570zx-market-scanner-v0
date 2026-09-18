@@ -4,6 +4,7 @@ const ALLOWED = new Set([
   "/status/positions",
   "/status/decisions",
   "/status/hunt",
+  "/status/hunt/positions",
 ]);
 
 const REPORT_PATH = "/report";
@@ -43,8 +44,9 @@ async function renderReport(env) {
     fetchTelemetry(env, "/status/positions?limit=100"),
     fetchTelemetry(env, "/status/decisions?limit=100"),
     fetchTelemetry(env, "/status/hunt?limit=100"),
+    fetchTelemetry(env, "/status/hunt/positions?limit=100"),
   ]);
-  const labels = ["Overall status", "Closed trades", "Open positions", "Recent decisions", "Leader Hunt research trades"];
+  const labels = ["Overall status", "Closed trades", "Open positions", "Recent decisions", "Leader Hunt research trades", "Leader Hunt open positions"];
   const generatedAt = new Date().toISOString();
   const blocks = sections.map((section, index) => `
     <section>
