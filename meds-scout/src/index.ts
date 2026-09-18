@@ -1787,12 +1787,20 @@ async function runTick(env: Env, source: string) {
   // amplified slow scans while still allowing watchdog recovery.
   const lockLeaseMs=6*60_000;
   const lastSuccessMs=state.last_success_at?Date.parse(state.last_success_at):0;
-  const scannerStale=!lastSuccessMs || lockNow-lastSuccessMs>PAPER_CYCLE_STALE_MS;
-  // Older deployments used a 15-minute lease, so a failed invocation could
-  // suppress scheduled recovery long after the scanner was known stale.
-  // Reclaim only an abnormally long legacy/stuck lease; the six-minute lease
-  // protects normal five-minute cadence overlap.
-  if(scannerStale && Number(state.lock_until??0)>lockNow+lockLeaseMs){
+  const staleForMs=lastSuccessMs?Math.max(0,lockNow-lastSuccessMs):Infinity;
+  const scannerStale=!lastSuccessMs || staleForMs>PAPER_CYCLE_STALE_MS;
+  const lockUntil=Number(state.lock_until??0);
+  const remainingLeaseMs=lockUntil>lockNow?lockUntil-lockNow:0;
+  const inferredLockAgeMs=remainingLeaseMs>0 && remainingLeaseMs<=lockLeaseMs
+    ? Math.max(0,lockLeaseMs-remainingLeaseMs) : 0;
+  // Recover both legacy long leases and a genuinely wedged current lease.
+  // We only force-reclaim a normal six-minute lease when the scanner has been
+  // stale for more than two health windows AND that lease is already >2 min
+  // old. That avoids normal overlap while preventing a dead invocation from
+  // blocking every following cron.
+  const deepStale=staleForMs>2*PAPER_CYCLE_STALE_MS;
+  const wedgedCurrentLease=lockUntil>lockNow && lockUntil<=lockNow+lockLeaseMs && inferredLockAgeMs>2*60_000;
+  if(scannerStale && (lockUntil>lockNow+lockLeaseMs || (deepStale && wedgedCurrentLease))){
     await env.MEDS_DB.prepare(`UPDATE service_state SET lock_owner=NULL,lock_until=NULL,last_error=? WHERE id=1 AND lock_until=?`)
       .bind('watchdog reclaimed stale scan lock',state.lock_until).run();
   }
