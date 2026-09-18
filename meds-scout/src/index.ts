@@ -1917,7 +1917,8 @@ async function scanTick(env: Env) {
   // so the audit reflects the same eligibility state the account engine sees.
   await persistBroadDiscovery(env,huntResearch,discovered,new Set(huntResearch.map(x=>x.symbol)),auditNow);
 
-  research.sort((a,b)=>b.score-a.score);\n  const top = research.filter(c=>c.executionFresh===true && c.price>=coreMinPrice).slice(0, Math.min(8, num(env.MAX_WATCH_SYMBOLS, 8)));
+  research.sort((a,b)=>b.score-a.score);
+  const top = research.filter(c=>c.executionFresh===true && c.price>=coreMinPrice).slice(0, Math.min(8, num(env.MAX_WATCH_SYMBOLS, 8)));
   for (const c of top) {
     const previous = priorMap.get(c.symbol);
     const oldAlert = previous?.last_alert_at ? Date.parse(previous.last_alert_at) : 0;
