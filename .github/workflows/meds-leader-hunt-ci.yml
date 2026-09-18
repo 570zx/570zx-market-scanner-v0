@@ -2,7 +2,7 @@ name: MEDS Leader Hunt CI
 
 on:
   push:
-    branches: [meds-leader-hunt-v1, meds-leader-hunt-capital-tiers, meds-leader-hunt-200-runner, meds-leader-positions-view, meds-leader-positions-distance-fix, meds-leader-session-breakdown, meds-leader-compounding-scoreboard, meds-leader-continuity-fix, meds-leader-continuity-fallback, meds-leader-multi-asset-v4, meds-scout-native-cloudflare]
+    branches: [meds-leader-hunt-v1, meds-leader-hunt-capital-tiers, meds-leader-hunt-200-runner, meds-leader-positions-view, meds-leader-positions-distance-fix, meds-leader-session-breakdown, meds-leader-compounding-scoreboard, meds-leader-continuity-fix, meds-leader-continuity-fallback, meds-leader-multi-asset-v4, meds-leader-v4-telemetry-fix, meds-scout-native-cloudflare]
     paths:
       - "meds-scout/**"
       - ".github/workflows/meds-leader-hunt-ci.yml"
