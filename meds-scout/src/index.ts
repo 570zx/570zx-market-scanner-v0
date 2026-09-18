@@ -55,6 +55,8 @@ type Candidate = {
   borrowAvailable?: number;
   score: number;
   reasons: string[];
+  executionFresh?: boolean;
+  quoteAgeMs?: number;
 };
 
 const ALPACA_DATA = "https://data.alpaca.markets";
@@ -566,7 +568,7 @@ function bucket5(date=new Date()){
   const ms=5*60*1000; return new Date(Math.floor(date.getTime()/ms)*ms).toISOString();
 }
 
-const HUNT_VERSION='leader-hunt-v3-200-runner';
+const HUNT_VERSION='leader-hunt-v3.1-continuity';
 const HUNT_TRACKED_PER_CYCLE=12;
 const HUNT_MAX_OPEN=24;
 const HUNT_MAX_NEW_PER_CYCLE=6;
@@ -1287,8 +1289,19 @@ async function scanTick(env: Env) {
   const discovered = await discoverSymbols(env);
   const paperHeld=await env.MEDS_DB.prepare("SELECT symbol FROM paper_positions WHERE status='open' UNION SELECT underlying AS symbol FROM paper_option_positions WHERE status='open'").all<{symbol:string}>();
   const held = await env.MEDS_DB.prepare(`SELECT symbol FROM shadow_positions WHERE status='open'`).all<{symbol:string}>();
-  const symbols = [...new Set([...(paperHeld.results??[]).map(p=>p.symbol),...(held.results ?? []).map(p=>p.symbol),...discovered])];
-  const prior = await env.MEDS_DB.prepare(`SELECT * FROM symbol_state WHERE last_seen_at >= ?`).bind(new Date(Date.now()-90*60000).toISOString()).all<any>();
+  const huntHeld=await env.MEDS_DB.prepare(`SELECT DISTINCT symbol FROM hunt_account_positions WHERE status='open'
+    UNION SELECT DISTINCT symbol FROM hunt_positions WHERE status='open'`).all<{symbol:string}>();
+  const huntRecent=await env.MEDS_DB.prepare(`SELECT symbol,MAX(created_at) AS last_seen
+    FROM hunt_observations WHERE created_at>=? GROUP BY symbol ORDER BY last_seen DESC LIMIT 80`)
+    .bind(new Date(Date.now()-12*60*60000).toISOString()).all<{symbol:string}>();
+  const symbols = [...new Set([
+    ...(paperHeld.results??[]).map(p=>p.symbol),
+    ...(held.results ?? []).map(p=>p.symbol),
+    ...(huntHeld.results??[]).map(p=>p.symbol),
+    ...(huntRecent.results??[]).map(p=>p.symbol),
+    ...discovered
+  ])].slice(0,240);
+  const prior = await env.MEDS_DB.prepare(`SELECT * FROM symbol_state WHERE last_seen_at >= ?`).bind(new Date(Date.now()-12*60*60000).toISOString()).all<any>();
   const priorMap = new Map((prior.results ?? []).map(p=>[p.symbol,p]));
   const snapshots = await fetchSnapshots(env, symbols);
   await manageShadowPositions(env, snapshots);
@@ -1296,12 +1309,20 @@ async function scanTick(env: Env) {
   const rough: Candidate[] = [];
   for (const symbol of symbols) {
     const s = snapshots[symbol];
-    const overnight = stockFeed() === "overnight";
+    const marketPhase=phase();
+    const extended=marketPhase!=='regular';
     const bid = s?.latestQuote?.bp ?? 0;
     const ask = s?.latestQuote?.ap ?? 0;
-    const quoteFresh = freshTimestamp(s?.latestQuote?.t, 5 * 60_000);
-    const tradeFresh = freshTimestamp(s?.latestTrade?.t, overnight ? 20 * 60_000 : 5 * 60_000);
-    const price = overnight && quoteFresh && bid > 0 && ask >= bid ? (bid + ask) / 2 : (tradeFresh ? s?.latestTrade?.p : s?.minuteBar?.c);
+    const quoteAt=Date.parse(s?.latestQuote?.t??'');
+    const quoteAgeMs=Number.isFinite(quoteAt)?Math.max(0,Date.now()-quoteAt):Infinity;
+    // Research observations can tolerate a somewhat older extended-hours quote.
+    // Entries/exits remain protected by validQuote()'s strict 90-second rule.
+    const researchQuoteFresh=freshTimestamp(s?.latestQuote?.t, extended ? 20*60_000 : 5*60_000);
+    const tradeFresh=freshTimestamp(s?.latestTrade?.t, extended ? 20*60_000 : 5*60_000);
+    const executionFresh=validQuote(s?.latestQuote);
+    const price = extended && researchQuoteFresh && bid > 0 && ask >= bid
+      ? (bid + ask) / 2
+      : (tradeFresh ? s?.latestTrade?.p : s?.minuteBar?.c);
     if (!price || price < minPrice || price > maxPrice) continue;
     const prevClose = s?.prevDailyBar?.c ?? 0;
     const spreadPct = bid > 0 && ask > 0 ? ((ask - bid) / ((ask + bid)/2)) * 100 : 99;
@@ -1309,8 +1330,7 @@ async function scanTick(env: Env) {
     if (dayChangePct > maxChange + 20 || dayChangePct < -15) continue;
     const previousState = priorMap.get(symbol);
     const state = previousState && easternParts(new Date(previousState.last_seen_at)).date === easternParts().date ? previousState : null;
-    if (!validQuote(s?.latestQuote) || (overnight ? !quoteFresh : !tradeFresh)) continue;
-    if (!(bid > 0 && ask >= bid)) continue;
+    if (!researchQuoteFresh || !(bid > 0 && ask >= bid)) continue;
     const dayVolume = s?.dailyBar?.v ?? 0;
     const priorDayVolume = s?.prevDailyBar?.v ?? 0;
     const minuteVolume = s?.minuteBar?.v ?? 0;
@@ -1319,7 +1339,8 @@ async function scanTick(env: Env) {
     rough.push({
       symbol, price, bid, ask, spreadPct, dayChangePct, dayVolume, previousDayVolume: priorDayVolume,
       minuteVolume, volumeAccel, consecutiveHits: (state && Date.now()-Date.parse(state.last_seen_at)<150000 ? state.consecutive_hits : 0) + 1,
-      catalystScore: 0, catalystSummary: "", score: 0, reasons: []
+      catalystScore: 0, catalystSummary: "", score: 0, reasons: [],
+      executionFresh, quoteAgeMs
     });
   }
 
@@ -1345,7 +1366,7 @@ async function scanTick(env: Env) {
     await persistCandidate(env, c, status, snapshots[c.symbol]);
   }
   research.sort((a,b)=>b.score-a.score);
-  const top = research.slice(0, Math.min(8, num(env.MAX_WATCH_SYMBOLS, 8)));
+  const top = research.filter(c=>c.executionFresh===true).slice(0, Math.min(8, num(env.MAX_WATCH_SYMBOLS, 8)));
   for (const c of top) {
     const previous = priorMap.get(c.symbol);
     const oldAlert = previous?.last_alert_at ? Date.parse(previous.last_alert_at) : 0;
@@ -1369,6 +1390,8 @@ async function scanTick(env: Env) {
     paper = { ok: false, error: error instanceof Error ? error.message : "paper lab failed" };
   }
   return { ok: true, feed: stockFeed(), scanned: symbols.length, shortlisted: top.length, research_shortlist:research.length,
+    research_execution_fresh:research.filter(x=>x.executionFresh===true).length,
+    hunt_universe_open_symbols:(huntHeld.results??[]).length,
     leaders: top.slice(0,5).map(x => ({symbol:x.symbol,score:x.score,price:x.price})), hunt, paper };
 }
 
