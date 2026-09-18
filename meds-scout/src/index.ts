@@ -414,7 +414,7 @@ INSERT INTO paper_meta(id,version,initialized_at) VALUES(1,2,strftime('%Y-%m-%dT
 async function ensurePaperSchema(env:PaperEnv){
   try {
     const row=await env.MEDS_DB.prepare(`SELECT version FROM paper_meta WHERE id=1`).first<any>();
-    if(Number(row?.version)>=6) return;
+    if(Number(row?.version)>=7) return;
   } catch { /* first boot before paper tables exist */ }
   // D1 exec() treats newline-delimited input as separate statements, which
   // breaks the multiline INSERT ... SELECT seed below. Prepare complete
@@ -526,7 +526,11 @@ async function ensurePaperSchema(env:PaperEnv){
   ] as const;
   for(const [name,type] of htAdds) if(!htNames.has(name))
     await env.MEDS_DB.prepare(`ALTER TABLE hunt_account_trades ADD COLUMN ${name} ${type}`).run();
-  await env.MEDS_DB.prepare(`UPDATE paper_meta SET version=6 WHERE id=1`).run();
+  await env.MEDS_DB.prepare(`CREATE TABLE IF NOT EXISTS hunt_account_milestones(
+    account_id TEXT NOT NULL,multiple REAL NOT NULL,reached_at TEXT NOT NULL,equity REAL NOT NULL,
+    max_drawdown_pct REAL NOT NULL,version TEXT NOT NULL,PRIMARY KEY(account_id,multiple))`).run();
+  await env.MEDS_DB.prepare(`CREATE INDEX IF NOT EXISTS idx_hunt_milestone_time ON hunt_account_milestones(reached_at DESC)`).run();
+  await env.MEDS_DB.prepare(`UPDATE paper_meta SET version=7 WHERE id=1`).run();
 }
 const LEDGER_POLICY: Record<string,{maxRiskPct:number;maxAllocPct:number;primaryMax:number;shadowMax:number}> = {
   A: {maxRiskPct:0.05,maxAllocPct:0.25,primaryMax:3,shadowMax:7},
@@ -580,6 +584,7 @@ const HUNT_LADDER=[
 ] as const;
 const HUNT_TAKE_FRACTION=1-HUNT_RUNNER_FRACTION-HUNT_LADDER.reduce((n,x)=>n+x.fraction,0);
 const HUNT_RUNNER_TRAIL_PCT=0.15;
+const HUNT_ACCOUNT_MULTIPLES=[2,5,10,25,50,100] as const;
 const HUNT_ACCOUNTS=[
   {account_id:'H100',label:'$100',starting_equity:100},
   {account_id:'H1K',label:'$1K',starting_equity:1000},
@@ -687,8 +692,15 @@ async function markHuntAccounts(env:PaperEnv,snaps:Record<string,PaperSnapshot>,
     if(!complete) continue;
     const peak=Math.max(Number(a.max_equity),equity);
     const dd=peak>0?1-equity/peak:0;
-    await env.MEDS_DB.prepare("UPDATE hunt_accounts SET current_equity=?,max_equity=?,max_drawdown_pct=MAX(max_drawdown_pct,?),updated_at=? WHERE account_id=?")
-      .bind(equity,peak,dd,now.toISOString(),a.account_id).run();
+    const maxDrawdown=Math.max(Number(a.max_drawdown_pct??0),dd);
+    await env.MEDS_DB.prepare("UPDATE hunt_accounts SET current_equity=?,max_equity=?,max_drawdown_pct=?,updated_at=? WHERE account_id=?")
+      .bind(equity,peak,maxDrawdown,now.toISOString(),a.account_id).run();
+    const currentMultiple=Number(a.starting_equity)>0?equity/Number(a.starting_equity):0;
+    for(const multiple of HUNT_ACCOUNT_MULTIPLES){
+      if(currentMultiple+1e-12<multiple) continue;
+      await env.MEDS_DB.prepare(`INSERT OR IGNORE INTO hunt_account_milestones(account_id,multiple,reached_at,equity,max_drawdown_pct,version)
+        VALUES(?,?,?,?,?,?)`).bind(a.account_id,multiple,now.toISOString(),equity,maxDrawdown,HUNT_VERSION).run();
+    }
   }
 }
 
@@ -1588,6 +1600,32 @@ async function publicStatus(env: Env): Promise<Response> {
       (SELECT COUNT(*) FROM hunt_account_trades t WHERE t.account_id=a.account_id AND t.closed_at>=? AND t.realized_pnl>0) AS winners_24h,
       (SELECT COUNT(*) FROM hunt_account_trades t WHERE t.account_id=a.account_id AND t.closed_at>=?) AS trades_24h
       FROM hunt_accounts a ORDER BY a.starting_equity`).bind(since,since).all<any>();
+    const milestoneRows=await env.MEDS_DB.prepare(`SELECT * FROM hunt_account_milestones ORDER BY account_id,multiple`).all<any>();
+    const milestonesByAccount=new Map<string,any[]>();
+    for(const row of milestoneRows.results??[]){
+      const arr=milestonesByAccount.get(String(row.account_id))??[];
+      arr.push(row);milestonesByAccount.set(String(row.account_id),arr);
+    }
+    const compoundingScoreboard=(accounts.results??[]).map((a:any)=>{
+      const starting=Number(a.starting_equity),equity=Number(a.current_equity);
+      const currentMultiple=starting>0?equity/starting:0;
+      const reached=milestonesByAccount.get(String(a.account_id))??[];
+      const byMultiple=new Map(reached.map((x:any)=>[Number(x.multiple),x]));
+      const nextMultiple=HUNT_ACCOUNT_MULTIPLES.find(m=>currentMultiple<m)??null;
+      return {
+        account_id:a.account_id,label:a.label,starting_equity:starting,current_equity:equity,
+        current_multiple:currentMultiple,next_multiple:nextMultiple,
+        next_target_equity:nextMultiple==null?null:starting*nextMultiple,
+        progress_to_next_pct:nextMultiple==null?100:Math.min(100,currentMultiple/nextMultiple*100),
+        max_drawdown_pct:Number(a.max_drawdown_pct??0),
+        milestone_2x_at:byMultiple.get(2)?.reached_at??null,
+        milestone_5x_at:byMultiple.get(5)?.reached_at??null,
+        milestone_10x_at:byMultiple.get(10)?.reached_at??null,
+        milestone_25x_at:byMultiple.get(25)?.reached_at??null,
+        milestone_50x_at:byMultiple.get(50)?.reached_at??null,
+        milestone_100x_at:byMultiple.get(100)?.reached_at??null,
+      };
+    });
     const openSessions=await env.MEDS_DB.prepare(`SELECT p.opened_phase AS phase,
       COUNT(*) AS open_account_positions,
       COUNT(DISTINCT p.symbol || '|' || p.opened_at) AS open_signals,
@@ -1646,6 +1684,8 @@ async function publicStatus(env: Env): Promise<Response> {
         max_drawdown_pct:Number(a.max_drawdown_pct),open_positions:Number(a.open_positions),closed_trades:Number(a.closed_trades),
         winners_24h:Number(a.winners_24h),trades_24h:Number(a.trades_24h)})),
       session_breakdown:sessionBreakdown,
+      compounding_milestones:HUNT_ACCOUNT_MULTIPLES,
+      compounding_scoreboard:compoundingScoreboard,
     };
   } catch(error) {
     body.leader_hunt={version:HUNT_VERSION,error:error instanceof Error?error.message:'leader hunt telemetry unavailable'};
