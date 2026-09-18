@@ -572,8 +572,13 @@ const HUNT_REENTRY_COOLDOWN_MIN=15;
 const HUNT_POSITION_PCT=0.04;
 const HUNT_MAX_MINUTE_PARTICIPATION=0.05;
 const HUNT_TAKE_RETURN_PCT=2.00;
-const HUNT_TAKE_FRACTION=0.95;
-const HUNT_RUNNER_FRACTION=1-HUNT_TAKE_FRACTION;
+const HUNT_RUNNER_FRACTION=0.05;
+const HUNT_LADDER=[
+  {event:'LADDER_25',returnPct:0.25,fraction:0.025},
+  {event:'LADDER_50',returnPct:0.50,fraction:0.025},
+  {event:'LADDER_100',returnPct:1.00,fraction:0.05},
+] as const;
+const HUNT_TAKE_FRACTION=1-HUNT_RUNNER_FRACTION-HUNT_LADDER.reduce((n,x)=>n+x.fraction,0);
 const HUNT_RUNNER_TRAIL_PCT=0.15;
 const HUNT_ACCOUNTS=[
   {account_id:'H100',label:'$100',starting_equity:100},
@@ -689,14 +694,15 @@ async function markHuntAccounts(env:PaperEnv,snaps:Record<string,PaperSnapshot>,
 
 async function manageHuntAccountPositions(env:PaperEnv,snaps:Record<string,PaperSnapshot>,now=new Date()){
   const rows=await env.MEDS_DB.prepare("SELECT * FROM hunt_account_positions WHERE status='open' ORDER BY id").all<any>();
-  let exits=0,take200s=0;
+  let exits=0,take200s=0,ladderSells=0;
   for(const p of rows.results??[]){
     const snap=snaps[p.symbol],q=snap?.latestQuote;
     if(!validQuote(q,now.getTime())) continue;
     const bid=Number(q.bp),ask=Number(q.ap),mid=(bid+ask)/2;
     const high=Math.max(Number(p.highest_price),mid),low=Math.min(Number(p.lowest_price),mid);
     const ageMin=Math.max(0,(now.getTime()-Date.parse(p.opened_at))/60000);
-    const remaining=Number(p.remaining_qty??p.quantity);
+    let remaining=Number(p.remaining_qty??p.quantity);
+    let locked=Number(p.locked_realized_pnl??0);
     if(!(remaining>0)) continue;
     const minuteLiquidity=Math.max(1,Number(snap?.minuteBar?.v??1));
     const modeledSell=(qty:number)=>{
@@ -705,24 +711,59 @@ async function manageHuntAccountPositions(env:PaperEnv,snaps:Record<string,Paper
       return {fill:Math.max(0,bid*(1-slipPct)),slipPct};
     };
 
+    // Small profit ladder: only 10% of the original position is peeled before
+    // the +200% objective. This locks incremental profit without turning the
+    // monster-mover experiment into a scalp strategy.
+    if(!Number(p.take200_done)){
+      const priorEvents=await env.MEDS_DB.prepare(
+        "SELECT event_type FROM hunt_account_events WHERE position_id=? AND event_type LIKE 'LADDER_%'"
+      ).bind(p.id).all<any>();
+      const done=new Set((priorEvents.results??[]).map((x:any)=>String(x.event_type)));
+      for(const rung of HUNT_LADDER){
+        if(done.has(rung.event) || bid<Number(p.entry_price)*(1+rung.returnPct)) continue;
+        const qty=Math.min(remaining,Number(p.quantity)*rung.fraction);
+        if(!(qty>0)) continue;
+        const sell=modeledSell(qty);
+        const proceeds=sell.fill*qty;
+        const partialPnl=(sell.fill-Number(p.entry_price))*qty;
+        remaining-=qty; locked+=partialPnl;
+        await env.MEDS_DB.batch([
+          env.MEDS_DB.prepare("UPDATE hunt_account_positions SET remaining_qty=?,locked_realized_pnl=?,highest_price=?,lowest_price=? WHERE id=?")
+            .bind(remaining,locked,high,low,p.id),
+          env.MEDS_DB.prepare("UPDATE hunt_accounts SET cash=cash+?,realized_pnl=realized_pnl+?,updated_at=? WHERE account_id=?")
+            .bind(proceeds,partialPnl,now.toISOString(),p.account_id),
+          env.MEDS_DB.prepare(`INSERT INTO hunt_account_events(account_id,position_id,symbol,created_at,event_type,price,quantity,realized_pnl,details,version)
+            VALUES(?,?,?,?,?,?,?,?,?,?)`)
+            .bind(p.account_id,p.id,p.symbol,now.toISOString(),rung.event,sell.fill,qty,partialPnl,
+              JSON.stringify({threshold_return_pct:rung.returnPct,fraction:rung.fraction,remaining_qty:remaining,
+                slippage_pct:sell.slipPct,observed_bid:bid}),HUNT_VERSION)
+        ]);
+        ladderSells++;
+      }
+    }
+
     if(!Number(p.take200_done) && bid>=Number(p.entry_price)*(1+HUNT_TAKE_RETURN_PCT)){
-      const takeQty=Math.min(remaining,Number(p.quantity)*HUNT_TAKE_FRACTION);
-      const sell=modeledSell(takeQty);
-      const proceeds=sell.fill*takeQty;
-      const partialPnl=(sell.fill-Number(p.entry_price))*takeQty;
-      const runnerQty=Math.max(0,remaining-takeQty);
-      await env.MEDS_DB.batch([
-        env.MEDS_DB.prepare(`UPDATE hunt_account_positions SET remaining_qty=?,locked_realized_pnl=locked_realized_pnl+?,
-          take200_done=1,take200_price=?,take200_at=?,runner_high=?,highest_price=?,lowest_price=? WHERE id=?`)
-          .bind(runnerQty,partialPnl,sell.fill,now.toISOString(),high,high,low,p.id),
-        env.MEDS_DB.prepare("UPDATE hunt_accounts SET cash=cash+?,realized_pnl=realized_pnl+?,updated_at=? WHERE account_id=?")
-          .bind(proceeds,partialPnl,now.toISOString(),p.account_id),
-        env.MEDS_DB.prepare(`INSERT INTO hunt_account_events(account_id,position_id,symbol,created_at,event_type,price,quantity,realized_pnl,details,version)
-          VALUES(?,?,?,?,?,?,?,?,?,?)`)
-          .bind(p.account_id,p.id,p.symbol,now.toISOString(),'TAKE_200',sell.fill,takeQty,partialPnl,
-            JSON.stringify({fraction:HUNT_TAKE_FRACTION,remaining_qty:runnerQty,slippage_pct:sell.slipPct,observed_bid:bid,high}),HUNT_VERSION)
-      ]);
-      take200s++;
+      const runnerQty=Math.min(remaining,Number(p.quantity)*HUNT_RUNNER_FRACTION);
+      const takeQty=Math.max(0,remaining-runnerQty);
+      if(takeQty>0){
+        const sell=modeledSell(takeQty);
+        const proceeds=sell.fill*takeQty;
+        const partialPnl=(sell.fill-Number(p.entry_price))*takeQty;
+        remaining=runnerQty; locked+=partialPnl;
+        await env.MEDS_DB.batch([
+          env.MEDS_DB.prepare(`UPDATE hunt_account_positions SET remaining_qty=?,locked_realized_pnl=?,
+            take200_done=1,take200_price=?,take200_at=?,runner_high=?,highest_price=?,lowest_price=? WHERE id=?`)
+            .bind(remaining,locked,sell.fill,now.toISOString(),high,high,low,p.id),
+          env.MEDS_DB.prepare("UPDATE hunt_accounts SET cash=cash+?,realized_pnl=realized_pnl+?,updated_at=? WHERE account_id=?")
+            .bind(proceeds,partialPnl,now.toISOString(),p.account_id),
+          env.MEDS_DB.prepare(`INSERT INTO hunt_account_events(account_id,position_id,symbol,created_at,event_type,price,quantity,realized_pnl,details,version)
+            VALUES(?,?,?,?,?,?,?,?,?,?)`)
+            .bind(p.account_id,p.id,p.symbol,now.toISOString(),'TAKE_200',sell.fill,takeQty,partialPnl,
+              JSON.stringify({fraction:HUNT_TAKE_FRACTION,remaining_qty:remaining,runner_fraction:HUNT_RUNNER_FRACTION,
+                slippage_pct:sell.slipPct,observed_bid:bid,high}),HUNT_VERSION)
+        ]);
+        take200s++;
+      }
       continue;
     }
 
@@ -740,7 +781,7 @@ async function manageHuntAccountPositions(env:PaperEnv,snaps:Record<string,Paper
       const sell=modeledSell(remaining);
       const proceeds=sell.fill*remaining;
       const runnerPnl=(sell.fill-Number(p.entry_price))*remaining;
-      const totalPnl=Number(p.locked_realized_pnl??0)+runnerPnl;
+      const totalPnl=locked+runnerPnl;
       const ret=Number(p.entry_notional)>0?totalPnl/Number(p.entry_notional)*100:0;
       const mfe=(high/Number(p.entry_price)-1)*100;
       const mae=(low/Number(p.entry_price)-1)*100;
@@ -774,23 +815,25 @@ async function manageHuntAccountPositions(env:PaperEnv,snaps:Record<string,Paper
     const reason=stop?'stop':'time';
     const sell=modeledSell(remaining);
     const proceeds=sell.fill*remaining;
-    const pnl=(sell.fill-Number(p.entry_price))*remaining;
-    const ret=Number(p.entry_notional)>0?pnl/Number(p.entry_notional)*100:0;
+    const finalPnl=(sell.fill-Number(p.entry_price))*remaining;
+    const totalPnl=locked+finalPnl;
+    const ret=Number(p.entry_notional)>0?totalPnl/Number(p.entry_notional)*100:0;
     const mfe=(high/Number(p.entry_price)-1)*100;
     const mae=(low/Number(p.entry_price)-1)*100;
     await env.MEDS_DB.batch([
       env.MEDS_DB.prepare("UPDATE hunt_account_positions SET status='closed',remaining_qty=0,highest_price=?,lowest_price=? WHERE id=?").bind(high,low,p.id),
       env.MEDS_DB.prepare("UPDATE hunt_accounts SET cash=cash+?,realized_pnl=realized_pnl+?,updated_at=? WHERE account_id=?")
-        .bind(proceeds,pnl,now.toISOString(),p.account_id),
+        .bind(proceeds,finalPnl,now.toISOString(),p.account_id),
       env.MEDS_DB.prepare(`INSERT INTO hunt_account_trades(account_id,symbol,opened_at,closed_at,entry_price,exit_price,quantity,entry_notional,exit_value,realized_pnl,return_pct,mfe_pct,mae_pct,minutes_held,exit_reason,entry_score,entry_day_change_pct,opened_phase,features,version,take200_hit,take200_price,runner_quantity,peak_gap_pct)
         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-        .bind(p.account_id,p.symbol,p.opened_at,now.toISOString(),p.entry_price,sell.fill,p.quantity,p.entry_notional,proceeds,pnl,ret,mfe,mae,
-          ageMin,reason,p.entry_score,p.entry_day_change_pct,p.opened_phase,p.features,HUNT_VERSION,0,null,0,null)
+        .bind(p.account_id,p.symbol,p.opened_at,now.toISOString(),p.entry_price,sell.fill,p.quantity,p.entry_notional,
+          Number(p.entry_notional)+totalPnl,totalPnl,ret,mfe,mae,ageMin,reason,p.entry_score,p.entry_day_change_pct,p.opened_phase,
+          p.features,HUNT_VERSION,0,null,0,null)
     ]);
     exits++;
   }
   await markHuntAccounts(env,snaps,now);
-  return {exits,take200s};
+  return {exits,take200s,ladderSells};
 }
 
 async function runHuntAccounts(env:PaperEnv,candidates:PaperCandidate[],snaps:Record<string,PaperSnapshot>,now=new Date()){
@@ -844,7 +887,7 @@ async function runHuntAccounts(env:PaperEnv,candidates:PaperCandidate[],snaps:Re
     if(signalUsed) signalsEntered++;
   }
   await markHuntAccounts(env,snaps,now);
-  return {exits:management.exits,take200s:management.take200s,account_entries:accountEntries,signals_entered:signalsEntered};
+  return {exits:management.exits,take200s:management.take200s,ladder_sells:management.ladderSells,account_entries:accountEntries,signals_entered:signalsEntered};
 }
 
 async function runLeaderHunt(env:PaperEnv,candidates:PaperCandidate[],snaps:Record<string,PaperSnapshot>,now=new Date()){
@@ -865,7 +908,8 @@ async function runLeaderHunt(env:PaperEnv,candidates:PaperCandidate[],snaps:Reco
   }
   const open=Number((await env.MEDS_DB.prepare("SELECT COUNT(*) AS n FROM hunt_account_positions WHERE status='open'").first<any>())?.n??0);
   return {version:HUNT_VERSION,tracked:tracked.length,eligible:tracked.filter(leaderHuntEligible).length,
-    signals_entered:accounts.signals_entered,account_entries:accounts.account_entries,exits:accounts.exits,take200s:accounts.take200s,legacy_exits:legacyExits,open};
+    signals_entered:accounts.signals_entered,account_entries:accounts.account_entries,exits:accounts.exits,take200s:accounts.take200s,
+    ladder_sells:accounts.ladder_sells,legacy_exits:legacyExits,open};
 }
 
 async function openCount(env:PaperEnv,ledger:string,lane:string,table='paper_positions'){
