@@ -1965,15 +1965,28 @@ async function publicStatus(env: Env): Promise<Response> {
     const since=new Date(Date.now()-86400000).toISOString();
     const h=await env.MEDS_DB.prepare(`SELECT
       (SELECT COUNT(*) FROM hunt_observations WHERE created_at>=?) AS observations_24h,
-      (SELECT COUNT(*) FROM hunt_account_positions WHERE status='open') AS open_positions,
-      (SELECT COUNT(*) FROM hunt_account_trades WHERE closed_at>=?) AS trades_24h,
-      (SELECT COUNT(*) FROM hunt_account_trades WHERE closed_at>=? AND realized_pnl>0) AS winners_24h,
-      (SELECT AVG(return_pct) FROM hunt_account_trades WHERE closed_at>=?) AS avg_return_pct_24h,
-      (SELECT MAX(return_pct) FROM hunt_account_trades WHERE closed_at>=?) AS best_return_pct_24h,
-      (SELECT MIN(return_pct) FROM hunt_account_trades WHERE closed_at>=?) AS worst_return_pct_24h,
+      (SELECT COUNT(*) FROM hunt_account_positions WHERE status='open') AS equity_open_positions,
+      (SELECT COUNT(*) FROM hunt_account_option_positions WHERE status='open') AS option_open_positions,
+      (SELECT COUNT(*) FROM hunt_account_trades WHERE closed_at>=?) AS equity_trades_24h,
+      (SELECT COUNT(*) FROM hunt_account_option_trades WHERE closed_at>=?) AS option_trades_24h,
+      (SELECT COUNT(*) FROM hunt_account_trades WHERE closed_at>=? AND realized_pnl>0) AS equity_winners_24h,
+      (SELECT COUNT(*) FROM hunt_account_option_trades WHERE closed_at>=? AND realized_pnl>0) AS option_winners_24h,
       (SELECT MAX(created_at) FROM hunt_observations) AS latest_observation_at,
-      (SELECT MAX(closed_at) FROM hunt_account_trades) AS latest_trade_at`)
-      .bind(...Array(6).fill(since)).first<any>();
+      (SELECT MAX(closed_at) FROM hunt_account_trades) AS latest_equity_trade_at,
+      (SELECT MAX(closed_at) FROM hunt_account_option_trades) AS latest_option_trade_at`)
+      .bind(...Array(5).fill(since)).first<any>();
+    const combinedReturns=await env.MEDS_DB.prepare(`SELECT return_pct,realized_pnl,closed_at,'equity' AS asset_type FROM hunt_account_trades WHERE closed_at>=?
+      UNION ALL
+      SELECT return_pct,realized_pnl,closed_at,'option' AS asset_type FROM hunt_account_option_trades WHERE closed_at>=?`)
+      .bind(since,since).all<any>();
+    const returnRows=combinedReturns.results??[];
+    const returns=returnRows.map((x:any)=>Number(x.return_pct)).filter(Number.isFinite);
+    const combinedTrades=returnRows.length;
+    const combinedWinners=returnRows.filter((x:any)=>Number(x.realized_pnl)>0).length;
+    const avgReturn=returns.length?returns.reduce((a:number,b:number)=>a+b,0)/returns.length:null;
+    const bestReturn=returns.length?Math.max(...returns):null;
+    const worstReturn=returns.length?Math.min(...returns):null;
+
     let lastScan:any=null;
     try { lastScan=state?.last_result?JSON.parse(state.last_result):null; } catch {}
     const observationAgeSeconds=secondsSince(h?.latest_observation_at??null);
@@ -1990,11 +2003,15 @@ async function publicStatus(env: Env): Promise<Response> {
       `Leader Hunt observations stale by ${observationAgeSeconds}s`;
     if(!huntStreamHealthy) body.ok=false;
     const accounts=await env.MEDS_DB.prepare(`SELECT a.account_id,a.label,a.starting_equity,a.cash,a.current_equity,a.realized_pnl,a.max_equity,a.max_drawdown_pct,a.updated_at,
-      (SELECT COUNT(*) FROM hunt_account_positions p WHERE p.account_id=a.account_id AND p.status='open') AS open_positions,
-      (SELECT COUNT(*) FROM hunt_account_trades t WHERE t.account_id=a.account_id) AS closed_trades,
-      (SELECT COUNT(*) FROM hunt_account_trades t WHERE t.account_id=a.account_id AND t.closed_at>=? AND t.realized_pnl>0) AS winners_24h,
-      (SELECT COUNT(*) FROM hunt_account_trades t WHERE t.account_id=a.account_id AND t.closed_at>=?) AS trades_24h
-      FROM hunt_accounts a ORDER BY a.starting_equity`).bind(since,since).all<any>();
+      (SELECT COUNT(*) FROM hunt_account_positions p WHERE p.account_id=a.account_id AND p.status='open') AS equity_open_positions,
+      (SELECT COUNT(*) FROM hunt_account_option_positions p WHERE p.account_id=a.account_id AND p.status='open') AS option_open_positions,
+      (SELECT COUNT(*) FROM hunt_account_trades t WHERE t.account_id=a.account_id) AS equity_closed_trades,
+      (SELECT COUNT(*) FROM hunt_account_option_trades t WHERE t.account_id=a.account_id) AS option_closed_trades,
+      (SELECT COUNT(*) FROM hunt_account_trades t WHERE t.account_id=a.account_id AND t.closed_at>=? AND t.realized_pnl>0) AS equity_winners_24h,
+      (SELECT COUNT(*) FROM hunt_account_option_trades t WHERE t.account_id=a.account_id AND t.closed_at>=? AND t.realized_pnl>0) AS option_winners_24h,
+      (SELECT COUNT(*) FROM hunt_account_trades t WHERE t.account_id=a.account_id AND t.closed_at>=?) AS equity_trades_24h,
+      (SELECT COUNT(*) FROM hunt_account_option_trades t WHERE t.account_id=a.account_id AND t.closed_at>=?) AS option_trades_24h
+      FROM hunt_accounts a ORDER BY a.starting_equity`).bind(since,since,since,since).all<any>();
     const milestoneRows=await env.MEDS_DB.prepare(`SELECT * FROM hunt_account_milestones ORDER BY account_id,multiple`).all<any>();
     const milestonesByAccount=new Map<string,any[]>();
     for(const row of milestoneRows.results??[]){
@@ -2021,26 +2038,52 @@ async function publicStatus(env: Env): Promise<Response> {
         milestone_100x_at:byMultiple.get(100)?.reached_at??null,
       };
     });
-    const openSessions=await env.MEDS_DB.prepare(`SELECT p.opened_phase AS phase,
-      COUNT(*) AS open_account_positions,
-      COUNT(DISTINCT p.symbol || '|' || p.opened_at) AS open_signals,
-      AVG(CASE WHEN s.last_bid>0 THEN (s.last_bid/p.entry_price-1)*100 ELSE NULL END) AS avg_open_return_pct
-      FROM hunt_account_positions p
-      LEFT JOIN symbol_state s ON s.symbol=p.symbol
-      WHERE p.status='open'
-      GROUP BY p.opened_phase`).all<any>();
+    const openSessions=await env.MEDS_DB.prepare(`SELECT phase,
+      SUM(open_account_positions) AS open_account_positions,
+      SUM(open_signals) AS open_signals,
+      CASE WHEN SUM(mark_count)>0 THEN SUM(return_sum)/SUM(mark_count) ELSE NULL END AS avg_open_return_pct
+      FROM (
+        SELECT p.opened_phase AS phase,COUNT(*) AS open_account_positions,
+          COUNT(DISTINCT p.symbol || '|' || p.opened_at) AS open_signals,
+          SUM(CASE WHEN s.last_bid>0 THEN (s.last_bid/p.entry_price-1)*100 ELSE 0 END) AS return_sum,
+          SUM(CASE WHEN s.last_bid>0 THEN 1 ELSE 0 END) AS mark_count
+        FROM hunt_account_positions p LEFT JOIN symbol_state s ON s.symbol=p.symbol
+        WHERE p.status='open' GROUP BY p.opened_phase
+        UNION ALL
+        SELECT p.opened_phase AS phase,COUNT(*) AS open_account_positions,
+          COUNT(DISTINCT p.underlying || '|' || p.symbol || '|' || p.opened_at) AS open_signals,
+          SUM(CASE WHEN p.current_mark>0 THEN (p.current_mark/p.entry_price-1)*100 ELSE 0 END) AS return_sum,
+          SUM(CASE WHEN p.current_mark>0 THEN 1 ELSE 0 END) AS mark_count
+        FROM hunt_account_option_positions p WHERE p.status='open' GROUP BY p.opened_phase
+      ) GROUP BY phase`).all<any>();
     const closedSessions=await env.MEDS_DB.prepare(`SELECT opened_phase AS phase,
-      COUNT(*) AS account_trades_24h,
-      COUNT(DISTINCT symbol || '|' || opened_at) AS closed_signals_24h,
+      COUNT(*) AS account_trades_24h,COUNT(DISTINCT signal_key) AS closed_signals_24h,
       SUM(CASE WHEN realized_pnl>0 THEN 1 ELSE 0 END) AS winners_24h,
-      AVG(return_pct) AS avg_closed_return_pct,
-      AVG(mfe_pct) AS avg_mfe_pct,
-      AVG(mae_pct) AS avg_mae_pct,
-      MAX(return_pct) AS best_return_pct,
-      MIN(return_pct) AS worst_return_pct
-      FROM hunt_account_trades
-      WHERE closed_at>=?
-      GROUP BY opened_phase`).bind(since).all<any>();
+      AVG(return_pct) AS avg_closed_return_pct,AVG(mfe_pct) AS avg_mfe_pct,AVG(mae_pct) AS avg_mae_pct,
+      MAX(return_pct) AS best_return_pct,MIN(return_pct) AS worst_return_pct
+      FROM (
+        SELECT opened_phase,symbol || '|' || opened_at AS signal_key,realized_pnl,return_pct,mfe_pct,mae_pct
+        FROM hunt_account_trades WHERE closed_at>=?
+        UNION ALL
+        SELECT opened_phase,underlying || '|' || symbol || '|' || opened_at AS signal_key,realized_pnl,return_pct,mfe_pct,mae_pct
+        FROM hunt_account_option_trades WHERE closed_at>=?
+      ) GROUP BY opened_phase`).bind(since,since).all<any>();
+    const assetBreakdown=await env.MEDS_DB.prepare(`SELECT asset_type,
+      SUM(open_positions) AS open_positions,SUM(trades_24h) AS trades_24h,SUM(winners_24h) AS winners_24h,
+      CASE WHEN SUM(trades_24h)>0 THEN SUM(weighted_return)/SUM(trades_24h) ELSE NULL END AS avg_closed_return_pct
+      FROM (
+        SELECT 'equity' AS asset_type,
+          (SELECT COUNT(*) FROM hunt_account_positions WHERE status='open') AS open_positions,
+          (SELECT COUNT(*) FROM hunt_account_trades WHERE closed_at>=?) AS trades_24h,
+          (SELECT COUNT(*) FROM hunt_account_trades WHERE closed_at>=? AND realized_pnl>0) AS winners_24h,
+          COALESCE((SELECT SUM(return_pct) FROM hunt_account_trades WHERE closed_at>=?),0) AS weighted_return
+        UNION ALL
+        SELECT 'option',
+          (SELECT COUNT(*) FROM hunt_account_option_positions WHERE status='open'),
+          (SELECT COUNT(*) FROM hunt_account_option_trades WHERE closed_at>=?),
+          (SELECT COUNT(*) FROM hunt_account_option_trades WHERE closed_at>=? AND realized_pnl>0),
+          COALESCE((SELECT SUM(return_pct) FROM hunt_account_option_trades WHERE closed_at>=?),0)
+      ) GROUP BY asset_type`).bind(since,since,since,since,since,since).all<any>();
     const openByPhase=new Map((openSessions.results??[]).map((x:any)=>[String(x.phase),x]));
     const closedByPhase=new Map((closedSessions.results??[]).map((x:any)=>[String(x.phase),x]));
     const sessionBreakdown=['overnight','premarket','regular','postmarket'].map(phaseName=>{
@@ -2069,21 +2112,32 @@ async function publicStatus(env: Env): Promise<Response> {
       last_scan_execution_fresh:Number(lastScan?.research_execution_fresh??0),
       last_scan_hunt_open:Number(lastHunt?.open??0),
       last_scan_hunt_error:lastHunt?.error??null,
-      objective:'catch eventual top gainers before +10%',tracked_per_cycle:HUNT_TRACKED_PER_CYCLE,
+      objective:'hunt early asymmetric moves across equities, penny stocks and options',tracked_per_cycle:HUNT_TRACKED_PER_CYCLE,
+      assets:['equity','penny_stock','option'],penny_floor:HUNT_MIN_STOCK_PRICE,
+      max_option_signals_per_cycle:HUNT_MAX_OPTION_SIGNALS_PER_CYCLE,option_stop_pct:HUNT_OPTION_STOP_PCT,
+      option_max_hold_minutes:HUNT_OPTION_MAX_HOLD_MIN,option_data_quality:'indicative/research-only',
       max_new_signals_per_cycle:HUNT_MAX_NEW_PER_CYCLE,max_open_per_account:HUNT_MAX_OPEN,max_hold_minutes:HUNT_MAX_HOLD_MIN,
       runner_max_hold_minutes:HUNT_RUNNER_MAX_HOLD_MIN,position_pct:HUNT_POSITION_PCT,max_minute_participation:HUNT_MAX_MINUTE_PARTICIPATION,
       take_profit_return_pct:HUNT_TAKE_RETURN_PCT,take_profit_fraction:HUNT_TAKE_FRACTION,runner_fraction:HUNT_RUNNER_FRACTION,
       runner_trail_pct:HUNT_RUNNER_TRAIL_PCT,profit_ladder:HUNT_LADDER.map(x=>({return_pct:x.returnPct,fraction:x.fraction})),
-      observations_24h:Number(h?.observations_24h??0),open_positions:Number(h?.open_positions??0),trades_24h:Number(h?.trades_24h??0),
-      winners_24h:Number(h?.winners_24h??0),win_rate_24h:Number(h?.trades_24h??0)>0?Number(h.winners_24h)/Number(h.trades_24h):null,
-      avg_return_pct_24h:h?.avg_return_pct_24h==null?null:Number(h.avg_return_pct_24h),
-      best_return_pct_24h:h?.best_return_pct_24h==null?null:Number(h.best_return_pct_24h),
-      worst_return_pct_24h:h?.worst_return_pct_24h==null?null:Number(h.worst_return_pct_24h),
-      latest_observation_at:h?.latest_observation_at??null,latest_trade_at:h?.latest_trade_at??null,
+      observations_24h:Number(h?.observations_24h??0),
+      open_positions:Number(h?.equity_open_positions??0)+Number(h?.option_open_positions??0),
+      equity_open_positions:Number(h?.equity_open_positions??0),option_open_positions:Number(h?.option_open_positions??0),
+      trades_24h:combinedTrades,winners_24h:combinedWinners,
+      win_rate_24h:combinedTrades>0?combinedWinners/combinedTrades:null,
+      avg_return_pct_24h:avgReturn,best_return_pct_24h:bestReturn,worst_return_pct_24h:worstReturn,
+      latest_observation_at:h?.latest_observation_at??null,
+      latest_trade_at:[h?.latest_equity_trade_at,h?.latest_option_trade_at].filter(Boolean).sort().at(-1)??null,
       accounts:(accounts.results??[]).map(a=>({...a,starting_equity:Number(a.starting_equity),cash:Number(a.cash),
         current_equity:Number(a.current_equity),realized_pnl:Number(a.realized_pnl),max_equity:Number(a.max_equity),
-        max_drawdown_pct:Number(a.max_drawdown_pct),open_positions:Number(a.open_positions),closed_trades:Number(a.closed_trades),
-        winners_24h:Number(a.winners_24h),trades_24h:Number(a.trades_24h)})),
+        max_drawdown_pct:Number(a.max_drawdown_pct),
+        open_positions:Number(a.equity_open_positions)+Number(a.option_open_positions),
+        closed_trades:Number(a.equity_closed_trades)+Number(a.option_closed_trades),
+        winners_24h:Number(a.equity_winners_24h)+Number(a.option_winners_24h),
+        trades_24h:Number(a.equity_trades_24h)+Number(a.option_trades_24h)})),
+      asset_breakdown:(assetBreakdown.results??[]).map((x:any)=>({...x,open_positions:Number(x.open_positions),
+        trades_24h:Number(x.trades_24h),winners_24h:Number(x.winners_24h),
+        avg_closed_return_pct:x.avg_closed_return_pct==null?null:Number(x.avg_closed_return_pct)})),
       session_breakdown:sessionBreakdown,
       compounding_milestones:HUNT_ACCOUNT_MULTIPLES,
       compounding_scoreboard:compoundingScoreboard,
