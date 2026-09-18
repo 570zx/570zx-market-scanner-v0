@@ -2229,17 +2229,18 @@ async function publicPaperRows(pathname: string, url: URL, env: Env): Promise<Re
       d.strategy,d.decision,d.score,d.reference_price,d.spread_pct,d.reason,d.data_quality
       FROM paper_decisions d LEFT JOIN paper_ledgers l ON l.ledger_id=d.ledger_id
       ORDER BY d.created_at DESC,d.id DESC LIMIT ? OFFSET ?`,
-    "/status/hunt": `SELECT t.id,a.label AS account,a.starting_equity,'equity' AS asset_type,t.symbol AS underlying,t.symbol,
-      t.opened_at,t.closed_at,t.entry_price,t.exit_price,t.quantity,t.entry_notional,t.exit_value,t.realized_pnl,t.return_pct,
-      t.mfe_pct,t.mae_pct,t.minutes_held,t.exit_reason,t.entry_score,t.entry_day_change_pct,t.opened_phase,t.version,
-      'market-data' AS data_quality
-      FROM hunt_account_trades t LEFT JOIN hunt_accounts a ON a.account_id=t.account_id
+    "/status/hunt": `SELECT * FROM (
+      SELECT t.id,a.label AS account,a.starting_equity,'equity' AS asset_type,t.symbol AS underlying,t.symbol,
+        t.opened_at,t.closed_at,t.entry_price,t.exit_price,t.quantity,t.entry_notional,t.exit_value,t.realized_pnl,t.return_pct,
+        t.mfe_pct,t.mae_pct,t.minutes_held,t.exit_reason,t.entry_score,t.entry_day_change_pct,t.opened_phase,t.version,
+        'market-data' AS data_quality
+        FROM hunt_account_trades t LEFT JOIN hunt_accounts a ON a.account_id=t.account_id
       UNION ALL
       SELECT t.id,a.label AS account,a.starting_equity,'option' AS asset_type,t.underlying,t.symbol,
-      t.opened_at,t.closed_at,t.entry_price,t.exit_price,t.quantity,t.entry_notional,t.exit_value,t.realized_pnl,t.return_pct,
-      t.mfe_pct,t.mae_pct,t.minutes_held,t.exit_reason,t.entry_score,t.entry_day_change_pct,t.opened_phase,t.version,t.data_quality
-      FROM hunt_account_option_trades t LEFT JOIN hunt_accounts a ON a.account_id=t.account_id
-      ORDER BY closed_at DESC,id DESC LIMIT ? OFFSET ?`,
+        t.opened_at,t.closed_at,t.entry_price,t.exit_price,t.quantity,t.entry_notional,t.exit_value,t.realized_pnl,t.return_pct,
+        t.mfe_pct,t.mae_pct,t.minutes_held,t.exit_reason,t.entry_score,t.entry_day_change_pct,t.opened_phase,t.version,t.data_quality
+        FROM hunt_account_option_trades t LEFT JOIN hunt_accounts a ON a.account_id=t.account_id
+      ) ORDER BY closed_at DESC,id DESC LIMIT ? OFFSET ?`,
     "/status/hunt/positions": `SELECT p.id,a.label AS account,a.starting_equity,p.account_id,'equity' AS asset_type,
       p.symbol AS underlying,p.symbol,p.opened_at,p.entry_price,p.quantity,p.remaining_qty,p.entry_notional,p.stop_price,p.target_price,
       p.highest_price,p.lowest_price,p.entry_score,p.entry_day_change_pct,p.opened_phase,p.locked_realized_pnl,p.take200_done,
