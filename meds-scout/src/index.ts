@@ -139,41 +139,58 @@ type DiscoveryResult={
 };
 
 async function discoverSymbols(env: Env): Promise<DiscoveryResult> {
-  // Screeners are discovery aids, not a reason to kill the whole scan. A
-  // single provider timeout must degrade the universe, not stop position
-  // management, paper accounting, or Leader continuity.
-  const [activeResult,moversResult]=await Promise.allSettled([
+  // Discovery must not depend on a symbol already being a large mover.
+  // Use several independent early-warning surfaces and keep provider failures
+  // isolated so one screener cannot kill the entire scan.
+  const [tradesActiveResult,volumeActiveResult,moversResult,newsResult]=await Promise.allSettled([
     alpacaJson(env, "/v1beta1/screener/stocks/most-actives?by=trades&top=100"),
+    alpacaJson(env, "/v1beta1/screener/stocks/most-actives?by=volume&top=100"),
     alpacaJson(env, "/v1beta1/screener/stocks/movers?top=50"),
+    alpacaJson(env, "/v1beta1/news?limit=50&sort=desc"),
   ]);
-  const active=activeResult.status==='fulfilled'?activeResult.value:{};
+  const tradesActive=tradesActiveResult.status==='fulfilled'?tradesActiveResult.value:{};
+  const volumeActive=volumeActiveResult.status==='fulfilled'?volumeActiveResult.value:{};
   const movers=moversResult.status==='fulfilled'?moversResult.value:{};
+  const news=newsResult.status==='fulfilled'?newsResult.value:{};
   const warnings:string[]=[];
-  if(activeResult.status==='rejected') warnings.push('most-actives unavailable');
+  if(tradesActiveResult.status==='rejected') warnings.push('most-actives-by-trades unavailable');
+  if(volumeActiveResult.status==='rejected') warnings.push('most-actives-by-volume unavailable');
   if(moversResult.status==='rejected') warnings.push('movers unavailable');
+  if(newsResult.status==='rejected') warnings.push('fresh-news discovery unavailable');
 
   const symbols = new Set<string>();
   const sourceBySymbol=new Map<string,{source:string;rank:number|null}>();
-  const actives=active?.most_actives ?? active?.mostActives ?? [];
+  const add=(raw:any,source:string,rank:number|null)=>{
+    const symbol=String(raw??'').toUpperCase().trim();
+    if(!symbol || !/^[A-Z][A-Z0-9.\-]{0,14}$/.test(symbol)) return;
+    symbols.add(symbol);
+    if(!sourceBySymbol.has(symbol)) sourceBySymbol.set(symbol,{source,rank});
+  };
+
   const gainers=movers?.gainers ?? [];
   const losers=movers?.losers ?? [];
-  for (const [i,x] of actives.entries()) if (x.symbol){
-    symbols.add(x.symbol);sourceBySymbol.set(x.symbol,{source:'most_active',rank:i+1});
+  const byVolume=volumeActive?.most_actives ?? volumeActive?.mostActives ?? [];
+  const byTrades=tradesActive?.most_actives ?? tradesActive?.mostActives ?? [];
+
+  // Priority order matters because the scan universe is bounded. Current
+  // gainers and fresh catalyst symbols get first claim, followed by two
+  // independent activity screens. This prevents held/recent names from
+  // crowding new movers out before they are even snapshotted.
+  for (const [i,x] of gainers.entries()) add(x.symbol,'top_gainer',i+1);
+  const newsRows=Array.isArray(news?.news)?news.news:[];
+  for (const [i,n] of newsRows.entries()){
+    for(const symbol of (Array.isArray(n?.symbols)?n.symbols:[])) add(symbol,'fresh_news',i+1);
   }
-  for (const [i,x] of gainers.entries()) if (x.symbol){
-    symbols.add(x.symbol);sourceBySymbol.set(x.symbol,{source:'top_gainer',rank:i+1});
-  }
-  for (const [i,x] of losers.entries()) if (x.symbol){
-    symbols.add(x.symbol);if(!sourceBySymbol.has(x.symbol)) sourceBySymbol.set(x.symbol,{source:'top_loser',rank:i+1});
-  }
+  for (const [i,x] of byVolume.entries()) add(x.symbol,'most_active_volume',i+1);
+  for (const [i,x] of byTrades.entries()) add(x.symbol,'most_active_trades',i+1);
+  for (const [i,x] of losers.entries()) add(x.symbol,'top_loser',i+1);
 
   const recent = await env.MEDS_DB.prepare(
     `SELECT symbol FROM symbol_state WHERE last_seen_at >= strftime('%Y-%m-%dT%H:%M:%fZ','now','-90 minutes') ORDER BY score DESC LIMIT 80`
   ).all<{symbol:string}>();
-  for (const r of recent.results ?? []){
-    symbols.add(r.symbol);if(!sourceBySymbol.has(r.symbol)) sourceBySymbol.set(r.symbol,{source:'recent',rank:null});
-  }
-  return {symbols:[...symbols].slice(0,180),sourceBySymbol,gainers:gainers.slice(0,50),warnings};
+  for (const r of recent.results ?? []) add(r.symbol,'recent',null);
+
+  return {symbols:[...symbols].slice(0,HUNT_DISCOVERY_MAX_SYMBOLS),sourceBySymbol,gainers:gainers.slice(0,50),warnings};
 }
 async function persistGainerBoard(env:Env,gainers:any[],now=new Date()){
   if(!gainers.length) return;
@@ -210,6 +227,45 @@ async function persistBroadDiscovery(env:Env,rows:Candidate[],discovery:Discover
     });
     if(statements.length) await env.MEDS_DB.batch(statements);
   }
+}
+
+function selectLeaderResearch(rows:Candidate[],discovery:DiscoveryResult):Candidate[]{
+  // Generic score alone was starving exactly the names Leader Hunt exists to
+  // study: symbols that are newly appearing on movers/activity/news surfaces
+  // but have not accumulated persistence/catalyst points yet.
+  const sourcePriority:Record<string,number>={
+    top_gainer:0,
+    fresh_news:1,
+    most_active_volume:2,
+    most_active_trades:3,
+  };
+  const byScore=[...rows].sort((a,b)=>b.score-a.score);
+  const earlySource=rows
+    .filter(c=>{
+      const source=discovery.sourceBySymbol.get(c.symbol)?.source??'';
+      return sourcePriority[source]!==undefined && c.dayChangePct>=-8 && c.dayChangePct<=10;
+    })
+    .sort((a,b)=>{
+      const as=discovery.sourceBySymbol.get(a.symbol)??{source:'',rank:null};
+      const bs=discovery.sourceBySymbol.get(b.symbol)??{source:'',rank:null};
+      const p=(sourcePriority[as.source]??99)-(sourcePriority[bs.source]??99);
+      if(p) return p;
+      const r=(as.rank??9999)-(bs.rank??9999);
+      return r || b.score-a.score;
+    });
+
+  const chosen:Candidate[]=[];
+  const seen=new Set<string>();
+  const add=(c:Candidate)=>{
+    if(seen.has(c.symbol) || chosen.length>=HUNT_TRACKED_PER_CYCLE) return;
+    seen.add(c.symbol); chosen.push(c);
+  };
+  for(const c of earlySource){
+    if(chosen.length>=Math.min(HUNT_EARLY_SOURCE_RESERVE,HUNT_TRACKED_PER_CYCLE)) break;
+    add(c);
+  }
+  for(const c of byScore) add(c);
+  return chosen;
 }
 
 async function fetchSnapshots(env: Env, symbols: string[]): Promise<Record<string, Snapshot>> {
@@ -688,8 +744,12 @@ function bucket5(date=new Date()){
   const ms=5*60*1000; return new Date(Math.floor(date.getTime()/ms)*ms).toISOString();
 }
 
-const HUNT_VERSION='leader-hunt-v4-multi-asset';
-const HUNT_TRACKED_PER_CYCLE=12;
+const HUNT_VERSION='leader-hunt-v5-discovery-reserve';
+const HUNT_TRACKED_PER_CYCLE=24;
+const HUNT_EARLY_SOURCE_RESERVE=12;
+const HUNT_DISCOVERY_MAX_SYMBOLS=260;
+const HUNT_SCAN_MAX_SYMBOLS=320;
+const HUNT_CAPITAL_RESERVE_PCT=0.12;
 const HUNT_MAX_OPEN=32;
 const HUNT_MIN_STOCK_PRICE=0.10;
 const HUNT_MAX_OPTION_SIGNALS_PER_CYCLE=3;
@@ -1019,7 +1079,9 @@ async function runHuntAccounts(env:PaperEnv,candidates:PaperCandidate[],snaps:Re
       if(recent) continue;
 
       const cash=Number(row.cash);
-      const targetNotional=Math.min(Number(row.starting_equity)*HUNT_POSITION_PCT,cash);
+      const capitalReserve=Math.max(0,Number(row.starting_equity)*HUNT_CAPITAL_RESERVE_PCT);
+      const spendableCash=Math.max(0,cash-capitalReserve);
+      const targetNotional=Math.min(Number(row.starting_equity)*HUNT_POSITION_PCT,spendableCash);
       if(!(targetNotional>0.01)) continue;
       const ask=Number(quote.ap);
       const targetQty=targetNotional/ask;
@@ -1514,7 +1576,9 @@ async function enterLeaderHuntOptions(env:PaperEnv,candidates:PaperCandidate[],n
         .bind(account.account_id,c.symbol,cooldownAfter).first<any>();
       if(recent) continue;
       const cash=Number(row.cash);
-      const targetNotional=Math.min(Number(row.starting_equity)*HUNT_POSITION_PCT,cash);
+      const capitalReserve=Math.max(0,Number(row.starting_equity)*HUNT_CAPITAL_RESERVE_PCT);
+      const spendableCash=Math.max(0,cash-capitalReserve);
+      const targetNotional=Math.min(Number(row.starting_equity)*HUNT_POSITION_PCT,spendableCash);
       const perContract=entryFill*100;
       let qty=Math.floor(Math.min(targetNotional/perContract,displayedAsk));
       if(qty<1) continue;
@@ -1737,13 +1801,25 @@ async function scanTick(env: Env) {
   const huntRecent=await env.MEDS_DB.prepare(`SELECT symbol,MAX(created_at) AS last_seen
     FROM hunt_observations WHERE created_at>=? GROUP BY symbol ORDER BY last_seen DESC LIMIT 80`)
     .bind(new Date(Date.now()-12*60*60000).toISOString()).all<{symbol:string}>();
-  const symbols = [...new Set([
+  // Open positions are mandatory for management/valuation. Fresh discovery is
+  // next, and continuity-only names come last. The previous ordering put up to
+  // 80 recent names plus every held symbol ahead of discovery, then truncated
+  // at 240; that could erase brand-new gainer symbols before snapshot fetch.
+  const heldSymbols=[...new Set([
     ...(paperHeld.results??[]).map(p=>p.symbol),
-    ...(held.results ?? []).map(p=>p.symbol),
+    ...(held.results??[]).map(p=>p.symbol),
     ...(huntHeld.results??[]).map(p=>p.symbol),
-    ...(huntRecent.results??[]).map(p=>p.symbol),
-    ...discovered.symbols
-  ])].slice(0,240);
+  ])];
+  const heldSet=new Set(heldSymbols);
+  const discoverySymbols=discovered.symbols.filter(symbol=>!heldSet.has(symbol));
+  const discoverySet=new Set(discovered.symbols);
+  const continuitySymbols=(huntRecent.results??[]).map(p=>p.symbol)
+    .filter(symbol=>!heldSet.has(symbol)&&!discoverySet.has(symbol));
+  const symbols=[...new Set([
+    ...heldSymbols,
+    ...discoverySymbols,
+    ...continuitySymbols,
+  ])].slice(0,HUNT_SCAN_MAX_SYMBOLS);
   const prior = await env.MEDS_DB.prepare(`SELECT * FROM symbol_state WHERE last_seen_at >= ?`).bind(new Date(Date.now()-12*60*60000).toISOString()).all<any>();
   const priorMap = new Map((prior.results ?? []).map(p=>[p.symbol,p]));
   const snapshots = await fetchSnapshots(env, symbols);
@@ -1803,7 +1879,7 @@ async function scanTick(env: Env) {
   // the wider set so we collect examples before names become obvious movers.
   for (const c of rough) scoreCandidate(c, regularSession());
   rough.sort((a,b) => b.score - a.score);
-  const research = rough.slice(0,HUNT_TRACKED_PER_CYCLE);
+  const research = selectLeaderResearch(rough,discovered);
   await persistBroadDiscovery(env,auditRough,discovered,new Set(research.map(x=>x.symbol)),auditNow);
   let news:any[]=[];
   try{news=await fetchNewsForSymbols(env,research.map(x=>x.symbol));}catch{/* non-fatal discovery enrichment */}
@@ -1894,9 +1970,10 @@ async function runTick(env: Env, source: string) {
   // stale for more than two health windows AND that lease is already >2 min
   // old. That avoids normal overlap while preventing a dead invocation from
   // blocking every following cron.
-  const deepStale=staleForMs>2*PAPER_CYCLE_STALE_MS;
   const wedgedCurrentLease=lockUntil>lockNow && lockUntil<=lockNow+lockLeaseMs && inferredLockAgeMs>2*60_000;
-  if(scannerStale && (lockUntil>lockNow+lockLeaseMs || (deepStale && wedgedCurrentLease))){
+  // Once the scanner itself is stale, do not wait through a second stale
+  // window to reclaim a lease that has already made no progress for 2 min.
+  if(scannerStale && (lockUntil>lockNow+lockLeaseMs || wedgedCurrentLease)){
     await env.MEDS_DB.prepare(`UPDATE service_state SET lock_owner=NULL,lock_until=NULL,last_error=? WHERE id=1 AND lock_until=?`)
       .bind('watchdog reclaimed stale scan lock',state.lock_until).run();
   }
@@ -2318,7 +2395,11 @@ function publicPage(url: URL) {
 
 
 async function publicGainerAudit(url:URL,env:Env):Promise<Response>{
-  const {limit,offset}=publicPage(url);
+  const page=publicPage(url);
+  // D1 caps bound variables per statement. The audit uses each symbol twice
+  // in UNION queries, so keep the page below that ceiling instead of turning
+  // a reporting request into a 'too many SQL variables' failure.
+  const limit=Math.min(page.limit,40),offset=page.offset;
   const requestedDate=url.searchParams.get('date');
   try{
     const latest=requestedDate
