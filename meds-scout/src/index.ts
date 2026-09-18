@@ -744,13 +744,13 @@ function bucket5(date=new Date()){
   const ms=5*60*1000; return new Date(Math.floor(date.getTime()/ms)*ms).toISOString();
 }
 
-const HUNT_VERSION='leader-hunt-v5-discovery-reserve';
+const HUNT_VERSION='leader-hunt-v6-entry-gate';
 const HUNT_TRACKED_PER_CYCLE=24;
 const HUNT_EARLY_SOURCE_RESERVE=12;
 const HUNT_DISCOVERY_MAX_SYMBOLS=260;
 const HUNT_SCAN_MAX_SYMBOLS=320;
 const HUNT_CAPITAL_RESERVE_PCT=0.12;
-const HUNT_MAX_OPEN=32;
+// One-time migration behavior for pre-v6 research positions: old versions\n// used essentially all available cash/capacity, which prevented the v5\n// discovery reserve from ever being usable. New v6 positions keep the normal\n// 12-hour/24-hour holds; only legacy positions get accelerated recycling.\nconst HUNT_LEGACY_MIGRATION_MAX_HOLD_MIN=120;\nconst HUNT_MAX_OPEN=32;
 const HUNT_MIN_STOCK_PRICE=0.10;
 const HUNT_MAX_OPTION_SIGNALS_PER_CYCLE=3;
 const HUNT_OPTION_STOP_PCT=0.35;
@@ -1022,8 +1022,7 @@ async function manageHuntAccountPositions(env:PaperEnv,snaps:Record<string,Paper
       continue;
     }
 
-    const stop=bid<=Number(p.stop_price);
-    const timeExit=ageMin>=HUNT_MAX_HOLD_MIN;
+    const stop=bid<=Number(p.stop_price);\n    const maxHoldMin=positionVersion===HUNT_VERSION?HUNT_MAX_HOLD_MIN:HUNT_LEGACY_MIGRATION_MAX_HOLD_MIN;\n    const timeExit=ageMin>=maxHoldMin;
     if(!stop&&!timeExit){
       deferredMarks.push(env.MEDS_DB.prepare("UPDATE hunt_account_positions SET highest_price=?,lowest_price=? WHERE id=?").bind(high,low,p.id));
       continue;
@@ -1058,7 +1057,7 @@ async function runHuntAccounts(env:PaperEnv,candidates:PaperCandidate[],snaps:Re
   const optionMarksMap=await fetchHuntOptionMarks(env,now);
   const management=await manageHuntAccountPositions(env,snaps,now,false);
   const optionManagement=await manageHuntOptionPositions(env,optionMarksMap,now);
-  const eligible=candidates.filter(leaderHuntEligible).slice(0,HUNT_MAX_NEW_PER_CYCLE);
+  // Freshness must be applied before the six-signal cap. Previously a stale\n  // candidate could consume one of the six slots and then be skipped below,\n  // starving a later executable early mover.\n  const eligible=candidates\n    .filter(c=>leaderHuntEligible(c) && (c as any).executionFresh===true)\n    .slice(0,HUNT_MAX_NEW_PER_CYCLE);
   let accountEntries=0,signalsEntered=0;
   for(const c of eligible){
     const quote=snaps[c.symbol]?.latestQuote;
@@ -1514,8 +1513,7 @@ async function manageHuntOptionPositions(env:PaperEnv,marks:Record<string,Option
       continue;
     }
 
-    const stop=bid<=Number(p.stop_price);
-    const timeExit=ageMin>=HUNT_OPTION_MAX_HOLD_MIN;
+    const stop=bid<=Number(p.stop_price);\n    const maxHoldMin=positionVersion===HUNT_VERSION?HUNT_OPTION_MAX_HOLD_MIN:HUNT_LEGACY_MIGRATION_MAX_HOLD_MIN;\n    const timeExit=ageMin>=maxHoldMin;
     if(!stop&&!timeExit){
       await env.MEDS_DB.prepare("UPDATE hunt_account_option_positions SET highest_price=?,lowest_price=? WHERE id=?")
         .bind(high,low,p.id).run();
@@ -1897,8 +1895,7 @@ async function scanTick(env: Env) {
     const status = c.score >= 82 ? "A_PLUS_ARMED" : c.score >= threshold ? "IGNITION_WATCH" : "WATCH";
     await persistCandidate(env, c, status, snapshots[c.symbol]);
   }
-  research.sort((a,b)=>b.score-a.score);
-  const top = research.filter(c=>c.executionFresh===true && c.price>=coreMinPrice).slice(0, Math.min(8, num(env.MAX_WATCH_SYMBOLS, 8)));
+  // Re-apply the early-source reservation after final catalyst scoring. v5\n  // reserved early movers during research selection, then accidentally lost\n  // that priority by score-sorting immediately before Leader entry selection.\n  const huntResearch=selectLeaderResearch(research,discovered);\n  // Overwrite this bucket's shortlist observations with final enriched scores\n  // so the audit reflects the same eligibility state the account engine sees.\n  await persistBroadDiscovery(env,huntResearch,discovered,new Set(huntResearch.map(x=>x.symbol)),auditNow);\n\n  research.sort((a,b)=>b.score-a.score);\n  const top = research.filter(c=>c.executionFresh===true && c.price>=coreMinPrice).slice(0, Math.min(8, num(env.MAX_WATCH_SYMBOLS, 8)));
   for (const c of top) {
     const previous = priorMap.get(c.symbol);
     const oldAlert = previous?.last_alert_at ? Date.parse(previous.last_alert_at) : 0;
@@ -1912,7 +1909,7 @@ async function scanTick(env: Env) {
   }
 
   let hunt:any={version:HUNT_VERSION,skipped:'research unavailable'};
-  try { hunt=await runLeaderHunt(env,research,snapshots); }
+  try { hunt=await runLeaderHunt(env,huntResearch,snapshots); }
   catch(error){ hunt={version:HUNT_VERSION,error:error instanceof Error?error.message:'leader hunt failed'}; }
 
   let paper: any = { ok: true, skipped: "paper unavailable" };
