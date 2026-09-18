@@ -52,6 +52,8 @@ const huntPositions = (huntPositionsPage.rows || []).map((row) => {
     stage,
     remaining: row.remaining_qty == null ? row.quantity : row.remaining_qty,
     capacity_limited: features.capacity_limited === true ? "YES" : "no",
+    distance_to_200_pct: Number(row.current_bid)>0 && Number(row.entry_price)>0
+      ? ((Number(row.entry_price)*3/Number(row.current_bid))-1)*100 : "",
     target_notional: features.target_notional,
     actual_notional: features.actual_notional,
     minute_participation: features.minute_participation == null ? "" : (Number(features.minute_participation)*100).toFixed(2)+"%",
