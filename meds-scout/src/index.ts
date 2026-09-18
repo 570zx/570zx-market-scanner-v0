@@ -1697,6 +1697,20 @@ async function publicPaperRows(pathname: string, url: URL, env: Env): Promise<Re
       t.entry_score,t.entry_day_change_pct,t.opened_phase,t.version
       FROM hunt_account_trades t LEFT JOIN hunt_accounts a ON a.account_id=t.account_id
       ORDER BY t.closed_at DESC,t.id DESC LIMIT ? OFFSET ?`,
+    "/status/hunt/positions": `SELECT p.id,a.label AS account,p.account_id,p.symbol,p.opened_at,p.entry_price,p.quantity,
+      p.remaining_qty,p.entry_notional,p.stop_price,p.target_price,p.highest_price,p.lowest_price,p.entry_score,
+      p.entry_day_change_pct,p.opened_phase,p.locked_realized_pnl,p.take200_done,p.take200_price,p.take200_at,p.runner_high,
+      p.features,p.version,s.last_bid AS current_bid,s.last_ask AS current_ask,s.last_price AS current_price,s.last_seen_at AS mark_at,
+      CASE WHEN s.last_bid>0 THEN (s.last_bid/p.entry_price-1)*100 ELSE NULL END AS unrealized_return_pct,
+      CASE WHEN s.last_bid>0 THEN (p.target_price/s.last_bid-1)*100 ELSE NULL END AS distance_to_200_pct,
+      (SELECT COUNT(*) FROM hunt_account_events e WHERE e.position_id=p.id AND e.event_type='LADDER_25') AS ladder25_done,
+      (SELECT COUNT(*) FROM hunt_account_events e WHERE e.position_id=p.id AND e.event_type='LADDER_50') AS ladder50_done,
+      (SELECT COUNT(*) FROM hunt_account_events e WHERE e.position_id=p.id AND e.event_type='LADDER_100') AS ladder100_done
+      FROM hunt_account_positions p
+      LEFT JOIN hunt_accounts a ON a.account_id=p.account_id
+      LEFT JOIN symbol_state s ON s.symbol=p.symbol
+      WHERE p.status='open'
+      ORDER BY a.starting_equity ASC,p.opened_at DESC,p.id DESC LIMIT ? OFFSET ?`,
   };
   try {
     const rows = await env.MEDS_DB.prepare(queries[pathname]).bind(limit, offset).all();
@@ -1722,7 +1736,7 @@ export default {
         enabled:env.SCOUT_ENABLED==="true" && !state?.paused,time:new Date().toISOString(),market:easternParts(),feed:stockFeed(),paper_enabled:env.PAPER_ENABLED!=="false",...state});
     }
     if (url.pathname === "/status" && req.method === "GET") return publicStatus(env);
-    if (["/status/trades","/status/positions","/status/decisions","/status/hunt"].includes(url.pathname) && req.method === "GET") {
+    if (["/status/trades","/status/positions","/status/decisions","/status/hunt","/status/hunt/positions"].includes(url.pathname) && req.method === "GET") {
       return publicPaperRows(url.pathname,url,env);
     }
     if (!env.ADMIN_TOKEN || req.headers.get("authorization") !== `Bearer ${env.ADMIN_TOKEN}`) return Response.json({error:"Unauthorized"},{status:401});
