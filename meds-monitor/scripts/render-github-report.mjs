@@ -24,13 +24,14 @@ function table(rows, columns) {
   return [head, rule, ...body].join("\n");
 }
 
-const [status, tradesPage, positionsPage, decisionsPage, huntPage, huntPositionsPage] = await Promise.all([
+const [status, tradesPage, positionsPage, decisionsPage, huntPage, huntPositionsPage, huntGainersPage] = await Promise.all([
   get("/status"),
   get("/status/trades?limit=100"),
   get("/status/positions?limit=100"),
   get("/status/decisions?limit=100"),
   get("/status/hunt?limit=100"),
   get("/status/hunt/positions?limit=100"),
+  get("/status/hunt/gainers?limit=20"),
 ]);
 
 const ledgers = status.ledgers || [];
@@ -38,6 +39,8 @@ const trades = tradesPage.rows || [];
 const positions = positionsPage.rows || [];
 const decisions = (decisionsPage.rows || []).slice(0, 50);
 const huntTrades = huntPage.rows || [];
+const huntGainerRows = huntGainersPage.rows || [];
+const huntGainerSummary = huntGainersPage.summary || {};
 const huntPositions = (huntPositionsPage.rows || []).map((row) => {
   let features = {};
   try { features = JSON.parse(row.features || "{}"); } catch {}
@@ -144,6 +147,25 @@ ${table(status.diagnostics?.rejected_entries_24h || [], [["Reason","reason"],["C
 - Max runner hold after target: ${cell(status.leader_hunt?.runner_max_hold_minutes)} minutes
 - Max minute-volume participation: ${status.leader_hunt?.max_minute_participation == null ? "" : (Number(status.leader_hunt.max_minute_participation)*100).toFixed(1)+"%"}
 - Telemetry warning: ${cell(status.leader_hunt?.error || status.leader_hunt?.warning || huntPage.error || huntPositionsPage.error)}
+
+### Top-gainer capture audit
+
+- Board session: ${cell(huntGainersPage.session_date)}
+- Board snapshot: ${cell(huntGainersPage.board_at)}
+- Top-10 caught before +10%: ${cell(huntGainerSummary.top10_caught_before_10)} / ${cell(huntGainerSummary.top10_count)}
+- Top-20 caught before +10%: ${cell(huntGainerSummary.caught_before_10)} / ${cell(huntGainerSummary.board_size)}
+- Discovered while ≤+10%: ${cell(huntGainerSummary.discovered_under_10)}
+- Reached 12-name shortlist while ≤+10%: ${cell(huntGainerSummary.shortlisted_under_10)}
+- Eligible while ≤+10%: ${cell(huntGainerSummary.eligible_under_10)}
+- Audit warning: ${cell(huntGainersPage.error)}
+
+${table(huntGainerRows, [
+  ["Rank","rank"],["Symbol","symbol"],["Current %","current_gain_pct"],
+  ["First seen %","first_seen_gain_pct"],["Source","first_seen_source"],
+  ["First ≤10%","first_under_10_gain_pct"],["Shortlisted","first_shortlisted_at"],
+  ["Eligible","first_eligible_at"],["Entry %","entry_gain_pct"],["Asset","entry_asset"],
+  ["Caught <10","caught_before_10"],["Miss reason","miss_reason"],
+])}
 
 ### Capital-tier accounts
 
