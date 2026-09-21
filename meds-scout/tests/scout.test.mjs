@@ -97,7 +97,7 @@ test('simulated cron, persistent SQL, exact +20%, runner, dedupe, auth, pause an
   assert.ok(status.paper.cycle_count>=1);assert.ok(status.paper.decision_count>=1);
   assert.deepEqual(status.leader_hunt.session_breakdown.map(x=>x.phase),['overnight','premarket','regular','postmarket']);
   assert.deepEqual(status.leader_hunt.compounding_milestones,[2,5,10,25,50,100]);
-  assert.equal(status.leader_hunt.compounding_scoreboard.length,5);
+  assert.equal(status.leader_hunt.compounding_scoreboard.length,1);assert.equal(status.leader_hunt.compounding_scoreboard[0].account_id,'H250');
   assert.ok(status.leader_hunt.session_breakdown.every(x=>Number.isInteger(x.open_signals)&&Number.isInteger(x.open_account_positions)));
   assert.equal((await worker.fetch(request('/paper/cycles',undefined,false),env)).status,401);
   assert.equal((await worker.fetch(new Request('https://test/status',{method:'POST'}),env)).status,401);
@@ -123,7 +123,7 @@ test('simulated cron, persistent SQL, exact +20%, runner, dedupe, auth, pause an
   for(const m of ['0001_init.sql','0002_operations.sql','0003_tick_counter.sql'])missingDb.db.exec(readFileSync(new URL('../migrations/'+m,import.meta.url),'utf8'));
   const missingStatus=await (await worker.fetch(request('/status',undefined,false),{...env,MEDS_DB:missingDb})).json();
   assert.equal(missingStatus.scanner.healthy,false);
-  assert.equal(missingStatus.paper.schema_version,10);
+  assert.equal(missingStatus.paper.schema_version,11);
   assert.equal(missingDb.db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='hunt_observations'").get().n,1);
   assert.doesNotMatch(String(missingStatus.paper.paper_error??''),/missing tables/);
   missingDb.db.close();rmSync(missingDir,{recursive:true,force:true});
@@ -162,7 +162,7 @@ test('Leader Hunt keeps its own positions in the snapshot universe and accepts q
  try{
    await worker.fetch(new Request('https://test/status'),env); // apply additive schema
    db.db.prepare(`INSERT INTO hunt_account_positions(account_id,symbol,opened_at,entry_price,quantity,entry_notional,stop_price,target_price,highest_price,lowest_price,entry_score,entry_day_change_pct,opened_phase,features,status,version,remaining_qty,locked_realized_pnl,take200_done)
-     VALUES('H100','HOLD',?,1,1,1,.5,3,1,1,50,0,'overnight','{}','open','leader-hunt-v3-200-runner',1,0,0)`).run(new NativeDate(clock-60_000).toISOString());
+     VALUES('H250','HOLD',?,1,1,1,.5,3,1,1,50,0,'overnight','{}','open','leader-hunt-v3-200-runner',1,0,0)`).run(new NativeDate(clock-60_000).toISOString());
    const result=await runTick(env,'cron');
    assert.equal(result.ok,true,JSON.stringify(result));
    assert.ok(snapshotRequests.some(batch=>batch.includes('HOLD')),'open Leader symbol must always be quoted');

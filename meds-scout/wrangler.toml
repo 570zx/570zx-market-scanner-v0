@@ -19,6 +19,8 @@ database_id = "4c51e6c1-6d95-4002-800a-a7c74da64b24"
 [vars]
 TRADING_MODE = "shadow"
 SCOUT_ENABLED = "false"
+PAPER_ENABLED = "false"
+LEADER_ONLY = "true"
 ENGINE_CADENCE = "session"
 MIN_PRICE = "0.50"
 MAX_PRICE = "20.00"

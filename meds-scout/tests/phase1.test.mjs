@@ -10,7 +10,7 @@ class D1 {
  async batch(ss){this.db.exec('BEGIN');try{const r=[];for(const s of ss)r.push(await s.run());this.db.exec('COMMIT');return r;}catch(e){this.db.exec('ROLLBACK');throw e;}}
 }
 const quote=(bp=100,ap=100.1,age=0)=>({bp,ap,bs:100,as:100,t:new Date(Date.now()-age).toISOString()});
-async function setup(){const MEDS_DB=new D1();const env={MEDS_DB};await ensurePaperSchema(env);const ledger=MEDS_DB.db.prepare("SELECT * FROM paper_ledgers WHERE ledger_id='C'").get();return {env,ledger,db:MEDS_DB.db};}
+async function setup(){const MEDS_DB=new D1();const env={MEDS_DB};await ensurePaperSchema(env);MEDS_DB.db.exec("DELETE FROM leader_runtime_accounts; INSERT INTO leader_runtime_accounts(account_id,active,role,created_at) SELECT account_id,1,'test',strftime('%Y-%m-%dT%H:%M:%fZ','now') FROM hunt_accounts WHERE account_id!='H250';");const ledger=MEDS_DB.db.prepare("SELECT * FROM paper_ledgers WHERE ledger_id='C'").get();return {env,ledger,db:MEDS_DB.db};}
 function position(db,symbol='TEST',qty=2){db.prepare("INSERT INTO paper_positions(ledger_id,lane,symbol,direction,strategy,opened_at,entry_price,quantity,stop_price,target_price,initial_risk,highest_price,lowest_price,status) VALUES('C','PRIMARY',?,'long','catalyst_momentum',?,100,?,97.5,105,?,100,100,'open')").run(symbol,new Date().toISOString(),qty,qty*2.5);db.prepare("UPDATE paper_ledgers SET cash=cash-? WHERE ledger_id='C'").run(qty*100);}
 const candidate={symbol:'TEST',price:100,bid:100,ask:100.1,spreadPct:.1,minuteVolume:100000,dayChangePct:2,catalystScore:22,volumeAccel:.1,score:90,consecutiveHits:3};
 const proposal={symbol:'TEST',strategy:'catalyst_momentum',direction:'long',quality:98,stopPct:.025,rewardRisk:2.2,reason:'fixture'};
@@ -44,7 +44,7 @@ test('migration preserves historical trades and drawdown, and is idempotent',asy
  await ensurePaperSchema(env);await ensurePaperSchema(env);
  assert.equal(JSON.stringify(db.prepare('SELECT * FROM paper_trades').all()),trades);
  assert.equal(db.prepare("SELECT max_drawdown_pct AS dd FROM paper_ledgers WHERE ledger_id='C'").get().dd,.51);
- assert.equal(db.prepare('SELECT version FROM paper_meta').get().version,10);
+ assert.equal(db.prepare('SELECT version FROM paper_meta').get().version,11);
  assert.equal(db.prepare('SELECT simulator_version FROM paper_trades').get().simulator_version,'legacy-untrusted');
  db.close();
 });
@@ -152,7 +152,7 @@ test('leader v7 reserves equity entries for asymmetric runner candidates',()=>{
 test('leader hunt ladders small profits, takes 85% at +200%, then peak-tests a 5% runner',async()=>{
  const {env,db}=await setup();
  const accounts=db.prepare("SELECT label,starting_equity,cash FROM hunt_accounts ORDER BY starting_equity").all();
- assert.deepEqual(accounts.map(x=>x.starting_equity),[100,1000,10000,100000,500000]);
+ assert.deepEqual(accounts.map(x=>x.starting_equity),[100,250,1000,10000,100000,500000]);
  const c={...candidate,price:4,bid:4,ask:4.01,dayChangePct:4,dayVolume:100000,previousDayVolume:100000,minuteVolume:100000,spreadPct:.25,volumeAccel:.10,consecutiveHits:3,catalystScore:0,catalystSummary:'',score:60,reasons:['fixture'],executionFresh:true,discoverySource:'top_gainer'};
  assert.equal(leaderHuntEligible(c),true);
  assert.equal(leaderHuntEligible({...c,dayChangePct:10.01}),false);
@@ -218,7 +218,7 @@ test('leader hunt includes true penny stocks without loosening execution discipl
  assert.equal(leaderHuntEligible(penny),true);
  assert.equal(leaderHuntEligible({...penny,price:.09}),false);
  assert.equal(leaderHuntEligible({...penny,spreadPct:8.1}),false);
- assert.equal(db.prepare("SELECT version FROM paper_meta WHERE id=1").get().version,10);
+ assert.equal(db.prepare("SELECT version FROM paper_meta WHERE id=1").get().version,11);
  db.close();
 });
 

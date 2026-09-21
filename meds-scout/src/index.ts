@@ -10,6 +10,7 @@ interface Env {
   ENGINE_CADENCE?: string;
   ADMIN_TOKEN?: string;
   SCOUT_ENABLED?: string;
+  LEADER_ONLY?: string;
   MEDS_DB: D1Database;
   AI?: Ai;
   ALPACA_API_KEY: string;
@@ -207,37 +208,42 @@ async function persistGainerBoard(env:Env,gainers:any[],now=new Date()){
   if(!gainers.length) return;
   const bucket=bucket5(now),sessionDate=easternParts(now).date,marketPhase=phase(now);
   const rows=gainers.slice(0,50).map((x:any,i:number)=>({
-    rank:i+1,symbol:String(x.symbol??'').toUpperCase(),
-    price:Number(x.price??x.last_price??x.lastPrice),
-    change:Number(x.change),
-    percentChange:Number(x.percent_change??x.percentChange??x.change_percent??x.changePercentage),
-    raw:JSON.stringify(x).slice(0,2000)
-  })).filter((x:any)=>x.symbol);
-  for(let i=0;i<rows.length;i+=50){
-    const statements=rows.slice(i,i+50).map((x:any)=>env.MEDS_DB.prepare(`INSERT OR REPLACE INTO hunt_gainer_board
-      (bucket,session_date,created_at,phase,rank,symbol,price,change,percent_change,raw_json,version)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?)`).bind(bucket,sessionDate,now.toISOString(),marketPhase,x.rank,x.symbol,
-        Number.isFinite(x.price)?x.price:null,Number.isFinite(x.change)?x.change:null,
-        Number.isFinite(x.percentChange)?x.percentChange:null,x.raw,HUNT_VERSION));
-    if(statements.length) await env.MEDS_DB.batch(statements);
-  }
+    bucket,session_date:sessionDate,created_at:now.toISOString(),phase:marketPhase,rank:i+1,
+    symbol:String(x.symbol??'').toUpperCase(),price:Number(x.price??x.last_price??x.lastPrice),
+    change:Number(x.change),percent_change:Number(x.percent_change??x.percentChange??x.change_percent??x.changePercentage),
+    raw_json:JSON.stringify(x).slice(0,2000),version:HUNT_VERSION
+  })).filter((x:any)=>x.symbol).map((x:any)=>({...x,
+    price:Number.isFinite(x.price)?x.price:null,change:Number.isFinite(x.change)?x.change:null,
+    percent_change:Number.isFinite(x.percent_change)?x.percent_change:null}));
+  if(!rows.length) return;
+  await env.MEDS_DB.prepare(`INSERT OR REPLACE INTO hunt_gainer_board
+    (bucket,session_date,created_at,phase,rank,symbol,price,change,percent_change,raw_json,version)
+    SELECT json_extract(value,'$.bucket'),json_extract(value,'$.session_date'),json_extract(value,'$.created_at'),
+      json_extract(value,'$.phase'),json_extract(value,'$.rank'),json_extract(value,'$.symbol'),json_extract(value,'$.price'),
+      json_extract(value,'$.change'),json_extract(value,'$.percent_change'),json_extract(value,'$.raw_json'),json_extract(value,'$.version')
+    FROM json_each(?)`).bind(JSON.stringify(rows)).run();
 }
 
 async function persistBroadDiscovery(env:Env,rows:Candidate[],discovery:DiscoveryResult,shortlisted:Set<string>,now=new Date()){
   if(!rows.length) return;
-  const bucket=bucket5(now),sessionDate=easternParts(now).date;
-  for(let i=0;i<rows.length;i+=50){
-    const statements=rows.slice(i,i+50).map((x:Candidate)=>{
-      const src=discovery.sourceBySymbol.get(x.symbol)??{source:'held_or_recent',rank:null};
-      return env.MEDS_DB.prepare(`INSERT OR REPLACE INTO hunt_discovery_observations
-        (bucket,session_date,created_at,symbol,source,source_rank,price,day_change_pct,score,spread_pct,
-         day_volume,minute_volume,execution_fresh,eligible,shortlisted,version)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(bucket,sessionDate,now.toISOString(),x.symbol,src.source,src.rank,
-          x.price,x.dayChangePct,x.score,x.spreadPct,x.dayVolume,x.minuteVolume,(x as any).executionFresh===true?1:0,
-          leaderEquityRunnerEligible(x)?1:0,shortlisted.has(x.symbol)?1:0,HUNT_VERSION);
-    });
-    if(statements.length) await env.MEDS_DB.batch(statements);
-  }
+  const bucket=bucket5(now),sessionDate=easternParts(now).date,stamp=now.toISOString();
+  const payload=rows.map((x:Candidate)=>{
+    const src=discovery.sourceBySymbol.get(x.symbol)??{source:'held_or_recent',rank:null};
+    return {bucket,session_date:sessionDate,created_at:stamp,symbol:x.symbol,source:src.source,source_rank:src.rank,
+      price:x.price,day_change_pct:x.dayChangePct,score:x.score,spread_pct:x.spreadPct,day_volume:x.dayVolume,
+      minute_volume:x.minuteVolume,execution_fresh:(x as any).executionFresh===true?1:0,
+      eligible:leaderEquityRunnerEligible(x)?1:0,shortlisted:shortlisted.has(x.symbol)?1:0,version:HUNT_VERSION};
+  });
+  await env.MEDS_DB.prepare(`INSERT OR REPLACE INTO hunt_discovery_observations
+    (bucket,session_date,created_at,symbol,source,source_rank,price,day_change_pct,score,spread_pct,
+     day_volume,minute_volume,execution_fresh,eligible,shortlisted,version)
+    SELECT json_extract(value,'$.bucket'),json_extract(value,'$.session_date'),json_extract(value,'$.created_at'),
+      json_extract(value,'$.symbol'),json_extract(value,'$.source'),json_extract(value,'$.source_rank'),
+      json_extract(value,'$.price'),json_extract(value,'$.day_change_pct'),json_extract(value,'$.score'),
+      json_extract(value,'$.spread_pct'),json_extract(value,'$.day_volume'),json_extract(value,'$.minute_volume'),
+      json_extract(value,'$.execution_fresh'),json_extract(value,'$.eligible'),json_extract(value,'$.shortlisted'),
+      json_extract(value,'$.version')
+    FROM json_each(?)`).bind(JSON.stringify(payload)).run();
 }
 
 function selectLeaderResearch(rows:Candidate[],discovery:DiscoveryResult):Candidate[]{
@@ -383,17 +389,36 @@ async function postAlert(env: Env, text: string, eventKey: string) {
   await env.MEDS_DB.prepare(`UPDATE alert_delivery SET status=? WHERE event_key=?`).bind(status,eventKey).run();
 }
 
-async function persistCandidate(env: Env, c: Candidate, status: string, raw: any) {
-  const now = new Date().toISOString();
-  await env.MEDS_DB.batch([
+async function persistCandidates(env:Env,rows:{candidate:Candidate;status:string;raw:any}[],includeCoreSignals=true){
+  if(!rows.length) return;
+  const now=new Date().toISOString();
+  const payload=rows.map(({candidate:c,status,raw})=>({
+    symbol:c.symbol,last_price:c.price,last_bid:c.bid,last_ask:c.ask,day_volume:c.dayVolume,
+    previous_day_volume:c.previousDayVolume,last_minute_volume:c.minuteVolume,score:c.score,status,
+    consecutive_hits:c.consecutiveHits,last_seen_at:now,created_at:now,price:c.price,bid:c.bid,ask:c.ask,
+    day_change_pct:c.dayChangePct,spread_pct:c.spreadPct,volume_accel:c.volumeAccel,catalyst_score:c.catalystScore,
+    borrow_fee:c.borrowFee??null,short_interest_pct:c.shortInterestPct??null,borrow_available:c.borrowAvailable??null,
+    reasons:c.reasons.join('; '),catalyst_summary:c.catalystSummary,raw_json:JSON.stringify(raw).slice(0,12000)
+  }));
+  const statements:D1PreparedStatement[]=[
     env.MEDS_DB.prepare(`INSERT INTO symbol_state(symbol,last_price,last_bid,last_ask,day_volume,previous_day_volume,last_minute_volume,score,status,consecutive_hits,last_seen_at)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?)
-      ON CONFLICT(symbol) DO UPDATE SET last_price=excluded.last_price,last_bid=excluded.last_bid,last_ask=excluded.last_ask,day_volume=excluded.day_volume,previous_day_volume=excluded.previous_day_volume,last_minute_volume=excluded.last_minute_volume,score=excluded.score,status=excluded.status,consecutive_hits=excluded.consecutive_hits,last_seen_at=excluded.last_seen_at`)
-      .bind(c.symbol,c.price,c.bid,c.ask,c.dayVolume,c.previousDayVolume,c.minuteVolume,c.score,status,c.consecutiveHits,now),
-    env.MEDS_DB.prepare(`INSERT INTO signals(created_at,symbol,score,status,price,bid,ask,day_change_pct,spread_pct,volume_accel,catalyst_score,borrow_fee,short_interest_pct,borrow_available,reasons,catalyst_summary,raw_json)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-      .bind(now,c.symbol,c.score,status,c.price,c.bid,c.ask,c.dayChangePct,c.spreadPct,c.volumeAccel,c.catalystScore,c.borrowFee ?? null,c.shortInterestPct ?? null,c.borrowAvailable ?? null,c.reasons.join("; "),c.catalystSummary,JSON.stringify(raw).slice(0,12000))
-  ]);
+      SELECT json_extract(value,'$.symbol'),json_extract(value,'$.last_price'),json_extract(value,'$.last_bid'),json_extract(value,'$.last_ask'),
+        json_extract(value,'$.day_volume'),json_extract(value,'$.previous_day_volume'),json_extract(value,'$.last_minute_volume'),
+        json_extract(value,'$.score'),json_extract(value,'$.status'),json_extract(value,'$.consecutive_hits'),json_extract(value,'$.last_seen_at')
+      FROM json_each(?) WHERE 1
+      ON CONFLICT(symbol) DO UPDATE SET last_price=excluded.last_price,last_bid=excluded.last_bid,last_ask=excluded.last_ask,
+        day_volume=excluded.day_volume,previous_day_volume=excluded.previous_day_volume,last_minute_volume=excluded.last_minute_volume,
+        score=excluded.score,status=excluded.status,consecutive_hits=excluded.consecutive_hits,last_seen_at=excluded.last_seen_at`)
+      .bind(JSON.stringify(payload))
+  ];
+  if(includeCoreSignals) statements.push(env.MEDS_DB.prepare(`INSERT INTO signals(created_at,symbol,score,status,price,bid,ask,day_change_pct,spread_pct,volume_accel,catalyst_score,borrow_fee,short_interest_pct,borrow_available,reasons,catalyst_summary,raw_json)
+      SELECT json_extract(value,'$.created_at'),json_extract(value,'$.symbol'),json_extract(value,'$.score'),json_extract(value,'$.status'),
+        json_extract(value,'$.price'),json_extract(value,'$.bid'),json_extract(value,'$.ask'),json_extract(value,'$.day_change_pct'),
+        json_extract(value,'$.spread_pct'),json_extract(value,'$.volume_accel'),json_extract(value,'$.catalyst_score'),
+        json_extract(value,'$.borrow_fee'),json_extract(value,'$.short_interest_pct'),json_extract(value,'$.borrow_available'),
+        json_extract(value,'$.reasons'),json_extract(value,'$.catalyst_summary'),json_extract(value,'$.raw_json')
+      FROM json_each(?)`).bind(JSON.stringify(payload)));
+  await env.MEDS_DB.batch(statements);
 }
 
 async function manageShadowPositions(env: Env, snapshots: Record<string, Snapshot>) {
@@ -458,6 +483,7 @@ type PaperEnv = {
   ALPACA_API_KEY: string;
   ALPACA_API_SECRET: string;
   PAPER_ENABLED?: string;
+  LEADER_ONLY?: string;
 };
 
 type PaperSnapshot = {
@@ -916,11 +942,11 @@ async function manageLeaderHuntPositions(env:PaperEnv,snaps:Record<string,PaperS
 
 
 async function markHuntAccounts(env:PaperEnv,snaps:Record<string,PaperSnapshot>,now=new Date(),huntOptionMarks:Record<string,OptionSnap>={}){
-  const accounts=(await env.MEDS_DB.prepare('SELECT * FROM hunt_accounts ORDER BY starting_equity').all<any>()).results??[];
-  const positions=(await env.MEDS_DB.prepare("SELECT * FROM hunt_account_positions WHERE status='open'").all<any>()).results??[];
-  const options=(await env.MEDS_DB.prepare("SELECT * FROM hunt_account_option_positions WHERE status='open'").all<any>()).results??[];
-  await retainQuotes(env.MEDS_DB,'equity',snaps,[...new Set(positions.map(p=>String(p.symbol)))],stockFeed(now));
-  const retained=await retainedQuoteMap(env.MEDS_DB);
+  const accounts=(await env.MEDS_DB.prepare(`SELECT a.* FROM hunt_accounts a JOIN leader_runtime_accounts r ON r.account_id=a.account_id AND r.active=1 ORDER BY a.starting_equity`).all<any>()).results??[];
+  const positions=(await env.MEDS_DB.prepare(`SELECT p.* FROM hunt_account_positions p JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1 WHERE p.status='open'`).all<any>()).results??[];
+  const options=(await env.MEDS_DB.prepare(`SELECT p.* FROM hunt_account_option_positions p JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1 WHERE p.status='open'`).all<any>()).results??[];
+  if(positions.length) await retainQuotes(env.MEDS_DB,'equity',snaps,[...new Set(positions.map(p=>String(p.symbol)))],stockFeed(now));
+  const retained=(positions.length||options.length)?await retainedQuoteMap(env.MEDS_DB):new Map<string,any>();
   for(const a of accounts){
     const marks:MarkState[]=[];
     for(const p of positions.filter(p=>p.account_id===a.account_id)){
@@ -955,8 +981,8 @@ function reportingMark(symbol:string,asset:string,q:any,qty:number,retained:Map<
 }
 
 async function manageHuntAccountPositions(env:PaperEnv,snaps:Record<string,PaperSnapshot>,now=new Date(),markAtEnd=true){
-  const rows=await env.MEDS_DB.prepare("SELECT * FROM hunt_account_positions WHERE status='open' ORDER BY id").all<any>();
-  const ladderRows=await env.MEDS_DB.prepare("SELECT position_id,event_type FROM hunt_account_events WHERE event_type LIKE 'LADDER_%'").all<any>();
+  const rows=await env.MEDS_DB.prepare(`SELECT p.* FROM hunt_account_positions p JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1 WHERE p.status='open' ORDER BY p.id`).all<any>();
+  const ladderRows=await env.MEDS_DB.prepare(`SELECT e.position_id,e.event_type FROM hunt_account_events e JOIN hunt_account_positions p ON p.id=e.position_id JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1 WHERE e.event_type LIKE 'LADDER_%'`).all<any>();
   const ladderByPosition=new Map<number,Set<string>>();
   for(const e of ladderRows.results??[]){
     const id=Number(e.position_id),set=ladderByPosition.get(id)??new Set<string>();
@@ -964,7 +990,7 @@ async function manageHuntAccountPositions(env:PaperEnv,snaps:Record<string,Paper
   }
   const deferredMarks:any[]=[];
   let exits=0,take200s=0,ladderSells=0;
-  const intents=(await env.MEDS_DB.prepare("SELECT * FROM hunt_exit_intents WHERE kind='equity'").all<any>()).results??[];
+  const intents=(await env.MEDS_DB.prepare(`SELECT i.* FROM hunt_exit_intents i JOIN hunt_account_positions p ON p.id=i.position_id JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1 WHERE i.kind='equity'`).all<any>()).results??[];
   for(const p of rows.results??[]){
     const positionVersion=String(p.version??HUNT_VERSION);
     const snap=snaps[p.symbol],q=snap?.latestQuote;
@@ -1114,12 +1140,18 @@ async function manageHuntAccountPositions(env:PaperEnv,snaps:Record<string,Paper
 }
 
 async function loadHuntBook(env:PaperEnv,now:Date){
-  const accounts=(await env.MEDS_DB.prepare('SELECT a.*,r.revision FROM hunt_accounts a JOIN hunt_revisions r USING(account_id) ORDER BY starting_equity').all<any>()).results??[];
-  const open=(await env.MEDS_DB.prepare(`SELECT account_id,symbol FROM hunt_account_positions WHERE status='open'
-    UNION ALL SELECT account_id,underlying AS symbol FROM hunt_account_option_positions WHERE status='open'`).all<any>()).results??[];
+  const accounts=(await env.MEDS_DB.prepare(`SELECT a.*,v.revision FROM hunt_accounts a
+    JOIN leader_runtime_accounts r ON r.account_id=a.account_id AND r.active=1
+    JOIN hunt_revisions v ON v.account_id=a.account_id ORDER BY a.starting_equity`).all<any>()).results??[];
+  const open=(await env.MEDS_DB.prepare(`SELECT p.account_id,p.symbol FROM hunt_account_positions p
+      JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1 WHERE p.status='open'
+    UNION ALL SELECT p.account_id,p.underlying AS symbol FROM hunt_account_option_positions p
+      JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1 WHERE p.status='open'`).all<any>()).results??[];
   const cutoff=new Date(now.getTime()-HUNT_REENTRY_COOLDOWN_MIN*60000).toISOString();
-  const recent=(await env.MEDS_DB.prepare(`SELECT account_id,symbol FROM hunt_account_trades WHERE closed_at>=?
-    UNION ALL SELECT account_id,underlying AS symbol FROM hunt_account_option_trades WHERE closed_at>=?`).bind(cutoff,cutoff).all<any>()).results??[];
+  const recent=(await env.MEDS_DB.prepare(`SELECT t.account_id,t.symbol FROM hunt_account_trades t
+      JOIN leader_runtime_accounts r ON r.account_id=t.account_id AND r.active=1 WHERE t.closed_at>=?
+    UNION ALL SELECT t.account_id,t.underlying AS symbol FROM hunt_account_option_trades t
+      JOIN leader_runtime_accounts r ON r.account_id=t.account_id AND r.active=1 WHERE t.closed_at>=?`).bind(cutoff,cutoff).all<any>()).results??[];
   return accounts.map(a=>({...a,open:new Set(open.filter(p=>p.account_id===a.account_id).map(p=>p.symbol)),
     count:open.filter(p=>p.account_id===a.account_id).length,cooldown:new Set(recent.filter(p=>p.account_id===a.account_id).map(p=>p.symbol))}));
 }
@@ -1205,25 +1237,31 @@ async function runHuntAccounts(env:PaperEnv,candidates:PaperCandidate[],snaps:Re
   };
 }
 async function runLeaderHunt(env:PaperEnv,candidates:PaperCandidate[],snaps:Record<string,PaperSnapshot>,now=new Date()){
-  await ensurePaperSchema(env);
   const marketPhase=phase(now),bucket=bucket5(now);
-  const legacyExits=await manageLeaderHuntPositions(env,snaps,now);
+  const legacyExits=0; // pre-v8.1 generic Leader positions are historical only
   const tracked=candidates.slice(0,HUNT_TRACKED_PER_CYCLE);
-  for(const c of tracked){
-    const features=JSON.stringify(huntFeatures(c,marketPhase)).slice(0,12000);
-    const dayVolumeRatio=c.previousDayVolume>0?c.dayVolume/c.previousDayVolume:0;
-    await env.MEDS_DB.prepare(`INSERT OR IGNORE INTO hunt_observations(bucket,created_at,symbol,phase,price,bid,ask,day_change_pct,score,spread_pct,volume_accel,day_volume_ratio,consecutive_hits,catalyst_score,status,features,version)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-      .bind(bucket,now.toISOString(),c.symbol,marketPhase,c.price,c.bid,c.ask,c.dayChangePct,c.score,c.spreadPct,c.volumeAccel,dayVolumeRatio,c.consecutiveHits,c.catalystScore,
-        leaderEquityRunnerEligible(c) && (c as any).executionFresh===true ? 'ELIGIBLE':'TRACKED',features,HUNT_VERSION).run();
+  if(tracked.length){
+    const observations=tracked.map(c=>({bucket,created_at:now.toISOString(),symbol:c.symbol,phase:marketPhase,price:c.price,bid:c.bid,ask:c.ask,
+      day_change_pct:c.dayChangePct,score:c.score,spread_pct:c.spreadPct,volume_accel:c.volumeAccel,
+      day_volume_ratio:c.previousDayVolume>0?c.dayVolume/c.previousDayVolume:0,consecutive_hits:c.consecutiveHits,
+      catalyst_score:c.catalystScore,status:leaderEquityRunnerEligible(c)&&(c as any).executionFresh===true?'ELIGIBLE':'TRACKED',
+      features:JSON.stringify(huntFeatures(c,marketPhase)).slice(0,12000),version:HUNT_VERSION}));
+    await env.MEDS_DB.prepare(`INSERT OR IGNORE INTO hunt_observations
+      (bucket,created_at,symbol,phase,price,bid,ask,day_change_pct,score,spread_pct,volume_accel,day_volume_ratio,consecutive_hits,catalyst_score,status,features,version)
+      SELECT json_extract(value,'$.bucket'),json_extract(value,'$.created_at'),json_extract(value,'$.symbol'),json_extract(value,'$.phase'),
+        json_extract(value,'$.price'),json_extract(value,'$.bid'),json_extract(value,'$.ask'),json_extract(value,'$.day_change_pct'),
+        json_extract(value,'$.score'),json_extract(value,'$.spread_pct'),json_extract(value,'$.volume_accel'),json_extract(value,'$.day_volume_ratio'),
+        json_extract(value,'$.consecutive_hits'),json_extract(value,'$.catalyst_score'),json_extract(value,'$.status'),
+        json_extract(value,'$.features'),json_extract(value,'$.version')
+      FROM json_each(?)`).bind(JSON.stringify(observations)).run();
   }
   const accounts=await runHuntAccounts(env,tracked,snaps,now);
-  await env.MEDS_DB.prepare(`UPDATE hunt_observations SET status='ACCOUNT_SAMPLED' WHERE bucket=? AND symbol IN
+  if(accounts.account_entries>0) await env.MEDS_DB.prepare(`UPDATE hunt_observations SET status='ACCOUNT_SAMPLED' WHERE bucket=? AND symbol IN
     (SELECT symbol FROM hunt_account_positions WHERE opened_at>=? AND version=? UNION SELECT underlying FROM hunt_account_option_positions WHERE opened_at>=? AND version=?)`)
     .bind(bucket,bucket,HUNT_VERSION,bucket,HUNT_VERSION).run();
   const openRow=await env.MEDS_DB.prepare(`SELECT
-    (SELECT COUNT(*) FROM hunt_account_positions WHERE status='open')+
-    (SELECT COUNT(*) FROM hunt_account_option_positions WHERE status='open') AS n`).first<any>();
+    (SELECT COUNT(*) FROM hunt_account_positions p JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1 WHERE p.status='open')+
+    (SELECT COUNT(*) FROM hunt_account_option_positions p JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1 WHERE p.status='open') AS n`).first<any>();
   const open=Number(openRow?.n??0);
   return {version:HUNT_VERSION,tracked:tracked.length,
     research_eligible:tracked.filter(leaderHuntEligible).length,
@@ -1474,7 +1512,13 @@ async function selectLeaderOption(env:PaperEnv,c:PaperCandidate,now=new Date()):
 
 async function fetchHuntOptionMarks(env:PaperEnv,now=new Date()){
   if(phase(now)!=='regular') return {} as Record<string,OptionSnap>;
-  const rows=await env.MEDS_DB.prepare("SELECT DISTINCT symbol FROM hunt_account_option_positions WHERE status='open' UNION SELECT long_symbol AS symbol FROM paper_option_positions WHERE status='open' UNION SELECT short_symbol AS symbol FROM paper_option_positions WHERE status='open' AND short_symbol IS NOT NULL").all<{symbol:string}>();
+  const leaderOnly=env.LEADER_ONLY==='true'||env.PAPER_ENABLED==='false';
+  const sql=leaderOnly
+    ? `SELECT DISTINCT p.symbol FROM hunt_account_option_positions p JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1 WHERE p.status='open'`
+    : `SELECT DISTINCT symbol FROM hunt_account_option_positions WHERE status='open'
+       UNION SELECT long_symbol AS symbol FROM paper_option_positions WHERE status='open'
+       UNION SELECT short_symbol AS symbol FROM paper_option_positions WHERE status='open' AND short_symbol IS NOT NULL`;
+  const rows=await env.MEDS_DB.prepare(sql).all<{symbol:string}>();
   const symbols=(rows.results??[]).map(x=>x.symbol);
   if(!symbols.length) return {} as Record<string,OptionSnap>;
   try{return await optionMarks(env,symbols);}catch{return {} as Record<string,OptionSnap>;}
@@ -1482,9 +1526,9 @@ async function fetchHuntOptionMarks(env:PaperEnv,now=new Date()){
 
 async function manageHuntOptionPositions(env:PaperEnv,marks:Record<string,OptionSnap>,now=new Date()){
   if(phase(now)!=='regular') return {exits:0,take200s:0,ladderSells:0};
-  const rows=await env.MEDS_DB.prepare("SELECT * FROM hunt_account_option_positions WHERE status='open' ORDER BY id").all<any>();
+  const rows=await env.MEDS_DB.prepare(`SELECT p.* FROM hunt_account_option_positions p JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1 WHERE p.status='open' ORDER BY p.id`).all<any>();
   let exits=0,take200s=0,ladderSells=0;
-  const intents=(await env.MEDS_DB.prepare("SELECT * FROM hunt_exit_intents WHERE kind='option'").all<any>()).results??[];
+  const intents=(await env.MEDS_DB.prepare(`SELECT i.* FROM hunt_exit_intents i JOIN hunt_account_option_positions p ON p.id=i.position_id JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1 WHERE i.kind='option'`).all<any>()).results??[];
   for(const p of rows.results??[]){
     const q=marks[p.symbol]?.latestQuote;
     if(!validQuote(q,env.DATA?Date.now():now.getTime())) continue;
@@ -1895,20 +1939,22 @@ async function runPaperLab(env:PaperEnv,candidates:PaperCandidate[],snaps:Record
 async function scanTick(env: Env) {
   if (!inScanWindow()) return { ok: true, skipped: "outside scan window" };
   env={...env,DATA:env.DATA??new MarketDataCycle(env)};
+  const leaderOnly=env.LEADER_ONLY==='true';
   const coreMinPrice = num(env.MIN_PRICE, 0.5);
   const minPrice = Math.min(coreMinPrice,HUNT_MIN_STOCK_PRICE);
   const maxChange = num(env.MAX_DAY_CHANGE_PCT, 25);
   const threshold = num(env.MIN_SIGNAL_SCORE, 67);
 
-  await ensurePaperSchema(env);
   const discovered = await discoverSymbols(env);
   const auditNow=new Date();
   await persistGainerBoard(env,discovered.gainers,auditNow);
-  const paperHeld=await env.MEDS_DB.prepare("SELECT symbol FROM paper_positions WHERE status='open' UNION SELECT underlying AS symbol FROM paper_option_positions WHERE status='open'").all<{symbol:string}>();
-  const held = await env.MEDS_DB.prepare(`SELECT symbol FROM shadow_positions WHERE status='open'`).all<{symbol:string}>();
-  const huntHeld=await env.MEDS_DB.prepare(`SELECT DISTINCT symbol FROM hunt_account_positions WHERE status='open'
-    UNION SELECT DISTINCT symbol FROM hunt_positions WHERE status='open'
-    UNION SELECT DISTINCT underlying AS symbol FROM hunt_account_option_positions WHERE status='open'`).all<{symbol:string}>();
+  const paperHeld=leaderOnly?{results:[] as {symbol:string}[]}:await env.MEDS_DB.prepare("SELECT symbol FROM paper_positions WHERE status='open' UNION SELECT underlying AS symbol FROM paper_option_positions WHERE status='open'").all<{symbol:string}>();
+  const held=leaderOnly?{results:[] as {symbol:string}[]}:await env.MEDS_DB.prepare(`SELECT symbol FROM shadow_positions WHERE status='open'`).all<{symbol:string}>();
+  const huntHeld=await env.MEDS_DB.prepare(`SELECT DISTINCT p.symbol FROM hunt_account_positions p
+      JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1 WHERE p.status='open'
+    UNION
+    SELECT DISTINCT p.underlying AS symbol FROM hunt_account_option_positions p
+      JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1 WHERE p.status='open'`).all<{symbol:string}>();
   const huntRecent=await env.MEDS_DB.prepare(`SELECT symbol,MAX(created_at) AS last_seen
     FROM hunt_observations WHERE created_at>=? GROUP BY symbol ORDER BY last_seen DESC LIMIT 80`)
     .bind(new Date(Date.now()-12*60*60000).toISOString()).all<{symbol:string}>();
@@ -1931,7 +1977,7 @@ async function scanTick(env: Env) {
   const priorMap = new Map((prior.results ?? []).map(p=>[p.symbol,p]));
   const snapshots = await fetchSnapshots(env, symbols);
   await refreshHeldQuotes(env.MEDS_DB,env.DATA!,snapshots,heldSymbols,stockFeed());
-  await manageShadowPositions(env, snapshots);
+  if(!leaderOnly) await manageShadowPositions(env, snapshots);
 
   const rough: Candidate[] = [];
   const auditRough: Candidate[] = [];
@@ -1995,6 +2041,7 @@ async function scanTick(env: Env) {
   try{news=await fetchNewsForSymbols(env,research.map(x=>x.symbol));}catch{/* non-fatal discovery enrichment */}
   const borrow: Record<string,any> = {}; // No verified free borrow provider configured.
 
+  const candidateWrites:{candidate:Candidate;status:string;raw:any}[]=[];
   for (const c of research) {
     const h = heuristicCatalyst(news, c.symbol);
     c.catalystScore = h.score;
@@ -2005,8 +2052,9 @@ async function scanTick(env: Env) {
     c.borrowAvailable = bm.available_shares ?? bm.borrowAvailable;
     scoreCandidate(c, regularSession());
     const status = c.score >= 82 ? "A_PLUS_ARMED" : c.score >= threshold ? "IGNITION_WATCH" : "WATCH";
-    await persistCandidate(env, c, status, snapshots[c.symbol]);
+    candidateWrites.push({candidate:c,status,raw:snapshots[c.symbol]});
   }
+  await persistCandidates(env,candidateWrites,env.LEADER_ONLY!=='true');
   // Re-apply the early-source reservation after final catalyst scoring. v5
   // reserved early movers during research selection, then accidentally lost
   // that priority by score-sorting immediately before Leader entry selection.
@@ -2018,15 +2066,17 @@ async function scanTick(env: Env) {
 
   research.sort((a,b)=>b.score-a.score);
   const top = research.filter(c=>c.executionFresh===true && c.price>=coreMinPrice).slice(0, Math.min(8, num(env.MAX_WATCH_SYMBOLS, 8)));
-  for (const c of top) {
-    const previous = priorMap.get(c.symbol);
-    const oldAlert = previous?.last_alert_at ? Date.parse(previous.last_alert_at) : 0;
-    const cooldown = Date.now() - oldAlert < 8 * 60 * 1000;
-    if (c.score >= threshold && !cooldown) {
-      const borrowText = c.borrowFee != null ? `\nBorrow: ${c.borrowFee.toFixed(1)}% | SI ${c.shortInterestPct?.toFixed?.(1) ?? "?"}% | avail ${c.borrowAvailable ?? "?"}` : "";
-      const msg = `${c.score >= 82 ? "🔥 A+ ARMED" : "🚨 IGNITION WATCH"} — ${c.symbol}\nPrice ${c.price.toFixed(3)} | Day ${c.dayChangePct.toFixed(1)}% | Spread ${c.spreadPct.toFixed(1)}%\nVol accel ${(c.volumeAccel*100).toFixed(0)}% | Day/PriorVol ${(c.previousDayVolume>0?c.dayVolume/c.previousDayVolume:0).toFixed(2)}x${borrowText}\nCatalyst: ${c.catalystSummary || "none found"}\nWhy: ${c.reasons.slice(0,5).join(" + ")}\nSTATUS: PRE-MOVE / VERIFY BEFORE ENTRY`;
-      await postAlert(env, msg, `signal:${c.symbol}:${Math.floor(Date.now()/480000)}`);
-      await env.MEDS_DB.prepare(`UPDATE symbol_state SET last_alert_at=? WHERE symbol=?`).bind(new Date().toISOString(), c.symbol).run();
+  if(!leaderOnly){
+    for (const c of top) {
+      const previous = priorMap.get(c.symbol);
+      const oldAlert = previous?.last_alert_at ? Date.parse(previous.last_alert_at) : 0;
+      const cooldown = Date.now() - oldAlert < 8 * 60 * 1000;
+      if (c.score >= threshold && !cooldown) {
+        const borrowText = c.borrowFee != null ? `\nBorrow: ${c.borrowFee.toFixed(1)}% | SI ${c.shortInterestPct?.toFixed?.(1) ?? "?"}% | avail ${c.borrowAvailable ?? "?"}` : "";
+        const msg = `${c.score >= 82 ? "🔥 A+ ARMED" : "🚨 IGNITION WATCH"} — ${c.symbol}\nPrice ${c.price.toFixed(3)} | Day ${c.dayChangePct.toFixed(1)}% | Spread ${c.spreadPct.toFixed(1)}%\nVol accel ${(c.volumeAccel*100).toFixed(0)}% | Day/PriorVol ${(c.previousDayVolume>0?c.dayVolume/c.previousDayVolume:0).toFixed(2)}x${borrowText}\nCatalyst: ${c.catalystSummary || "none found"}\nWhy: ${c.reasons.slice(0,5).join(" + ")}\nSTATUS: PRE-MOVE / VERIFY BEFORE ENTRY`;
+        await postAlert(env, msg, `signal:${c.symbol}:${Math.floor(Date.now()/480000)}`);
+        await env.MEDS_DB.prepare(`UPDATE symbol_state SET last_alert_at=? WHERE symbol=?`).bind(new Date().toISOString(), c.symbol).run();
+      }
     }
   }
 
@@ -2034,12 +2084,14 @@ async function scanTick(env: Env) {
   try { hunt=await runLeaderHunt(env,huntResearch,snapshots); }
   catch(error){ hunt={version:HUNT_VERSION,error:error instanceof Error?error.message:'leader hunt failed'}; }
 
-  let paper: any = { ok: true, skipped: "paper unavailable" };
-  try {
-    await refreshHeldQuotes(env.MEDS_DB,env.DATA!,snapshots,(paperHeld.results??[]).map(p=>p.symbol),stockFeed());
-    paper = await runPaperLab(env, top, snapshots);
-  } catch (error) {
-    paper = { ok: false, error: error instanceof Error ? error.message : "paper lab failed" };
+  let paper:any={ok:true,skipped:leaderOnly?'leader-only runtime':'paper unavailable'};
+  if(!leaderOnly){
+    try {
+      await refreshHeldQuotes(env.MEDS_DB,env.DATA!,snapshots,(paperHeld.results??[]).map(p=>p.symbol),stockFeed());
+      paper=await runPaperLab(env,top,snapshots);
+    } catch(error) {
+      paper={ok:false,error:error instanceof Error?error.message:'paper lab failed'};
+    }
   }
   const selfAudit=await auditMovers(env.MEDS_DB,phase(),auditNow);
   return { ok: !hunt.error && paper.ok!==false, self_audit:selfAudit, usage:env.DATA!.metrics(), feed: stockFeed(), scanned: symbols.length, shortlisted: top.length, research_shortlist:research.length,
@@ -2253,20 +2305,22 @@ async function publicStatus(env: Env): Promise<Response> {
   try {
     const since=new Date(Date.now()-86400000).toISOString();
     const h=await env.MEDS_DB.prepare(`SELECT
-      (SELECT COUNT(*) FROM hunt_observations WHERE created_at>=?) AS observations_24h,
-      (SELECT COUNT(*) FROM hunt_account_positions WHERE status='open') AS equity_open_positions,
-      (SELECT COUNT(*) FROM hunt_account_option_positions WHERE status='open') AS option_open_positions,
-      (SELECT COUNT(*) FROM hunt_account_trades WHERE closed_at>=?) AS equity_trades_24h,
-      (SELECT COUNT(*) FROM hunt_account_option_trades WHERE closed_at>=?) AS option_trades_24h,
-      (SELECT COUNT(*) FROM hunt_account_trades WHERE closed_at>=? AND realized_pnl>0) AS equity_winners_24h,
-      (SELECT COUNT(*) FROM hunt_account_option_trades WHERE closed_at>=? AND realized_pnl>0) AS option_winners_24h,
-      (SELECT MAX(created_at) FROM hunt_observations) AS latest_observation_at,
-      (SELECT MAX(closed_at) FROM hunt_account_trades) AS latest_equity_trade_at,
-      (SELECT MAX(closed_at) FROM hunt_account_option_trades) AS latest_option_trade_at`)
-      .bind(...Array(5).fill(since)).first<any>();
-    const combinedReturns=await env.MEDS_DB.prepare(`SELECT return_pct,realized_pnl,closed_at,'equity' AS asset_type FROM hunt_account_trades WHERE closed_at>=?
+      (SELECT COUNT(*) FROM hunt_observations WHERE created_at>=? AND version=?) AS observations_24h,
+      (SELECT COUNT(*) FROM hunt_account_positions p JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1 WHERE p.status='open') AS equity_open_positions,
+      (SELECT COUNT(*) FROM hunt_account_option_positions p JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1 WHERE p.status='open') AS option_open_positions,
+      (SELECT COUNT(*) FROM hunt_account_trades t JOIN leader_runtime_accounts r ON r.account_id=t.account_id AND r.active=1 WHERE t.closed_at>=?) AS equity_trades_24h,
+      (SELECT COUNT(*) FROM hunt_account_option_trades t JOIN leader_runtime_accounts r ON r.account_id=t.account_id AND r.active=1 WHERE t.closed_at>=?) AS option_trades_24h,
+      (SELECT COUNT(*) FROM hunt_account_trades t JOIN leader_runtime_accounts r ON r.account_id=t.account_id AND r.active=1 WHERE t.closed_at>=? AND t.realized_pnl>0) AS equity_winners_24h,
+      (SELECT COUNT(*) FROM hunt_account_option_trades t JOIN leader_runtime_accounts r ON r.account_id=t.account_id AND r.active=1 WHERE t.closed_at>=? AND t.realized_pnl>0) AS option_winners_24h,
+      (SELECT MAX(created_at) FROM hunt_observations WHERE version=?) AS latest_observation_at,
+      (SELECT MAX(t.closed_at) FROM hunt_account_trades t JOIN leader_runtime_accounts r ON r.account_id=t.account_id AND r.active=1) AS latest_equity_trade_at,
+      (SELECT MAX(t.closed_at) FROM hunt_account_option_trades t JOIN leader_runtime_accounts r ON r.account_id=t.account_id AND r.active=1) AS latest_option_trade_at`)
+      .bind(since,HUNT_VERSION,since,since,since,since,HUNT_VERSION).first<any>();
+    const combinedReturns=await env.MEDS_DB.prepare(`SELECT t.return_pct,t.realized_pnl,t.closed_at,'equity' AS asset_type
+      FROM hunt_account_trades t JOIN leader_runtime_accounts r ON r.account_id=t.account_id AND r.active=1 WHERE t.closed_at>=?
       UNION ALL
-      SELECT return_pct,realized_pnl,closed_at,'option' AS asset_type FROM hunt_account_option_trades WHERE closed_at>=?`)
+      SELECT t.return_pct,t.realized_pnl,t.closed_at,'option' AS asset_type
+      FROM hunt_account_option_trades t JOIN leader_runtime_accounts r ON r.account_id=t.account_id AND r.active=1 WHERE t.closed_at>=?`)
       .bind(since,since).all<any>();
     const returnRows=combinedReturns.results??[];
     const returns=returnRows.map((x:any)=>Number(x.return_pct)).filter(Number.isFinite);
@@ -2300,8 +2354,8 @@ async function publicStatus(env: Env): Promise<Response> {
       (SELECT COUNT(*) FROM hunt_account_option_trades t WHERE t.account_id=a.account_id AND t.closed_at>=? AND t.realized_pnl>0) AS option_winners_24h,
       (SELECT COUNT(*) FROM hunt_account_trades t WHERE t.account_id=a.account_id AND t.closed_at>=?) AS equity_trades_24h,
       (SELECT COUNT(*) FROM hunt_account_option_trades t WHERE t.account_id=a.account_id AND t.closed_at>=?) AS option_trades_24h
-      FROM hunt_accounts a ORDER BY a.starting_equity`).bind(since,since,since,since).all<any>();
-    const milestoneRows=await env.MEDS_DB.prepare(`SELECT * FROM hunt_account_milestones ORDER BY account_id,multiple`).all<any>();
+      FROM hunt_accounts a JOIN leader_runtime_accounts r ON r.account_id=a.account_id AND r.active=1 ORDER BY a.starting_equity`).bind(since,since,since,since).all<any>();
+    const milestoneRows=await env.MEDS_DB.prepare(`SELECT m.* FROM hunt_account_milestones m JOIN leader_runtime_accounts r ON r.account_id=m.account_id AND r.active=1 ORDER BY m.account_id,m.multiple`).all<any>();
     const milestonesByAccount=new Map<string,any[]>();
     for(const row of milestoneRows.results??[]){
       const arr=milestonesByAccount.get(String(row.account_id))??[];
@@ -2457,7 +2511,7 @@ async function publicStatus(env: Env): Promise<Response> {
       }),
       prospective_metrics:epochs.results??[],rejected_entries_24h:rejections.results??[]};
     const valuationRows=valuations.results??[];
-    const snapshots=(await env.MEDS_DB.prepare('SELECT * FROM portfolio_valuation_state').all<any>()).results??[];
+    const snapshots=(await env.MEDS_DB.prepare(`SELECT v.* FROM portfolio_valuation_state v WHERE v.account_id IN (SELECT account_id FROM leader_runtime_accounts WHERE active=1) OR (?=1 AND v.account_id LIKE 'PAPER:%')`).bind(paperEnabled?1:0).all<any>()).results??[];
     const detailed=snapshots.map(v=>{
       const marks:MarkState[]=JSON.parse(v.marks);
       const marksNow=marks.map(m=>({...m,age_seconds:m.quote_at?secondsSince(m.quote_at):null,
@@ -2692,6 +2746,7 @@ async function publicPaperRows(pathname: string, url: URL, env: Env): Promise<Re
       (SELECT COUNT(*) FROM hunt_account_events e WHERE e.position_id=p.id AND e.event_type='LADDER_50') AS ladder50_done,
       (SELECT COUNT(*) FROM hunt_account_events e WHERE e.position_id=p.id AND e.event_type='LADDER_100') AS ladder100_done
       FROM hunt_account_positions p
+      JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1
       LEFT JOIN hunt_accounts a ON a.account_id=p.account_id
       LEFT JOIN quote_cache s ON s.symbol=p.symbol AND s.asset='equity'
       WHERE p.status='open'
@@ -2707,6 +2762,7 @@ async function publicPaperRows(pathname: string, url: URL, env: Env): Promise<Re
       (SELECT COUNT(*) FROM hunt_account_option_events e WHERE e.position_id=p.id AND e.event_type='LADDER_50') AS ladder50_done,
       (SELECT COUNT(*) FROM hunt_account_option_events e WHERE e.position_id=p.id AND e.event_type='LADDER_100') AS ladder100_done
       FROM hunt_account_option_positions p
+      JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1
       LEFT JOIN hunt_accounts a ON a.account_id=p.account_id
       WHERE p.status='open'
       ORDER BY starting_equity ASC,opened_at DESC,id DESC LIMIT ? OFFSET ?`,

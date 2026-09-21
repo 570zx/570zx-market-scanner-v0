@@ -13,8 +13,8 @@ export async function recordDecision(...args:Parameters<typeof decisionStatement
 
 export async function persistResearch(db:D1Database,symbols:string[],rows:ResearchCandidate[],sources:Map<string,{source:string;rank:number|null}>,shortlist:Set<string>,phase:string,features:(c:any)=>unknown,now=new Date()){
   const bySymbol=new Map(rows.map(c=>[c.symbol,c])),universe=new Set(symbols);
-  const statements:D1PreparedStatement[]=[];
-  for(const symbol of new Set([...symbols,...sources.keys()])){
+  const stamp=now.toISOString(),bucket=cycleBucket(now),date=sessionDate(now);
+  const payload=[...new Set([...symbols,...sources.keys()])].map(symbol=>{
     const c=bySymbol.get(symbol),source=sources.get(symbol)?.source??'held_or_continuity';
     const shortlisted=shortlist.has(symbol);
     let reasons:string[];
@@ -24,26 +24,47 @@ export async function persistResearch(db:D1Database,symbols:string[],rows:Resear
     const snapshot={...(c?features(c) as object:{}),phase,source,shortlisted,
       runner_reasons:c?runnerReasons(c):[],option_eligible:!!c&&optionDirection(c)!==null,
       price:c?.price??null,day_change_pct:c?.dayChangePct??null,reasons};
-    const encoded=JSON.stringify(snapshot),stamp=now.toISOString();
-    statements.push(db.prepare(`INSERT INTO candidate_decisions VALUES(?,?,?,?,?,?,?,?,?,?)
-      ON CONFLICT(bucket,symbol,lane,account_id,stage,version) DO UPDATE SET created_at=excluded.created_at,outcome=excluded.outcome,reasons=excluded.reasons,features=excluded.features`)
-      .bind(cycleBucket(now),stamp,symbol,c?candidateLane(c):'UNCLASSIFIED','','RESEARCH',reasons.length?'REJECTED':'ELIGIBLE',JSON.stringify(reasons),encoded,LEADER_VERSION));
-    statements.push(db.prepare(`INSERT INTO research_outcomes VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    const encoded=JSON.stringify(snapshot);
+    return {
+      bucket,created_at:stamp,symbol,lane:c?candidateLane(c):'UNCLASSIFIED',account_id:'',stage:'RESEARCH',
+      outcome:reasons.length?'REJECTED':'ELIGIBLE',reasons:JSON.stringify(reasons),features:encoded,version:LEADER_VERSION,
+      session_date:date,first_provider_at:['recent','held_or_continuity'].includes(source)?null:stamp,
+      first_seen_at:universe.has(symbol)?stamp:null,first_price:c?.price??null,first_change:c?.dayChangePct??null,source,
+      instrument_type:'equity_unclassified',shortlisted_at:shortlisted?stamp:null,
+      runner_at:c&&shortlisted&&!runnerReasons(c).length?stamp:null,
+      executable_at:c&&shortlisted&&!runnerReasons(c).length&&c.executionFresh?stamp:null,last_seen_at:stamp,
+      high:c?.price??null,low:c?.price??null,latest_features:encoded
+    };
+  });
+  const encoded=JSON.stringify(payload);
+  await db.batch([
+    db.prepare(`INSERT INTO candidate_decisions(bucket,created_at,symbol,lane,account_id,stage,outcome,reasons,features,version)
+      SELECT json_extract(value,'$.bucket'),json_extract(value,'$.created_at'),json_extract(value,'$.symbol'),json_extract(value,'$.lane'),
+        '',json_extract(value,'$.stage'),json_extract(value,'$.outcome'),json_extract(value,'$.reasons'),
+        json_extract(value,'$.features'),json_extract(value,'$.version')
+      FROM json_each(?) WHERE 1
+      ON CONFLICT(bucket,symbol,lane,account_id,stage,version) DO UPDATE SET
+        created_at=excluded.created_at,outcome=excluded.outcome,reasons=excluded.reasons,features=excluded.features`).bind(encoded),
+    db.prepare(`INSERT INTO research_outcomes(session_date,symbol,version,first_provider_at,first_seen_at,first_price,first_change,source,instrument_type,shortlisted_at,runner_at,executable_at,last_seen_at,high,low,latest_features)
+      SELECT json_extract(value,'$.session_date'),json_extract(value,'$.symbol'),json_extract(value,'$.version'),
+        json_extract(value,'$.first_provider_at'),json_extract(value,'$.first_seen_at'),json_extract(value,'$.first_price'),
+        json_extract(value,'$.first_change'),json_extract(value,'$.source'),json_extract(value,'$.instrument_type'),
+        json_extract(value,'$.shortlisted_at'),json_extract(value,'$.runner_at'),json_extract(value,'$.executable_at'),
+        json_extract(value,'$.last_seen_at'),json_extract(value,'$.high'),json_extract(value,'$.low'),json_extract(value,'$.latest_features')
+      FROM json_each(?) WHERE 1
       ON CONFLICT(session_date,symbol,version) DO UPDATE SET
-      first_provider_at=COALESCE(research_outcomes.first_provider_at,excluded.first_provider_at),
-      first_seen_at=COALESCE(research_outcomes.first_seen_at,excluded.first_seen_at),
-      first_price=COALESCE(research_outcomes.first_price,excluded.first_price),first_change=COALESCE(research_outcomes.first_change,excluded.first_change),
-      shortlisted_at=COALESCE(research_outcomes.shortlisted_at,excluded.shortlisted_at),runner_at=COALESCE(research_outcomes.runner_at,excluded.runner_at),
-      executable_at=COALESCE(research_outcomes.executable_at,excluded.executable_at),last_seen_at=excluded.last_seen_at,
-      high=CASE WHEN excluded.high IS NULL THEN research_outcomes.high WHEN research_outcomes.high IS NULL THEN excluded.high ELSE MAX(research_outcomes.high,excluded.high) END,
-      low=CASE WHEN excluded.low IS NULL THEN research_outcomes.low WHEN research_outcomes.low IS NULL THEN excluded.low ELSE MIN(research_outcomes.low,excluded.low) END,
-      latest_features=excluded.latest_features`)
-      .bind(sessionDate(now),symbol,LEADER_VERSION,['recent','held_or_continuity'].includes(source)?null:stamp,
-        universe.has(symbol)?stamp:null,c?.price??null,c?.dayChangePct??null,source,'equity_unclassified',shortlisted?stamp:null,
-        c&&shortlisted&&!runnerReasons(c).length?stamp:null,c&&shortlisted&&!runnerReasons(c).length&&c.executionFresh?stamp:null,
-        stamp,c?.price??null,c?.price??null,encoded));
-  }
-  for(let i=0;i<statements.length;i+=50) await db.batch(statements.slice(i,i+50));
+        first_provider_at=COALESCE(research_outcomes.first_provider_at,excluded.first_provider_at),
+        first_seen_at=COALESCE(research_outcomes.first_seen_at,excluded.first_seen_at),
+        first_price=COALESCE(research_outcomes.first_price,excluded.first_price),
+        first_change=COALESCE(research_outcomes.first_change,excluded.first_change),
+        shortlisted_at=COALESCE(research_outcomes.shortlisted_at,excluded.shortlisted_at),
+        runner_at=COALESCE(research_outcomes.runner_at,excluded.runner_at),
+        executable_at=COALESCE(research_outcomes.executable_at,excluded.executable_at),
+        last_seen_at=excluded.last_seen_at,
+        high=CASE WHEN excluded.high IS NULL THEN research_outcomes.high WHEN research_outcomes.high IS NULL THEN excluded.high ELSE MAX(research_outcomes.high,excluded.high) END,
+        low=CASE WHEN excluded.low IS NULL THEN research_outcomes.low WHEN research_outcomes.low IS NULL THEN excluded.low ELSE MIN(research_outcomes.low,excluded.low) END,
+        latest_features=excluded.latest_features`).bind(encoded)
+  ]);
 }
 
 export function moverMiss(first:any,entry:any,reasons:string[]){
@@ -60,15 +81,20 @@ export async function auditMovers(db:D1Database,phase:string,now=new Date()){
   const board=(await db.prepare('SELECT * FROM hunt_gainer_board WHERE bucket=? ORDER BY rank LIMIT 20').bind(bucket).all<any>()).results??[];
   if(!board.length) return {count:0};
   const outcomes=(await db.prepare('SELECT * FROM research_outcomes WHERE session_date=? AND version=?').bind(date,LEADER_VERSION).all<any>()).results??[];
-  const entries=(await db.prepare(`SELECT symbol,opened_at,entry_price,entry_day_change_pct,'equity' AS asset_type,version FROM hunt_account_positions WHERE opened_at>=?
-    UNION ALL SELECT underlying AS symbol,opened_at,entry_price,entry_day_change_pct,'option' AS asset_type,version FROM hunt_account_option_positions WHERE opened_at>=?`)
-    .bind(date,date).all<any>()).results??[];
+  const entries=(await db.prepare(`SELECT p.symbol,p.opened_at,p.entry_price,p.entry_day_change_pct,'equity' AS asset_type,p.version
+      FROM hunt_account_positions p JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1
+      WHERE p.opened_at>=? AND p.version=?
+    UNION ALL
+    SELECT p.underlying AS symbol,p.opened_at,p.entry_price,p.entry_day_change_pct,'option' AS asset_type,p.version
+      FROM hunt_account_option_positions p JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1
+      WHERE p.opened_at>=? AND p.version=?`)
+    .bind(date,LEADER_VERSION,date,LEADER_VERSION).all<any>()).results??[];
   const symbols=board.map(g=>g.symbol);
   const decisions=(await db.prepare(`SELECT * FROM candidate_decisions WHERE created_at>=? AND version=? AND symbol IN (${symbols.map(()=>'?').join(',')})
     ORDER BY CASE WHEN COALESCE(json_extract(features,'$.day_change_pct'),0)<=10 THEN 0 ELSE 1 END,
     CASE stage WHEN 'ENTRY' THEN 0 WHEN 'OPTION_CHAIN' THEN 1 ELSE 2 END,created_at ASC`)
     .bind(date,LEADER_VERSION,...symbols).all<any>()).results??[];
-  const statements:D1PreparedStatement[]=[];
+  const auditRows:any[]=[];
   for(const g of board){
     const first=outcomes.find(o=>o.symbol===g.symbol);
     const entry=entries.filter(e=>e.symbol===g.symbol&&sessionDate(new Date(e.opened_at))===date).sort((a,b)=>a.opened_at.localeCompare(b.opened_at))[0];
@@ -87,9 +113,12 @@ export async function auditMovers(db:D1Database,phase:string,now=new Date()){
       excursion_basis:'observed research prices after first usable price; not continuous-market best fill',
       miss_reason:moverMiss(first,entry,reasons),miss_reason_decision_at:rejects[0]?.created_at??null,rejection_reasons:reasons,
       rejection_by_account:rejects.filter(d=>d.account_id).map(d=>({account:d.account_id,lane:d.lane,reasons:JSON.parse(d.reasons)})),version:LEADER_VERSION};
-    statements.push(db.prepare('INSERT OR REPLACE INTO mover_audits VALUES(?,?,?,?,?,?,?)').bind(bucket,g.symbol,date,phase,g.rank,JSON.stringify(summary),LEADER_VERSION));
+    auditRows.push({bucket,symbol:g.symbol,session_date:date,phase,rank:g.rank,summary:JSON.stringify(summary),version:LEADER_VERSION});
   }
-  await db.batch(statements);
+  await db.prepare(`INSERT OR REPLACE INTO mover_audits(bucket,symbol,session_date,phase,rank,summary,version)
+    SELECT json_extract(value,'$.bucket'),json_extract(value,'$.symbol'),json_extract(value,'$.session_date'),
+      json_extract(value,'$.phase'),json_extract(value,'$.rank'),json_extract(value,'$.summary'),json_extract(value,'$.version')
+    FROM json_each(?)`).bind(JSON.stringify(auditRows)).run();
   return {count:board.length};
 }
 
@@ -127,6 +156,6 @@ export async function performanceReport(db:D1Database,url:URL){
     ${where.replaceAll('closed_at','created_at')} GROUP BY version,event_type`).bind(...params).all<any>()).results??[];
   const count=(event:string)=>events.filter(e=>e.event_type===event).reduce((n,e)=>n+Number(e.count),0);
   return {ok:true,read_only:true,version,window:url.searchParams.get('window')??'all-time',current_version:LEADER_VERSION,
-    sample_unit:'account trades; capital tiers are correlated simulations, not independent signals',summary:{...distribution(rows),ladder_25_hits:count('LADDER_25'),ladder_50_hits:count('LADDER_50'),ladder_100_hits:count('LADDER_100'),take200_events:count('TAKE_200')},
+    sample_unit:'single active $250 Leader paper account; historical capital tiers are preserved but excluded from current runtime',summary:{...distribution(rows),ladder_25_hits:count('LADDER_25'),ladder_50_hits:count('LADDER_50'),ladder_100_hits:count('LADDER_100'),take200_events:count('TAKE_200')},
     lifecycle_events:events,group:dimension,groups:[...groups].map(([key,r])=>({key,...distribution(r)}))};
 }
