@@ -152,7 +152,7 @@ test('leader v7 reserves equity entries for asymmetric runner candidates',()=>{
 test('leader hunt ladders small profits, takes 85% at +200%, then peak-tests a 5% runner',async()=>{
  const {env,db}=await setup();
  const accounts=db.prepare("SELECT label,starting_equity,cash FROM hunt_accounts ORDER BY starting_equity").all();
- assert.deepEqual(accounts.map(x=>x.starting_equity),[100,1000,10000,100000,500000]);
+ assert.deepEqual(accounts.map(x=>x.starting_equity),[100,250,1000,10000,100000,500000]);
  const c={...candidate,price:4,bid:4,ask:4.01,dayChangePct:4,dayVolume:100000,previousDayVolume:100000,minuteVolume:100000,spreadPct:.25,volumeAccel:.10,consecutiveHits:3,catalystScore:0,catalystSummary:'',score:60,reasons:['fixture'],executionFresh:true,discoverySource:'top_gainer'};
  assert.equal(leaderHuntEligible(c),true);
  assert.equal(leaderHuntEligible({...c,dayChangePct:10.01}),false);
