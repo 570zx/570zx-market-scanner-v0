@@ -1,6 +1,13 @@
+import {equityExitCapacity,partialLeaderExit} from './position-liquidity.ts';
+import {persistResearch,auditMovers,recordDecision,decisionStatement,performanceReport} from './research-audit.ts';
+import {ENGINE_VERSION, LEADER_VERSION, SCHEMA_VERSION, LEASE_MS, ensureAutonomousSchema, fencedDatabase, markState, saveValuation, healthState, plannedCadence, type MarkState} from './autonomous.ts';
+import {MarketDataCycle, mandatoryUniverse, refreshHeldQuotes, retainQuotes, retainedQuoteMap} from './market-data.ts';
+import {runnerReasons, executionReasons, optionDirection, candidateLane, orderedRunnerCandidates, preservedMaxHold} from './leader-policy.ts';
 import {SIM_VERSION, EXEC_VERSION, LIMITS, validQuote, equityExit, optionQuote, riskCapacity, type Exposure} from './paper-accounting.ts';
 
 interface Env {
+  DATA?: MarketDataCycle;
+  ENGINE_CADENCE?: string;
   ADMIN_TOKEN?: string;
   SCOUT_ENABLED?: string;
   MEDS_DB: D1Database;
@@ -59,6 +66,7 @@ type Candidate = {
   quoteAgeMs?: number;
   discoverySource?: string;
   discoveryRank?: number|null;
+  dataWarnings?: string[];
 };
 
 const ALPACA_DATA = "https://data.alpaca.markets";
@@ -128,6 +136,7 @@ function regularSession(date = new Date()): boolean {
 }
 
 async function alpacaJson(env: Env, path: string): Promise<any> {
+  if(env.DATA) return env.DATA.json(path);
   const r = await fetch(`${ALPACA_DATA}${path}`, { headers: headers(env), redirect:"manual", signal:AbortSignal.timeout(5000) });
   if (!r.ok) throw new Error(`Alpaca HTTP ${r.status}`);
   return r.json();
@@ -279,7 +288,8 @@ async function fetchSnapshots(env: Env, symbols: string[]): Promise<Record<strin
     return alpacaJson(env,`/v2/stocks/snapshots?symbols=${q}&feed=${feed}`);
   }));
   const pages=results.filter((x):x is PromiseFulfilledResult<any>=>x.status==='fulfilled').map(x=>x.value);
-  if(symbols.length && !pages.length) throw new Error('all stock snapshot batches unavailable');
+  // Individual/all stock failures remain visible in cycle provider telemetry;
+  // independent option management still runs with its own data.
   return Object.assign({},...pages);
 }
 
@@ -293,9 +303,7 @@ async function fetchNewsForSymbols(env: Env, symbols: string[]) {
   if (!symbols.length) return [] as any[];
   const start = new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString();
   const q = new URLSearchParams({ symbols: symbols.join(","), limit: "35", sort: "desc", start });
-  const r = await fetch(`${ALPACA_DATA}/v1beta1/news?${q}`, { headers: headers(env), redirect:"manual", signal:AbortSignal.timeout(5000) });
-  if (!r.ok) throw new Error(`News HTTP ${r.status}`);
-  const j: any = await r.json();
+  const j=await alpacaJson(env,`/v1beta1/news?${q}`);
   return j.news ?? [];
 }
 
@@ -398,12 +406,8 @@ async function manageShadowPositions(env: Env, snapshots: Record<string, Snapsho
 
   for (const p of rows.results ?? []) {
     const snap = snapshots[p.symbol];
-    const overnight = stockFeed() === "overnight";
-    const quoteFresh = freshTimestamp(snap?.latestQuote?.t, 5 * 60_000);
-    const tradeFresh = freshTimestamp(snap?.latestTrade?.t, overnight ? 20 * 60_000 : 5 * 60_000);
-    const quoteMid = snap?.latestQuote?.bp && snap?.latestQuote?.ap ? (snap.latestQuote.bp + snap.latestQuote.ap) / 2 : undefined;
-    const px = overnight && quoteFresh ? quoteMid : (tradeFresh ? snap?.latestTrade?.p : snap?.minuteBar?.c);
-    if (!px) continue;
+    if(!validQuote(snap?.latestQuote)) continue;
+    const px=snap!.latestQuote!.bp*(1-0.0002);
     const gain = px / p.entry_price - 1;
     const high = Math.max(p.highest_price, px);
     let remaining = p.remaining_qty;
@@ -449,6 +453,7 @@ async function manageShadowPositions(env: Env, snapshots: Record<string, Snapsho
 type D1Like = D1Database;
 
 type PaperEnv = {
+  DATA?: MarketDataCycle;
   MEDS_DB: D1Like;
   ALPACA_API_KEY: string;
   ALPACA_API_SECRET: string;
@@ -483,6 +488,7 @@ type PaperCandidate = {
   quoteAgeMs?: number;
   discoverySource?: string;
   discoveryRank?: number|null;
+  dataWarnings?: string[];
 };
 
 type Ledger = {
@@ -540,10 +546,11 @@ INSERT INTO paper_meta(id,version,initialized_at) VALUES(1,2,strftime('%Y-%m-%dT
 `;
 
 async function ensurePaperSchema(env:PaperEnv){
-  try {
-    const row=await env.MEDS_DB.prepare(`SELECT version FROM paper_meta WHERE id=1`).first<any>();
-    if(Number(row?.version)>=9) return;
-  } catch { /* first boot before paper tables exist */ }
+  let version=0;
+  try {version=Number((await env.MEDS_DB.prepare(`SELECT version FROM paper_meta WHERE id=1`).first<any>())?.version??0);}
+  catch { /* first boot before paper tables exist */ }
+  if(version>=SCHEMA_VERSION) return;
+  if(version>=9){await ensureAutonomousSchema(env.MEDS_DB);return;}
   // D1 exec() treats newline-delimited input as separate statements, which
   // breaks the multiline INSERT ... SELECT seed below. Prepare complete
   // semicolon-delimited statements and apply them atomically instead.
@@ -715,6 +722,7 @@ async function ensurePaperSchema(env:PaperEnv){
       ON hunt_gainer_board(session_date,bucket,rank)`)
   ]);
   await env.MEDS_DB.prepare(`UPDATE paper_meta SET version=9 WHERE id=1`).run();
+  await ensureAutonomousSchema(env.MEDS_DB);
 }
 const LEDGER_POLICY: Record<string,{maxRiskPct:number;maxAllocPct:number;primaryMax:number;shadowMax:number}> = {
   A: {maxRiskPct:0.05,maxAllocPct:0.25,primaryMax:3,shadowMax:7},
@@ -750,7 +758,7 @@ function bucket5(date=new Date()){
   const ms=5*60*1000; return new Date(Math.floor(date.getTime()/ms)*ms).toISOString();
 }
 
-const HUNT_VERSION='leader-hunt-v7-asymmetric-runner';
+const HUNT_VERSION=LEADER_VERSION;
 const HUNT_TRACKED_PER_CYCLE=24;
 const HUNT_EARLY_SOURCE_RESERVE=12;
 const HUNT_DISCOVERY_MAX_SYMBOLS=260;
@@ -824,16 +832,7 @@ function leaderEquityRunnerScore(c:PaperCandidate){
   return s;
 }
 
-function leaderEquityRunnerEligible(c:PaperCandidate){
-  const dayVolRatio=c.previousDayVolume>0?c.dayVolume/c.previousDayVolume:0;
-  const earlySource=c.discoverySource==='top_gainer'||c.discoverySource==='fresh_news';
-  const ignition=earlySource||c.catalystScore>0||c.volumeAccel>=0.08||dayVolRatio>=0.6||c.consecutiveHits>=2;
-  return leaderHuntEligible(c) &&
-    c.price<=HUNT_EQUITY_RUNNER_MAX_PRICE &&
-    c.dayChangePct>=-3 &&
-    c.catalystScore>=0 &&
-    ignition;
-}
+function leaderEquityRunnerEligible(c:PaperCandidate){ return runnerReasons(c).length===0; }
 
 function huntFeatures(c:PaperCandidate,marketPhase:ReturnType<typeof phase>){
   const x=c as PaperCandidate & {executionFresh?:boolean;quoteAgeMs?:number};
@@ -850,6 +849,7 @@ function huntFeatures(c:PaperCandidate,marketPhase:ReturnType<typeof phase>){
 }
 
 async function alpaca(env:PaperEnv,path:string):Promise<any>{
+  if(env.DATA) return env.DATA.json(path);
   const r=await fetch(`${PAPER_ALPACA_DATA}${path}`,{headers:paperHeaders(env),redirect:'manual',signal:AbortSignal.timeout(5000)});
   if(!r.ok) throw new Error(`Alpaca paper-lab HTTP ${r.status}`);
   return r.json();
@@ -889,11 +889,9 @@ async function manageLeaderHuntPositions(env:PaperEnv,snaps:Record<string,PaperS
   let exits=0;
   for(const p of rows.results??[]){
     const q=snaps[p.symbol]?.latestQuote;
-    if(!validQuote(q,now.getTime())) continue;
+    if(!validQuote(q,env.DATA?Date.now():now.getTime())) continue;
     const bid=Number(q.bp),ask=Number(q.ap),mid=(bid+ask)/2;
-    await env.MEDS_DB.prepare("UPDATE hunt_account_option_positions SET current_mark=?,current_mark_at=? WHERE id=?")
-      .bind(bid,now.toISOString(),p.id).run();
-    const high=Math.max(Number(p.highest_price),mid),low=Math.min(Number(p.lowest_price),mid);
+    const high=Math.max(Number(p.highest_price),bid),low=Math.min(Number(p.lowest_price),bid);
     const ageMin=Math.max(0,(now.getTime()-Date.parse(p.opened_at))/60000);
     const stop=bid<=Number(p.stop_price),target=bid>=Number(p.target_price),timeExit=ageMin>=HUNT_MAX_HOLD_MIN;
     if(!stop&&!target&&!timeExit){
@@ -909,7 +907,7 @@ async function manageLeaderHuntPositions(env:PaperEnv,snaps:Record<string,PaperS
       env.MEDS_DB.prepare("UPDATE hunt_positions SET status='closed',highest_price=?,lowest_price=? WHERE id=?").bind(high,low,p.id),
       env.MEDS_DB.prepare(`INSERT INTO hunt_trades(symbol,opened_at,closed_at,entry_price,exit_price,return_pct,mfe_pct,mae_pct,minutes_held,exit_reason,entry_score,entry_day_change_pct,opened_phase,features,version)
         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-        .bind(p.symbol,p.opened_at,now.toISOString(),p.entry_price,fill,ret,mfe,mae,ageMin,reason,p.entry_score,p.entry_day_change_pct,p.opened_phase,p.features,HUNT_VERSION)
+        .bind(p.symbol,p.opened_at,now.toISOString(),p.entry_price,fill,ret,mfe,mae,ageMin,reason,p.entry_score,p.entry_day_change_pct,p.opened_phase,p.features,p.version)
     ]);
     exits++;
   }
@@ -918,34 +916,42 @@ async function manageLeaderHuntPositions(env:PaperEnv,snaps:Record<string,PaperS
 
 
 async function markHuntAccounts(env:PaperEnv,snaps:Record<string,PaperSnapshot>,now=new Date(),huntOptionMarks:Record<string,OptionSnap>={}){
-  const accounts=await env.MEDS_DB.prepare("SELECT * FROM hunt_accounts ORDER BY starting_equity").all<any>();
-  for(const a of accounts.results??[]){
-    let equity=Number(a.cash),complete=Number.isFinite(equity);
-    const positions=await env.MEDS_DB.prepare("SELECT * FROM hunt_account_positions WHERE account_id=? AND status='open'").bind(a.account_id).all<any>();
-    for(const p of positions.results??[]){
+  const accounts=(await env.MEDS_DB.prepare('SELECT * FROM hunt_accounts ORDER BY starting_equity').all<any>()).results??[];
+  const positions=(await env.MEDS_DB.prepare("SELECT * FROM hunt_account_positions WHERE status='open'").all<any>()).results??[];
+  const options=(await env.MEDS_DB.prepare("SELECT * FROM hunt_account_option_positions WHERE status='open'").all<any>()).results??[];
+  await retainQuotes(env.MEDS_DB,'equity',snaps,[...new Set(positions.map(p=>String(p.symbol)))],stockFeed(now));
+  const retained=await retainedQuoteMap(env.MEDS_DB);
+  for(const a of accounts){
+    const marks:MarkState[]=[];
+    for(const p of positions.filter(p=>p.account_id===a.account_id)){
       const q=snaps[p.symbol]?.latestQuote;
-      if(!validQuote(q,now.getTime())){complete=false;continue;}
-      equity+=Number(q.bp)*Number(p.remaining_qty??p.quantity);
+      marks.push(reportingMark(p.symbol,'equity',q,Number(p.remaining_qty??p.quantity),retained,now));
     }
-    const optionPositions=await env.MEDS_DB.prepare("SELECT * FROM hunt_account_option_positions WHERE account_id=? AND status='open'").bind(a.account_id).all<any>();
-    for(const p of optionPositions.results??[]){
+    for(const p of options.filter(p=>p.account_id===a.account_id)){
       const q=huntOptionMarks[p.symbol]?.latestQuote;
-      if(phase(now)!=='regular' || !validQuote(q,now.getTime())){complete=false;continue;}
-      equity+=Number(q.bp)*100*Number(p.remaining_qty??p.quantity);
+      marks.push(reportingMark(p.symbol,'option',q,100*Number(p.remaining_qty??p.quantity),retained,now,phase(now)==='regular'));
     }
-    if(!complete) continue;
-    const peak=Math.max(Number(a.max_equity),equity);
-    const dd=peak>0?1-equity/peak:0;
-    const maxDrawdown=Math.max(Number(a.max_drawdown_pct??0),dd);
-    await env.MEDS_DB.prepare("UPDATE hunt_accounts SET current_equity=?,max_equity=?,max_drawdown_pct=?,updated_at=? WHERE account_id=?")
-      .bind(equity,peak,maxDrawdown,now.toISOString(),a.account_id).run();
-    const currentMultiple=Number(a.starting_equity)>0?equity/Number(a.starting_equity):0;
+    const v=await saveValuation(env.MEDS_DB,a.account_id,Number(a.cash),marks,HUNT_VERSION,now);
+    if(!v.complete||v.equity===null) continue;
+    const equity=v.equity,peak=Math.max(Number(a.max_equity),equity);
+    const dd=peak>0?1-equity/peak:0,maxDrawdown=Math.max(Number(a.max_drawdown_pct??0),dd);
+    const statements=[env.MEDS_DB.prepare('UPDATE hunt_accounts SET current_equity=?,max_equity=?,max_drawdown_pct=?,updated_at=? WHERE account_id=?')
+      .bind(equity,peak,maxDrawdown,now.toISOString(),a.account_id)];
     for(const multiple of HUNT_ACCOUNT_MULTIPLES){
-      if(currentMultiple+1e-12<multiple) continue;
-      await env.MEDS_DB.prepare(`INSERT OR IGNORE INTO hunt_account_milestones(account_id,multiple,reached_at,equity,max_drawdown_pct,version)
-        VALUES(?,?,?,?,?,?)`).bind(a.account_id,multiple,now.toISOString(),equity,maxDrawdown,HUNT_VERSION).run();
+      if(equity/Number(a.starting_equity)+1e-12<multiple) continue;
+      statements.push(env.MEDS_DB.prepare('INSERT OR IGNORE INTO hunt_account_milestones VALUES(?,?,?,?,?,?)')
+        .bind(a.account_id,multiple,now.toISOString(),equity,maxDrawdown,HUNT_VERSION));
     }
+    await env.MEDS_DB.batch(statements);
   }
+}
+function reportingMark(symbol:string,asset:string,q:any,qty:number,retained:Map<string,any>,now=new Date(),marketOpen=true):MarkState{
+  const m=markState(symbol,asset,q,qty,'bid',now.getTime(),marketOpen);
+  if(m.reporting_value===null){
+    const old=markState(symbol,asset,retained.get(asset+':'+symbol),qty,'bid',now.getTime(),false);
+    return {...old,value:null,state:old.reporting_value===null?'EXECUTION_UNAVAILABLE':'MARK_STALE'};
+  }
+  return m;
 }
 
 async function manageHuntAccountPositions(env:PaperEnv,snaps:Record<string,PaperSnapshot>,now=new Date(),markAtEnd=true){
@@ -958,12 +964,15 @@ async function manageHuntAccountPositions(env:PaperEnv,snaps:Record<string,Paper
   }
   const deferredMarks:any[]=[];
   let exits=0,take200s=0,ladderSells=0;
+  const intents=(await env.MEDS_DB.prepare("SELECT * FROM hunt_exit_intents WHERE kind='equity'").all<any>()).results??[];
   for(const p of rows.results??[]){
     const positionVersion=String(p.version??HUNT_VERSION);
     const snap=snaps[p.symbol],q=snap?.latestQuote;
-    if(!validQuote(q,now.getTime())) continue;
+    if(!validQuote(q,env.DATA?Date.now():now.getTime())) continue;
     const bid=Number(q.bp),ask=Number(q.ap),mid=(bid+ask)/2;
-    const high=Math.max(Number(p.highest_price),mid),low=Math.min(Number(p.lowest_price),mid);
+    const high=Math.max(Number(p.highest_price),bid),low=Math.min(Number(p.lowest_price),bid);
+    const intent=intents.find((i:any)=>Number(i.position_id)===Number(p.id));
+    let available=equityExitCapacity(snap,now.getTime());
     const ageMin=Math.max(0,(now.getTime()-Date.parse(p.opened_at))/60000);
     let remaining=Number(p.remaining_qty??p.quantity);
     let locked=Number(p.locked_realized_pnl??0);
@@ -978,12 +987,13 @@ async function manageHuntAccountPositions(env:PaperEnv,snaps:Record<string,Paper
     // Small profit ladder: only 10% of the original position is peeled before
     // the +200% objective. This locks incremental profit without turning the
     // monster-mover experiment into a scalp strategy.
-    if(!Number(p.take200_done)){
+    if(!Number(p.take200_done)&&!intent){
       const done=ladderByPosition.get(Number(p.id))??new Set<string>();
       for(const rung of HUNT_LADDER){
         if(done.has(rung.event) || bid<Number(p.entry_price)*(1+rung.returnPct)) continue;
         const qty=Math.min(remaining,Number(p.quantity)*rung.fraction);
-        if(!(qty>0)) continue;
+        if(!(qty>0)||qty>available) continue;
+        available-=qty;
         const sell=modeledSell(qty);
         const proceeds=sell.fill*qty;
         const partialPnl=(sell.fill-Number(p.entry_price))*qty;
@@ -1004,10 +1014,10 @@ async function manageHuntAccountPositions(env:PaperEnv,snaps:Record<string,Paper
       }
     }
 
-    if(!Number(p.take200_done) && bid>=Number(p.entry_price)*(1+HUNT_TAKE_RETURN_PCT)){
+    if(!intent&&!Number(p.take200_done) && bid>=Number(p.entry_price)*(1+HUNT_TAKE_RETURN_PCT)){
       const runnerQty=Math.min(remaining,Number(p.quantity)*HUNT_RUNNER_FRACTION);
       const takeQty=Math.max(0,remaining-runnerQty);
-      if(takeQty>0){
+      if(takeQty>0&&takeQty<=available){
         const sell=modeledSell(takeQty);
         const proceeds=sell.fill*takeQty;
         const partialPnl=(sell.fill-Number(p.entry_price))*takeQty;
@@ -1035,7 +1045,7 @@ async function manageHuntAccountPositions(env:PaperEnv,snaps:Record<string,Paper
       const retrace=runnerHigh>0?1-bid/runnerHigh:0;
       const peakExit=retrace>=HUNT_RUNNER_TRAIL_PCT;
       const runnerTimeout=runnerAgeMin>=HUNT_RUNNER_MAX_HOLD_MIN;
-      if(!peakExit&&!runnerTimeout){
+      if(!peakExit&&!runnerTimeout&&!intent){
         deferredMarks.push(env.MEDS_DB.prepare("UPDATE hunt_account_positions SET highest_price=?,lowest_price=?,runner_high=? WHERE id=?")
           .bind(high,low,runnerHigh,p.id));
         continue;
@@ -1048,7 +1058,8 @@ async function manageHuntAccountPositions(env:PaperEnv,snaps:Record<string,Paper
       const mfe=(high/Number(p.entry_price)-1)*100;
       const mae=(low/Number(p.entry_price)-1)*100;
       const peakGap=runnerHigh>0?(runnerHigh-sell.fill)/runnerHigh*100:0;
-      const reason=peakExit?'runner_peak_retrace':'runner_time';
+      const reason=intent?.reason??(peakExit?'runner_peak_retrace':'runner_time');
+      if(remaining>available){await partialLeaderExit(env.MEDS_DB,'equity',{...p,remaining_qty:remaining,highest_price:high,lowest_price:low},available,modeledSell(available).fill,reason,locked,now);continue;}
       await env.MEDS_DB.batch([
         env.MEDS_DB.prepare("UPDATE hunt_account_positions SET status='closed',remaining_qty=0,highest_price=?,lowest_price=?,runner_high=? WHERE id=?")
           .bind(high,low,runnerHigh,p.id),
@@ -1069,14 +1080,15 @@ async function manageHuntAccountPositions(env:PaperEnv,snaps:Record<string,Paper
     }
 
     const stop=bid<=Number(p.stop_price);
-    const legacyBluechipExit=positionVersion!==HUNT_VERSION && Number(p.entry_price)>HUNT_EQUITY_RUNNER_MAX_PRICE && ageMin>=HUNT_LEGACY_BLUECHIP_EXIT_MIN;
-    const maxHoldMin=positionVersion===HUNT_VERSION?HUNT_MAX_HOLD_MIN:HUNT_LEGACY_MIGRATION_MAX_HOLD_MIN;
+    const legacyBluechipExit=!/^leader-hunt-v[78]-/.test(positionVersion) && Number(p.entry_price)>HUNT_EQUITY_RUNNER_MAX_PRICE && ageMin>=HUNT_LEGACY_BLUECHIP_EXIT_MIN;
+    const maxHoldMin=preservedMaxHold(positionVersion,'equity',p.features);
     const timeExit=legacyBluechipExit || ageMin>=maxHoldMin;
-    if(!stop&&!timeExit){
+    if(!stop&&!timeExit&&!intent){
       deferredMarks.push(env.MEDS_DB.prepare("UPDATE hunt_account_positions SET highest_price=?,lowest_price=? WHERE id=?").bind(high,low,p.id));
       continue;
     }
-    const reason=stop?'stop':'time';
+    const reason=intent?.reason??(stop?'stop':'time');
+    if(remaining>available){await partialLeaderExit(env.MEDS_DB,'equity',{...p,remaining_qty:remaining,highest_price:high,lowest_price:low},available,modeledSell(available).fill,reason,locked,now);continue;}
     const sell=modeledSell(remaining);
     const proceeds=sell.fill*remaining;
     const finalPnl=(sell.fill-Number(p.entry_price))*remaining;
@@ -1101,6 +1113,23 @@ async function manageHuntAccountPositions(env:PaperEnv,snaps:Record<string,Paper
   return {exits,take200s,ladderSells};
 }
 
+async function loadHuntBook(env:PaperEnv,now:Date){
+  const accounts=(await env.MEDS_DB.prepare('SELECT a.*,r.revision FROM hunt_accounts a JOIN hunt_revisions r USING(account_id) ORDER BY starting_equity').all<any>()).results??[];
+  const open=(await env.MEDS_DB.prepare(`SELECT account_id,symbol FROM hunt_account_positions WHERE status='open'
+    UNION ALL SELECT account_id,underlying AS symbol FROM hunt_account_option_positions WHERE status='open'`).all<any>()).results??[];
+  const cutoff=new Date(now.getTime()-HUNT_REENTRY_COOLDOWN_MIN*60000).toISOString();
+  const recent=(await env.MEDS_DB.prepare(`SELECT account_id,symbol FROM hunt_account_trades WHERE closed_at>=?
+    UNION ALL SELECT account_id,underlying AS symbol FROM hunt_account_option_trades WHERE closed_at>=?`).bind(cutoff,cutoff).all<any>()).results??[];
+  return accounts.map(a=>({...a,open:new Set(open.filter(p=>p.account_id===a.account_id).map(p=>p.symbol)),
+    count:open.filter(p=>p.account_id===a.account_id).length,cooldown:new Set(recent.filter(p=>p.account_id===a.account_id).map(p=>p.symbol))}));
+}
+function huntAccountReason(row:any,symbol:string){
+  if(row.open.has(symbol)) return 'DUPLICATE_POSITION';
+  if(row.cooldown.has(symbol)) return 'REENTRY_COOLDOWN';
+  if(row.count>=HUNT_MAX_OPEN) return 'OPEN_POSITION_CAP';
+  if(row.cash<=row.starting_equity*HUNT_CAPITAL_RESERVE_PCT) return 'CAPITAL_RESERVE_BLOCK';
+  return null;
+}
 async function runHuntAccounts(env:PaperEnv,candidates:PaperCandidate[],snaps:Record<string,PaperSnapshot>,now=new Date()){
   const marketPhase=phase(now);
   const optionMarksMap=await fetchHuntOptionMarks(env,now);
@@ -1109,63 +1138,60 @@ async function runHuntAccounts(env:PaperEnv,candidates:PaperCandidate[],snaps:Re
   // Equity capital is reserved for candidates with plausible asymmetric-runner
   // characteristics. Large liquid names can still be researched and routed to
   // options, but cannot crowd these six equity slots.
-  const equityEligible=candidates
-    .filter(c=>leaderEquityRunnerEligible(c) && (c as any).executionFresh===true)
-    .sort((a,b)=>leaderEquityRunnerScore(b)-leaderEquityRunnerScore(a))
-    .slice(0,HUNT_MAX_NEW_PER_CYCLE);
+  const equityEligible=orderedRunnerCandidates(candidates,c=>validQuote(snaps[c.symbol]?.latestQuote));
   let accountEntries=0,signalsEntered=0;
+  const book=await loadHuntBook(env,now);
+  const decisions:D1PreparedStatement[]=[];
   for(const c of equityEligible){
+    if(signalsEntered>=HUNT_MAX_NEW_PER_CYCLE){decisions.push(decisionStatement(env.MEDS_DB,c,candidateLane(c),'ENTRY',['SIGNAL_CYCLE_CAP'],huntFeatures(c,marketPhase),'',now));continue;}
     const quote=snaps[c.symbol]?.latestQuote;
-    if(!validQuote(quote,now.getTime())) continue;
+    if(!validQuote(quote,env.DATA?Date.now():now.getTime())) continue;
     let signalUsed=false;
-    for(const account of HUNT_ACCOUNTS){
-      const row=await env.MEDS_DB.prepare("SELECT * FROM hunt_accounts WHERE account_id=?").bind(account.account_id).first<any>();
-      if(!row) continue;
-      const openRow=await env.MEDS_DB.prepare(`SELECT
-        (SELECT COUNT(*) FROM hunt_account_positions WHERE account_id=? AND status='open')+
-        (SELECT COUNT(*) FROM hunt_account_option_positions WHERE account_id=? AND status='open') AS n`)
-        .bind(account.account_id,account.account_id).first<any>();
-      if(Number(openRow?.n??0)>=HUNT_MAX_OPEN) continue;
-      const duplicate=await env.MEDS_DB.prepare("SELECT id FROM hunt_account_positions WHERE account_id=? AND symbol=? AND status='open' LIMIT 1").bind(account.account_id,c.symbol).first<any>();
-      if(duplicate) continue;
-      const cooldownAfter=new Date(now.getTime()-HUNT_REENTRY_COOLDOWN_MIN*60000).toISOString();
-      const recent=await env.MEDS_DB.prepare("SELECT id FROM hunt_account_trades WHERE account_id=? AND symbol=? AND closed_at>=? LIMIT 1").bind(account.account_id,c.symbol,cooldownAfter).first<any>();
-      if(recent) continue;
-
+    for(const row of book){
+      const account=row;
+      const reject=(reason:string)=>decisions.push(decisionStatement(env.MEDS_DB,c,candidateLane(c),'ENTRY',[reason],{...huntFeatures(c,marketPhase),cash:row.cash,open_count:row.count},row.account_id,now));
+      if(!validQuote(quote,env.DATA?Date.now():now.getTime())){reject('EXECUTION_QUOTE_STALE');continue;}
+      const reason=huntAccountReason(row,c.symbol);
+      if(reason){reject(reason);continue;}
       const cash=Number(row.cash);
       const capitalReserve=Math.max(0,Number(row.starting_equity)*HUNT_CAPITAL_RESERVE_PCT);
       const spendableCash=Math.max(0,cash-capitalReserve);
       const targetNotional=Math.min(Number(row.starting_equity)*HUNT_POSITION_PCT,spendableCash);
-      if(!(targetNotional>0.01)) continue;
+      if(!(targetNotional>0.01)){reject('INSUFFICIENT_SPENDABLE_CASH');continue;}
       const ask=Number(quote.ap);
       const targetQty=targetNotional/ask;
-      const minuteLiquidity=Math.max(1,Number(c.minuteVolume||0));
+      const minuteLiquidity=Math.max(0,Number(c.minuteVolume||0));
       const liquidityQty=minuteLiquidity*HUNT_MAX_MINUTE_PARTICIPATION;
       let qty=Math.min(targetQty,liquidityQty);
-      if(!(qty>0)) continue;
-      let execution=executablePrice(c,'long',qty);
-      if(qty*execution.fill>cash){
-        qty=cash/execution.fill;
-        execution=executablePrice(c,'long',qty);
+      if(!(qty>0)){reject('MINUTE_LIQUIDITY_LIMIT');continue;}
+      const observedCandidate={...c,bid:Number(quote.bp),ask:Number(quote.ap)};
+      let execution=executablePrice(observedCandidate,'long',qty);
+      if(qty*execution.fill>targetNotional){
+        qty=targetNotional/execution.fill;
+        execution=executablePrice(observedCandidate,'long',qty);
       }
       const cost=qty*execution.fill;
-      if(!(cost>0.01) || cost>cash+1e-8) continue;
+      if(!(cost>0.01) || cost>spendableCash+1e-8){reject('POSITION_SIZE_ZERO');continue;}
       const stop=execution.fill*0.95,target=execution.fill*(1+HUNT_TAKE_RETURN_PCT);
-      const features=JSON.stringify({...huntFeatures(c,marketPhase),asset_type:'equity',account:account.label,target_notional:targetNotional,
+      const features=JSON.stringify({...huntFeatures(c,marketPhase),asset_type:'equity',max_hold_minutes:HUNT_MAX_HOLD_MIN,account:account.label,target_notional:targetNotional,
         actual_notional:cost,quantity:qty,entry_slippage_pct:execution.slipPct,
         capacity_limited:qty+1e-12<targetQty,minute_participation:qty/minuteLiquidity,fractional_paper:true}).slice(0,12000);
       await env.MEDS_DB.batch([
+        decisionStatement(env.MEDS_DB,c,candidateLane(c),'ENTRY',[],JSON.parse(features),row.account_id,now,'ENTERED'),
+        env.MEDS_DB.prepare('INSERT OR REPLACE INTO hunt_risk_guards VALUES(?,?)').bind(account.account_id,row.revision),
         env.MEDS_DB.prepare(`INSERT INTO hunt_account_positions(account_id,symbol,opened_at,entry_price,quantity,entry_notional,stop_price,target_price,highest_price,lowest_price,entry_score,entry_day_change_pct,opened_phase,features,status,version,remaining_qty,locked_realized_pnl,take200_done)
           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,'open',?,?,0,0)`)
           .bind(account.account_id,c.symbol,now.toISOString(),execution.fill,qty,cost,stop,target,execution.fill,execution.fill,c.score,c.dayChangePct,marketPhase,features,HUNT_VERSION,qty),
         env.MEDS_DB.prepare("UPDATE hunt_accounts SET cash=cash-?,updated_at=? WHERE account_id=?").bind(cost,now.toISOString(),account.account_id)
       ]);
+      row.cash-=cost;row.revision++;row.count++;row.open.add(c.symbol);
       accountEntries++;signalUsed=true;
     }
     if(signalUsed) signalsEntered++;
   }
 
-  const optionEntries=await enterLeaderHuntOptions(env,candidates,now,optionMarksMap);
+  for(let i=0;i<decisions.length;i+=50) await env.MEDS_DB.batch(decisions.slice(i,i+50));
+  const optionEntries=await enterLeaderHuntOptions(env,candidates,now,optionMarksMap,snaps);
   await markHuntAccounts(env,snaps,now,optionMarksMap);
   return {
     exits:management.exits+optionManagement.exits,
@@ -1192,9 +1218,9 @@ async function runLeaderHunt(env:PaperEnv,candidates:PaperCandidate[],snaps:Reco
         leaderEquityRunnerEligible(c) && (c as any).executionFresh===true ? 'ELIGIBLE':'TRACKED',features,HUNT_VERSION).run();
   }
   const accounts=await runHuntAccounts(env,tracked,snaps,now);
-  for(const c of tracked.filter(c=>leaderEquityRunnerEligible(c) && (c as any).executionFresh===true).sort((a,b)=>leaderEquityRunnerScore(b)-leaderEquityRunnerScore(a)).slice(0,HUNT_MAX_NEW_PER_CYCLE)){
-    await env.MEDS_DB.prepare("UPDATE hunt_observations SET status='ACCOUNT_SAMPLED' WHERE bucket=? AND symbol=?").bind(bucket,c.symbol).run();
-  }
+  await env.MEDS_DB.prepare(`UPDATE hunt_observations SET status='ACCOUNT_SAMPLED' WHERE bucket=? AND symbol IN
+    (SELECT symbol FROM hunt_account_positions WHERE opened_at>=? AND version=? UNION SELECT underlying FROM hunt_account_option_positions WHERE opened_at>=? AND version=?)`)
+    .bind(bucket,bucket,HUNT_VERSION,bucket,HUNT_VERSION).run();
   const openRow=await env.MEDS_DB.prepare(`SELECT
     (SELECT COUNT(*) FROM hunt_account_positions WHERE status='open')+
     (SELECT COUNT(*) FROM hunt_account_option_positions WHERE status='open') AS n`).first<any>();
@@ -1212,15 +1238,16 @@ async function runLeaderHunt(env:PaperEnv,candidates:PaperCandidate[],snaps:Reco
 }
 
 async function openCount(env:PaperEnv,ledger:string,lane:string,table='paper_positions'){
-  const row=await env.MEDS_DB.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE ledger_id=? AND lane=? AND status='open'`).bind(ledger,lane).first<any>();
+  const row=await env.MEDS_DB.prepare(`SELECT (SELECT COUNT(*) FROM paper_positions WHERE ledger_id=? AND lane=? AND status='open')+(SELECT COUNT(*) FROM paper_option_positions WHERE ledger_id=? AND lane=? AND status='open') AS n`).bind(ledger,lane,ledger,lane).first<any>();
   return Number(row?.n??0);
 }
 async function hasOpen(env:PaperEnv,ledger:string,lane:string,symbol:string,strategy:string){
-  const r=await env.MEDS_DB.prepare(`SELECT id FROM paper_positions WHERE ledger_id=? AND symbol=? AND status='open' LIMIT 1`).bind(ledger,symbol).first<any>();
+  const r=await env.MEDS_DB.prepare(`SELECT id FROM paper_positions WHERE ledger_id=? AND symbol=? AND status='open'
+    UNION ALL SELECT id FROM paper_option_positions WHERE ledger_id=? AND underlying=? AND status='open' LIMIT 1`).bind(ledger,symbol,ledger,symbol).first<any>();
   return !!r;
 }
 
-type PaperContext = {stocks:Record<string,PaperSnapshot>; options:Record<string,OptionSnap>};
+type PaperContext = {stocks:Record<string,PaperSnapshot>; options:Record<string,OptionSnap>; retained?:Map<string,any>};
 function spreadWidth(p:any):number|null {
   if(!p.short_symbol) return null;
   const l=parseOcc(p.long_symbol), r=parseOcc(p.short_symbol);
@@ -1234,10 +1261,14 @@ async function valueLedger(env:PaperEnv,ledger:Ledger,ctx:PaperContext){
   const revision=Number((await env.MEDS_DB.prepare('SELECT revision FROM paper_account_revisions WHERE ledger_id=?').bind(ledger.ledger_id).first<any>())?.revision??-1);
   const cash=await env.MEDS_DB.prepare('SELECT cash FROM paper_ledgers WHERE ledger_id=?').bind(ledger.ledger_id).first<any>();
   let equity=Number(cash?.cash); const warnings:string[]=[];const exposures:Exposure[]=[];
+  const marks:MarkState[]=[];ctx.retained??=await retainedQuoteMap(env.MEDS_DB);
   if(!Number.isFinite(equity)) warnings.push('invalid cash');
   const equities=await env.MEDS_DB.prepare("SELECT * FROM paper_positions WHERE ledger_id=? AND status='open'").bind(ledger.ledger_id).all<any>();
   for(const p of equities.results??[]){
     const q=ctx.stocks[p.symbol]?.latestQuote;
+    const detail=reportingMark(p.symbol,'equity',q,p.quantity,ctx.retained);
+    if(p.direction!=='long') {detail.value=null;detail.reporting_value=null;detail.state='EXECUTION_UNAVAILABLE';warnings.push('unsupported legacy short valuation: '+p.symbol);}
+    marks.push(detail);
     if(!validQuote(q)){warnings.push('equity quote unavailable/stale: '+p.symbol);continue;}
     const mark=p.direction==='long'?q.bp:q.ap;
     const pnl=(p.direction==='long'?mark-p.entry_price:p.entry_price-mark)*p.quantity;
@@ -1247,16 +1278,26 @@ async function valueLedger(env:PaperEnv,ledger:Ledger,ctx:PaperContext){
   const options=await env.MEDS_DB.prepare("SELECT * FROM paper_option_positions WHERE ledger_id=? AND status='open'").bind(ledger.ledger_id).all<any>();
   for(const p of options.results??[]){
     const mark=optionQuote(ctx.options[p.long_symbol]?.latestQuote,ctx.options[p.short_symbol]?.latestQuote,spreadWidth(p));
+    let reporting=mark;
+    if(!reporting){
+      const l=ctx.retained.get('option:'+p.long_symbol),r=p.short_symbol?ctx.retained.get('option:'+p.short_symbol):undefined;
+      const asOf=Math.max(Date.parse(l?.t??''),p.short_symbol?Date.parse(r?.t??''):0);
+      if(Number.isFinite(asOf)&&asOf<=Date.now()) reporting=optionQuote(l,r,spreadWidth(p),asOf);
+    }
+    marks.push({symbol:p.long_symbol,asset:'option',state:mark?'FRESH':reporting?'MARK_STALE':'EXECUTION_UNAVAILABLE',
+      value:mark?mark.liquidation*100*p.quantity:null,reporting_value:reporting?reporting.liquidation*100*p.quantity:null,
+      quote_at:reporting?.quote_at??null,age_seconds:reporting?Math.max(0,(Date.now()-Date.parse(reporting.quote_at))/1000):null});
     if(!mark){warnings.push('option quote unavailable/stale/invalid: '+p.long_symbol);continue;}
     equity+=mark.liquidation*100*p.quantity;
     exposures.push({underlying:p.underlying,risk:Number(p.initial_risk),notional:p.entry_debit*100*p.quantity,unrealized:(mark.liquidation-p.entry_debit)*100*p.quantity});
   }
   const finalRevision=Number((await env.MEDS_DB.prepare('SELECT revision FROM paper_account_revisions WHERE ledger_id=?').bind(ledger.ledger_id).first<any>())?.revision??-1);
   if(revision<0 || revision!==finalRevision) warnings.push('portfolio changed during valuation');
-  return {complete:warnings.length===0,equity:warnings.length?null:equity,warnings,exposures,revision};
+  return {complete:warnings.length===0,equity:warnings.length?null:equity,warnings,exposures,revision,marks,cash:Number(cash?.cash),known_value:equity};
 }
 async function markLedger(env:PaperEnv,ledger:Ledger,ctx:PaperContext){
   const v=await valueLedger(env,ledger,ctx);
+  await saveValuation(env.MEDS_DB,'PAPER:'+ledger.ledger_id,v.cash,v.marks,SIM_VERSION,new Date(),v.warnings.some(w=>w==='invalid cash'||w.includes('portfolio changed')||w.includes('unsupported legacy')));
   const statements=[env.MEDS_DB.prepare('INSERT INTO paper_valuations(ledger_id,created_at,equity,complete,diagnostics,exposures,simulator_version) VALUES(?,?,?,?,?,?,?)')
     .bind(ledger.ledger_id,new Date().toISOString(),v.equity,v.complete?1:0,JSON.stringify(v.warnings),JSON.stringify(v.exposures),SIM_VERSION)];
   if(v.complete && v.equity!==null) statements.push(env.MEDS_DB.prepare(`INSERT INTO paper_metric_epochs(ledger_id,simulator_version,max_equity,max_drawdown_pct) VALUES(?,?,?,0)
@@ -1380,10 +1421,18 @@ async function optionChain(env:PaperEnv,c:PaperCandidate,direction:'bull'|'bear'
 
 async function optionMarks(env:PaperEnv,symbols:string[]){
   const out:Record<string,OptionSnap>={};
-  for(let i=0;i<symbols.length;i+=90){
-    const q=new URLSearchParams({symbols:symbols.slice(i,i+90).join(','),feed:'indicative'});
-    const j=await alpaca(env,`/v1beta1/options/snapshots?${q}`); Object.assign(out,j.snapshots??{});
+  const unique=[...new Set(symbols)];
+  for(let i=0;i<unique.length;i+=90){
+    const batch=unique.slice(i,i+90);
+    const path='/v1beta1/options/snapshots?'+new URLSearchParams({symbols:batch.join(','),feed:'indicative'});
+    try{const j=await alpaca(env,path);Object.assign(out,j.snapshots??{});}catch{}
+    const missing=batch.filter(s=>!validQuote(out[s]?.latestQuote));
+    if(missing.length&&env.DATA){
+      env.DATA.retries++;
+      try{const j=await env.DATA.json('/v1beta1/options/snapshots?'+new URLSearchParams({symbols:missing.join(','),feed:'indicative'}),0);Object.assign(out,j.snapshots??{});}catch{}
+    }
   }
+  await retainQuotes(env.MEDS_DB,'option',out,unique,'indicative');
   return out;
 }
 
@@ -1397,43 +1446,35 @@ type HuntOptionChoice={
   expiration:string;
 };
 
-function leaderOptionDirection(c:PaperCandidate):'bull'|'bear'|null{
-  let bull=0,bear=0;
-  if(c.catalystScore>0) bull+=2;
-  if(c.catalystScore<0) bear+=2;
-  if(c.dayChangePct>=0.75) bull++;
-  if(c.dayChangePct<=-0.75) bear++;
-  if(c.volumeAccel>=0.08) bull++;
-  if(c.volumeAccel<=-0.08) bear++;
-  if(bull===0&&bear===0) return null;
-  return bull>=bear?'bull':'bear';
-}
+function leaderOptionDirection(c:PaperCandidate):'bull'|'bear'|null{ return optionDirection(c); }
 
 async function selectLeaderOption(env:PaperEnv,c:PaperCandidate,now=new Date()):Promise<HuntOptionChoice|null>{
-  if(phase(now)!=='regular') return null;
-  const direction=leaderOptionDirection(c); if(!direction) return null;
-  const chain=await optionChain(env,c,direction);
+  if(phase(now)!=='regular'||!env.ALPACA_API_KEY||!env.ALPACA_API_SECRET) return null;
+  const direction=leaderOptionDirection(c);if(!direction) return null;
+  const chain=await optionChain(env,c,direction),failures=new Set<string>();
   const usable=chain.filter(x=>{
     const q=x.s.latestQuote;
-    if(!validQuote(q,now.getTime())) return false;
-    const bid=Number(q!.bp),ask=Number(q!.ap);
-    if(!(ask>0&&bid>0&&ask>=bid)) return false;
-    const spread=(ask-bid)/((ask+bid)/2);
-    return spread<=0.35 && Number(q!.as??0)>=1;
+    if(!validQuote(q,Date.now())){failures.add('OPTION_QUOTE_STALE');return false;}
+    if((q.ap-q.bp)/q.ap>LIMITS.optionFriction){failures.add('OPTION_SPREAD_TOO_WIDE');return false;}
+    if(!(Number(q.as)>=1&&Number(q.bs)>=1)){failures.add('OPTION_LIQUIDITY_INSUFFICIENT');return false;}
+    const days=(Date.parse(x.meta!.expiration+'T20:00:00Z')-now.getTime())/86400000;
+    if(days<6||days>46||Math.abs(x.meta!.strike/c.price-1)>.15){failures.add('OPTION_EXPIRY_OR_STRIKE_OUTSIDE_LANE');return false;}
+    const delta=x.s.greeks?.delta;
+    if(delta!=null&&(!Number.isFinite(delta)||Math.abs(delta)<.25||Math.abs(delta)>.75||(direction==='bull'?delta<=0:delta>=0))){failures.add('OPTION_DELTA_OUTSIDE_LANE');return false;}
+    return true;
   });
   usable.sort((a,b)=>{
-    const am=Math.abs(a.meta!.strike-c.price)/Math.max(0.01,c.price);
-    const bm=Math.abs(b.meta!.strike-c.price)/Math.max(0.01,c.price);
-    return am-bm || a.meta!.expiration.localeCompare(b.meta!.expiration);
+    const cost=(x:typeof a)=>Math.abs(x.meta!.strike/c.price-1)+(Number(x.s.latestQuote!.ap)-Number(x.s.latestQuote!.bp))/Number(x.s.latestQuote!.ap);
+    return cost(a)-cost(b)||a.meta!.expiration.localeCompare(b.meta!.expiration);
   });
-  const x=usable[0]; if(!x) return null;
-  return {underlying:c.symbol,symbol:x.symbol,direction:x.meta!.type as 'call'|'put',quote:x.s,
-    strike:x.meta!.strike,expiration:x.meta!.expiration};
+  const x=usable[0];
+  if(!x){await recordDecision(env.MEDS_DB,c,'OPTIONS_MOMENTUM','OPTION_CHAIN',chain.length?[...failures]:['OPTION_CHAIN_UNAVAILABLE'],{...huntFeatures(c,phase(now)),contracts_examined:chain.length},'',now);return null;}
+  return {underlying:c.symbol,symbol:x.symbol,direction:x.meta!.type as 'call'|'put',quote:x.s,strike:x.meta!.strike,expiration:x.meta!.expiration};
 }
 
 async function fetchHuntOptionMarks(env:PaperEnv,now=new Date()){
   if(phase(now)!=='regular') return {} as Record<string,OptionSnap>;
-  const rows=await env.MEDS_DB.prepare("SELECT DISTINCT symbol FROM hunt_account_option_positions WHERE status='open'").all<{symbol:string}>();
+  const rows=await env.MEDS_DB.prepare("SELECT DISTINCT symbol FROM hunt_account_option_positions WHERE status='open' UNION SELECT long_symbol AS symbol FROM paper_option_positions WHERE status='open' UNION SELECT short_symbol AS symbol FROM paper_option_positions WHERE status='open' AND short_symbol IS NOT NULL").all<{symbol:string}>();
   const symbols=(rows.results??[]).map(x=>x.symbol);
   if(!symbols.length) return {} as Record<string,OptionSnap>;
   try{return await optionMarks(env,symbols);}catch{return {} as Record<string,OptionSnap>;}
@@ -1443,11 +1484,15 @@ async function manageHuntOptionPositions(env:PaperEnv,marks:Record<string,Option
   if(phase(now)!=='regular') return {exits:0,take200s:0,ladderSells:0};
   const rows=await env.MEDS_DB.prepare("SELECT * FROM hunt_account_option_positions WHERE status='open' ORDER BY id").all<any>();
   let exits=0,take200s=0,ladderSells=0;
+  const intents=(await env.MEDS_DB.prepare("SELECT * FROM hunt_exit_intents WHERE kind='option'").all<any>()).results??[];
   for(const p of rows.results??[]){
     const q=marks[p.symbol]?.latestQuote;
-    if(!validQuote(q,now.getTime())) continue;
+    if(!validQuote(q,env.DATA?Date.now():now.getTime())) continue;
     const bid=Number(q.bp),ask=Number(q.ap),mid=(bid+ask)/2;
-    const high=Math.max(Number(p.highest_price),mid),low=Math.min(Number(p.lowest_price),mid);
+    await env.MEDS_DB.prepare('UPDATE hunt_account_option_positions SET current_mark=?,current_mark_at=? WHERE id=?').bind(bid,q.t,p.id).run();
+    const high=Math.max(Number(p.highest_price),bid),low=Math.min(Number(p.lowest_price),bid);
+    const intent=intents.find((i:any)=>Number(i.position_id)===Number(p.id));
+    let available=Math.max(0,Math.floor(Number(q.bs??0)));
     const ageMin=Math.max(0,(now.getTime()-Date.parse(p.opened_at))/60000);
     let remaining=Number(p.remaining_qty??p.quantity);
     let locked=Number(p.locked_realized_pnl??0);
@@ -1459,7 +1504,7 @@ async function manageHuntOptionPositions(env:PaperEnv,marks:Record<string,Option
       return {fill,slipPct:HUNT_OPTION_SLIPPAGE_PCT};
     };
 
-    if(!Number(p.take200_done)){
+    if(!Number(p.take200_done)&&!intent){
       const priorEvents=await env.MEDS_DB.prepare(
         "SELECT event_type FROM hunt_account_option_events WHERE position_id=? AND event_type LIKE 'LADDER_%'"
       ).bind(p.id).all<any>();
@@ -1467,7 +1512,8 @@ async function manageHuntOptionPositions(env:PaperEnv,marks:Record<string,Option
       for(const rung of HUNT_LADDER){
         if(done.has(rung.event) || bid<Number(p.entry_price)*(1+rung.returnPct)) continue;
         const qty=Math.min(remaining,Math.floor(originalQty*rung.fraction));
-        if(!(qty>=1)) continue; // options are whole contracts
+        if(!(qty>=1)||qty>available) continue; // options are whole contracts
+        available-=qty;
         const sell=modeledSell(qty);
         const proceeds=sell.fill*100*qty;
         const partialPnl=(sell.fill-Number(p.entry_price))*100*qty;
@@ -1487,12 +1533,12 @@ async function manageHuntOptionPositions(env:PaperEnv,marks:Record<string,Option
       }
     }
 
-    if(!Number(p.take200_done) && bid>=Number(p.entry_price)*(1+HUNT_TAKE_RETURN_PCT)){
+    if(!intent&&!Number(p.take200_done) && bid>=Number(p.entry_price)*(1+HUNT_TAKE_RETURN_PCT)){
       // Do not invent fractional option contracts. A 5% runner is only kept
       // when the original position is large enough for one contract to be <=5%.
       const runnerQty=originalQty>=20?Math.min(remaining,Math.max(1,Math.floor(originalQty*HUNT_RUNNER_FRACTION))):0;
       const takeQty=Math.max(0,remaining-runnerQty);
-      if(takeQty>0){
+      if(takeQty>0&&takeQty<=available){
         const sell=modeledSell(takeQty);
         const proceeds=sell.fill*100*takeQty;
         const partialPnl=(sell.fill-Number(p.entry_price))*100*takeQty;
@@ -1537,7 +1583,7 @@ async function manageHuntOptionPositions(env:PaperEnv,marks:Record<string,Option
       const runnerAgeMin=p.take200_at?Math.max(0,(now.getTime()-Date.parse(p.take200_at))/60000):0;
       const peakExit=retrace>=HUNT_RUNNER_TRAIL_PCT;
       const runnerTimeout=runnerAgeMin>=HUNT_OPTION_MAX_HOLD_MIN;
-      if(!peakExit&&!runnerTimeout){
+      if(!peakExit&&!runnerTimeout&&!intent){
         await env.MEDS_DB.prepare("UPDATE hunt_account_option_positions SET highest_price=?,lowest_price=?,runner_high=? WHERE id=?")
           .bind(high,low,runnerHigh,p.id).run();
         continue;
@@ -1549,7 +1595,8 @@ async function manageHuntOptionPositions(env:PaperEnv,marks:Record<string,Option
       const ret=Number(p.entry_notional)>0?totalPnl/Number(p.entry_notional)*100:0;
       const mfe=(high/Number(p.entry_price)-1)*100,mae=(low/Number(p.entry_price)-1)*100;
       const peakGap=runnerHigh>0?(runnerHigh-sell.fill)/runnerHigh*100:0;
-      const reason=peakExit?'runner_peak_retrace':'runner_time';
+      const reason=intent?.reason??(peakExit?'runner_peak_retrace':'runner_time');
+      if(remaining>available){await partialLeaderExit(env.MEDS_DB,'option',{...p,remaining_qty:remaining,highest_price:high,lowest_price:low},available,modeledSell(available).fill,reason,locked,now);continue;}
       await env.MEDS_DB.batch([
         env.MEDS_DB.prepare("UPDATE hunt_account_option_positions SET status='closed',remaining_qty=0,highest_price=?,lowest_price=?,runner_high=? WHERE id=?")
           .bind(high,low,runnerHigh,p.id),
@@ -1570,14 +1617,15 @@ async function manageHuntOptionPositions(env:PaperEnv,marks:Record<string,Option
     }
 
     const stop=bid<=Number(p.stop_price);
-    const maxHoldMin=positionVersion===HUNT_VERSION?HUNT_OPTION_MAX_HOLD_MIN:HUNT_LEGACY_MIGRATION_MAX_HOLD_MIN;
+    const maxHoldMin=preservedMaxHold(positionVersion,'option',p.features);
     const timeExit=ageMin>=maxHoldMin;
-    if(!stop&&!timeExit){
+    if(!stop&&!timeExit&&!intent){
       await env.MEDS_DB.prepare("UPDATE hunt_account_option_positions SET highest_price=?,lowest_price=? WHERE id=?")
         .bind(high,low,p.id).run();
       continue;
     }
-    const reason=stop?'stop':'time';
+    const reason=intent?.reason??(stop?'stop':'time');
+    if(remaining>available){await partialLeaderExit(env.MEDS_DB,'option',{...p,remaining_qty:remaining,highest_price:high,lowest_price:low},available,modeledSell(available).fill,reason,locked,now);continue;}
     const sell=modeledSell(remaining);
     const proceeds=sell.fill*100*remaining;
     const finalPnl=(sell.fill-Number(p.entry_price))*100*remaining;
@@ -1600,15 +1648,25 @@ async function manageHuntOptionPositions(env:PaperEnv,marks:Record<string,Option
   return {exits,take200s,ladderSells};
 }
 
-async function enterLeaderHuntOptions(env:PaperEnv,candidates:PaperCandidate[],now:Date,marks:Record<string,OptionSnap>){
+async function enterLeaderHuntOptions(env:PaperEnv,candidates:PaperCandidate[],now:Date,marks:Record<string,OptionSnap>,stocks?:Record<string,PaperSnapshot>){
   if(phase(now)!=='regular') return {signals_entered:0,account_entries:0};
   const optionCandidates=candidates
     .filter(c=>leaderHuntEligible(c) && (c as any).executionFresh===true && leaderOptionDirection(c)!==null)
-    .slice(0,HUNT_MAX_OPTION_SIGNALS_PER_CYCLE);
-  let signalsEntered=0,accountEntries=0;
+; // failed/unaffordable candidates do not consume successful signal capacity
+  let signalsEntered=0,accountEntries=0,chainAttempts=0;
+  const book=await loadHuntBook(env,now);
+  const decisions:D1PreparedStatement[]=[];
   for(const c of optionCandidates){
+    if(signalsEntered>=HUNT_MAX_OPTION_SIGNALS_PER_CYCLE){decisions.push(decisionStatement(env.MEDS_DB,c,'OPTIONS_MOMENTUM','ENTRY',['OPTION_SIGNAL_CYCLE_CAP'],huntFeatures(c,phase(now)),'',now));continue;}
+    if(stocks&&!validQuote(stocks[c.symbol]?.latestQuote)){decisions.push(decisionStatement(env.MEDS_DB,c,'OPTIONS_MOMENTUM','ENTRY',['EXECUTION_QUOTE_STALE'],huntFeatures(c,phase(now)),'',now));continue;}
+    if(book.every(row=>huntAccountReason(row,c.symbol))){
+      for(const row of book) decisions.push(decisionStatement(env.MEDS_DB,c,'OPTIONS_MOMENTUM','ENTRY',[huntAccountReason(row,c.symbol)!],huntFeatures(c,phase(now)),row.account_id,now));
+      continue;
+    }
+    if(chainAttempts>=8){decisions.push(decisionStatement(env.MEDS_DB,c,'OPTIONS_MOMENTUM','OPTION_CHAIN',['OPTION_RESEARCH_BUDGET'],huntFeatures(c,phase(now)),'',now));continue;}
+    chainAttempts++;
     let choice:HuntOptionChoice|null=null;
-    try{choice=await selectLeaderOption(env,c,now);}catch{choice=null;}
+    try{choice=await selectLeaderOption(env,c,now);}catch{decisions.push(decisionStatement(env.MEDS_DB,c,'OPTIONS_MOMENTUM','OPTION_CHAIN',['OPTION_CHAIN_UNAVAILABLE','DATA_PROVIDER_FAILURE'],huntFeatures(c,phase(now)),'',now));choice=null;}
     if(!choice) continue;
     marks[choice.symbol]=choice.quote;
     const q=choice.quote.latestQuote!;
@@ -1616,37 +1674,31 @@ async function enterLeaderHuntOptions(env:PaperEnv,candidates:PaperCandidate[],n
     const displayedAsk=Math.max(0,Math.floor(Number(q.as??0)));
     if(!(entryFill>0) || displayedAsk<1) continue;
     let signalUsed=false;
-    for(const account of HUNT_ACCOUNTS){
-      const row=await env.MEDS_DB.prepare("SELECT * FROM hunt_accounts WHERE account_id=?").bind(account.account_id).first<any>();
-      if(!row) continue;
-      const countRow=await env.MEDS_DB.prepare(`SELECT
-        (SELECT COUNT(*) FROM hunt_account_positions WHERE account_id=? AND status='open')+
-        (SELECT COUNT(*) FROM hunt_account_option_positions WHERE account_id=? AND status='open') AS n`)
-        .bind(account.account_id,account.account_id).first<any>();
-      if(Number(countRow?.n??0)>=HUNT_MAX_OPEN) continue;
-      const duplicate=await env.MEDS_DB.prepare("SELECT id FROM hunt_account_option_positions WHERE account_id=? AND underlying=? AND status='open' LIMIT 1")
-        .bind(account.account_id,c.symbol).first<any>();
-      if(duplicate) continue;
-      const cooldownAfter=new Date(now.getTime()-HUNT_REENTRY_COOLDOWN_MIN*60000).toISOString();
-      const recent=await env.MEDS_DB.prepare("SELECT id FROM hunt_account_option_trades WHERE account_id=? AND underlying=? AND closed_at>=? LIMIT 1")
-        .bind(account.account_id,c.symbol,cooldownAfter).first<any>();
-      if(recent) continue;
+    for(const row of book){
+      const account=row;
+      const reject=(reason:string)=>decisions.push(decisionStatement(env.MEDS_DB,c,'OPTIONS_MOMENTUM','ENTRY',[reason],{...huntFeatures(c,phase(now)),cash:row.cash,contract:choice!.symbol,premium:entryFill},row.account_id,now));
+      if(!validQuote(q,env.DATA?Date.now():now.getTime())){reject('OPTION_QUOTE_STALE');continue;}
+      const reason=huntAccountReason(row,c.symbol);
+      if(reason){reject(reason);continue;}
       const cash=Number(row.cash);
       const capitalReserve=Math.max(0,Number(row.starting_equity)*HUNT_CAPITAL_RESERVE_PCT);
       const spendableCash=Math.max(0,cash-capitalReserve);
       const targetNotional=Math.min(Number(row.starting_equity)*HUNT_POSITION_PCT,spendableCash);
       const perContract=entryFill*100;
       let qty=Math.floor(Math.min(targetNotional/perContract,displayedAsk));
-      if(qty<1) continue;
+      if(qty<1){reject('OPTION_CONTRACT_TOO_EXPENSIVE');continue;}
       if(qty*perContract>cash) qty=Math.floor(cash/perContract);
-      if(qty<1) continue;
+      if(qty<1){reject('OPTION_CONTRACT_TOO_EXPENSIVE');continue;}
       const cost=qty*perContract;
       const stop=entryFill*(1-HUNT_OPTION_STOP_PCT),target=entryFill*(1+HUNT_TAKE_RETURN_PCT);
-      const features=JSON.stringify({...huntFeatures(c,phase(now)),asset_type:'option',underlying:c.symbol,
+      const features=JSON.stringify({...huntFeatures(c,phase(now)),asset_type:'option',max_hold_minutes:HUNT_OPTION_MAX_HOLD_MIN,underlying:c.symbol,
         option_type:choice.direction,strike:choice.strike,expiration:choice.expiration,data_quality:'indicative',
+        delta:choice.quote.greeks?.delta??null,quote_at:q.t,observed_bid:q.bp,observed_ask:q.ap,
         target_notional:targetNotional,actual_notional:cost,displayed_ask_contracts:displayedAsk,
         entry_slippage_pct:HUNT_OPTION_SLIPPAGE_PCT,whole_contracts:true}).slice(0,12000);
       await env.MEDS_DB.batch([
+        decisionStatement(env.MEDS_DB,c,'OPTIONS_MOMENTUM','ENTRY',[],JSON.parse(features),row.account_id,now,'ENTERED'),
+        env.MEDS_DB.prepare('INSERT OR REPLACE INTO hunt_risk_guards VALUES(?,?)').bind(account.account_id,row.revision),
         env.MEDS_DB.prepare(`INSERT INTO hunt_account_option_positions(account_id,underlying,symbol,opened_at,entry_price,quantity,entry_notional,stop_price,target_price,highest_price,lowest_price,current_mark,current_mark_at,entry_score,entry_day_change_pct,opened_phase,features,status,version,remaining_qty,locked_realized_pnl,take200_done,data_quality)
           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'open',?,?,0,0,'indicative')`)
           .bind(account.account_id,c.symbol,choice.symbol,now.toISOString(),entryFill,qty,cost,stop,target,entryFill,entryFill,
@@ -1654,10 +1706,12 @@ async function enterLeaderHuntOptions(env:PaperEnv,candidates:PaperCandidate[],n
         env.MEDS_DB.prepare("UPDATE hunt_accounts SET cash=cash-?,updated_at=? WHERE account_id=?")
           .bind(cost,now.toISOString(),account.account_id)
       ]);
+      row.cash-=cost;row.revision++;row.count++;row.open.add(c.symbol);
       accountEntries++;signalUsed=true;
     }
     if(signalUsed) signalsEntered++;
   }
+  for(let i=0;i<decisions.length;i+=50) await env.MEDS_DB.batch(decisions.slice(i,i+50));
   return {signals_entered:signalsEntered,account_entries:accountEntries};
 }
 
@@ -1719,9 +1773,12 @@ async function enterOptionsForCandidate(env:PaperEnv,ledger:Ledger,c:PaperCandid
   const existing=await env.MEDS_DB.prepare(`SELECT COUNT(*) AS n FROM paper_option_positions WHERE ledger_id=? AND underlying=? AND status='open'`).bind(ledger.ledger_id,c.symbol).first<any>();
   if(Number(existing?.n??0)>=2) return reject('underlying option position cap');
   const policy=LEDGER_POLICY[ledger.ledger_id]; let entries=0;
+  if(await openCount(env,ledger.ledger_id,'SHADOW')>=policy.shadowMax) return reject('open-position cap');
+  if(await env.MEDS_DB.prepare("SELECT id FROM paper_positions WHERE ledger_id=? AND symbol=? AND status='open' LIMIT 1").bind(ledger.ledger_id,c.symbol).first()) return reject('duplicate underlying equity');
   const strategies:{strategy:string,longSym:string,shortSym?:string,debit:number}[]=[{strategy:dir==='bull'?'long_call':'long_put',longSym:long.symbol,debit:longAsk}];
   if(short){ const shortBid=short.s.latestQuote?.bp??0; const debit=longAsk-shortBid; if(debit>0.02) strategies.push({strategy:dir==='bull'?'call_debit_spread':'put_debit_spread',longSym:long.symbol,shortSym:short.symbol,debit}); }
   for(const st of strategies.slice(0,2)){
+    if(await openCount(env,ledger.ledger_id,'SHADOW')>=policy.shadowMax){await reject('open-position cap',st.strategy);break;}
     const pricing=optionQuote(long.s.latestQuote,st.shortSym?short?.s.latestQuote:undefined,st.shortSym?Math.abs(long.meta!.strike-short!.meta!.strike):null);
     if(!pricing || pricing.friction>LIMITS.optionFriction){await reject('data quality: invalid legs/debit/width or excessive combined friction',st.strategy);continue;}
     if(!Number.isFinite(long.s.latestQuote?.as) || Number(long.s.latestQuote?.as)<1 || (st.shortSym && (!Number.isFinite(short?.s.latestQuote?.bs) || Number(short?.s.latestQuote?.bs)<1))){await reject('data quality: missing executable option size',st.strategy);continue;}
@@ -1759,11 +1816,9 @@ const PAPER_CYCLE_STALE_MS=7*60_000;
 
 async function runPaperLab(env:PaperEnv,candidates:PaperCandidate[],snaps:Record<string,PaperSnapshot>){
   if(env.PAPER_ENABLED==='false') return {ok:true,skipped:'paper disabled'};
+  env={...env,DATA:env.DATA??new MarketDataCycle(env)};
   await ensurePaperSchema(env);
-  const heldOptions=await env.MEDS_DB.prepare("SELECT long_symbol,short_symbol FROM paper_option_positions WHERE status='open'").all<any>();
-  const optionSymbols=[...new Set((heldOptions.results??[]).flatMap((p:any)=>[p.long_symbol,p.short_symbol].filter(Boolean)))] as string[];
-  let optionData:Record<string,OptionSnap>={};
-  try {if(optionSymbols.length) optionData=await optionMarks(env,optionSymbols);} catch { /* incomplete valuation blocks entries; equity exits continue */ }
+  const optionData=await fetchHuntOptionMarks(env);
   const ctx:PaperContext={stocks:snaps,options:optionData};
   const equityExits=await manageEquityPositions(env,snaps);
   const optionExits=await manageOptionPositions(env,optionData);
@@ -1795,7 +1850,7 @@ async function runPaperLab(env:PaperEnv,candidates:PaperCandidate[],snaps:Record
       exits=0,
       option_entries=0,
       notes='retrying incomplete cycle'
-      ,simulator_version='phase1-v1',execution_version='observed-side-v1'
+      ,simulator_version='${SIM_VERSION}',execution_version='${EXEC_VERSION}'
     WHERE paper_cycles.completed_at IS NULL AND paper_cycles.started_at<=?
   `).bind(bucket,now.toISOString(),watchdogForced?'running: watchdog recovery':'running',retryBefore).run();
   if(!claim.meta.changes) return {ok:true,managed:true,equityExits,optionExits,decisionCycle:false,inProgress:true,watchdogForced};
@@ -1839,9 +1894,9 @@ async function runPaperLab(env:PaperEnv,candidates:PaperCandidate[],snaps:Record
 
 async function scanTick(env: Env) {
   if (!inScanWindow()) return { ok: true, skipped: "outside scan window" };
+  env={...env,DATA:env.DATA??new MarketDataCycle(env)};
   const coreMinPrice = num(env.MIN_PRICE, 0.5);
   const minPrice = Math.min(coreMinPrice,HUNT_MIN_STOCK_PRICE);
-  const maxPrice = Math.max(num(env.MAX_PRICE, 20), 500);
   const maxChange = num(env.MAX_DAY_CHANGE_PCT, 25);
   const threshold = num(env.MIN_SIGNAL_SCORE, 67);
 
@@ -1871,14 +1926,11 @@ async function scanTick(env: Env) {
   const discoverySet=new Set(discovered.symbols);
   const continuitySymbols=(huntRecent.results??[]).map(p=>p.symbol)
     .filter(symbol=>!heldSet.has(symbol)&&!discoverySet.has(symbol));
-  const symbols=[...new Set([
-    ...heldSymbols,
-    ...discoverySymbols,
-    ...continuitySymbols,
-  ])].slice(0,HUNT_SCAN_MAX_SYMBOLS);
+  const symbols=mandatoryUniverse(heldSymbols,discoverySymbols,continuitySymbols,HUNT_SCAN_MAX_SYMBOLS);
   const prior = await env.MEDS_DB.prepare(`SELECT * FROM symbol_state WHERE last_seen_at >= ?`).bind(new Date(Date.now()-12*60*60000).toISOString()).all<any>();
   const priorMap = new Map((prior.results ?? []).map(p=>[p.symbol,p]));
   const snapshots = await fetchSnapshots(env, symbols);
+  await refreshHeldQuotes(env.MEDS_DB,env.DATA!,snapshots,heldSymbols,stockFeed());
   await manageShadowPositions(env, snapshots);
 
   const rough: Candidate[] = [];
@@ -1903,7 +1955,7 @@ async function scanTick(env: Env) {
     else if(minuteResearchFresh) price=Number(s?.minuteBar?.c);
     else continue;
 
-    if (!price || price < minPrice || price > maxPrice) continue;
+    if (!price) continue;
     const bid=quoteResearchFresh?rawBid:price;
     const ask=quoteResearchFresh?rawAsk:price;
     const prevClose = s?.prevDailyBar?.c ?? 0;
@@ -1915,18 +1967,20 @@ async function scanTick(env: Env) {
     const state = previousState && easternParts(new Date(previousState.last_seen_at)).date === easternParts().date ? previousState : null;
     const dayVolume = s?.dailyBar?.v ?? 0;
     const priorDayVolume = s?.prevDailyBar?.v ?? 0;
-    const minuteVolume = s?.minuteBar?.v ?? 0;
+    const minuteVolume = freshTimestamp(s?.minuteBar?.t,180_000) ? s?.minuteBar?.v ?? 0 : 0;
     const priorMinuteVolume = state?.last_minute_volume ?? minuteVolume;
     const volumeAccel = priorMinuteVolume > 0 ? (minuteVolume - priorMinuteVolume) / priorMinuteVolume : 0;
     const discoveryInfo=discovered.sourceBySymbol.get(symbol);
     const candidate:Candidate={
       symbol, price, bid, ask, spreadPct, dayChangePct, dayVolume, previousDayVolume: priorDayVolume,
-      minuteVolume, volumeAccel, consecutiveHits: (state && Date.now()-Date.parse(state.last_seen_at)<150000 ? state.consecutive_hits : 0) + 1,
+      minuteVolume, volumeAccel, consecutiveHits: (state && Date.now()-Date.parse(state.last_seen_at)<(plannedCadence(phase())+2)*60000 ? state.consecutive_hits : 0) + 1,
       catalystScore: 0, catalystSummary: "", score: 0, reasons: [],
-      executionFresh, quoteAgeMs, discoverySource:discoveryInfo?.source, discoveryRank:discoveryInfo?.rank??null
+      executionFresh, quoteAgeMs, discoverySource:discoveryInfo?.source, discoveryRank:discoveryInfo?.rank??null,
+      dataWarnings:prevClose>0?[]:['REFERENCE_PRICE_UNAVAILABLE']
     };
     scoreCandidate(candidate,regularSession());
     auditRough.push(candidate);
+    if(price<minPrice) continue;
     if (dayChangePct > maxChange + 20 || dayChangePct < -15) continue;
     rough.push(candidate);
   }
@@ -1937,7 +1991,6 @@ async function scanTick(env: Env) {
   for (const c of rough) scoreCandidate(c, regularSession());
   rough.sort((a,b) => b.score - a.score);
   const research = selectLeaderResearch(rough,discovered);
-  await persistBroadDiscovery(env,auditRough,discovered,new Set(research.map(x=>x.symbol)),auditNow);
   let news:any[]=[];
   try{news=await fetchNewsForSymbols(env,research.map(x=>x.symbol));}catch{/* non-fatal discovery enrichment */}
   const borrow: Record<string,any> = {}; // No verified free borrow provider configured.
@@ -1960,7 +2013,8 @@ async function scanTick(env: Env) {
   const huntResearch=selectLeaderResearch(research,discovered);
   // Overwrite this bucket's shortlist observations with final enriched scores
   // so the audit reflects the same eligibility state the account engine sees.
-  await persistBroadDiscovery(env,huntResearch,discovered,new Set(huntResearch.map(x=>x.symbol)),auditNow);
+  await persistBroadDiscovery(env,auditRough,discovered,new Set(huntResearch.map(x=>x.symbol)),auditNow);
+  await persistResearch(env.MEDS_DB,symbols,auditRough,discovered.sourceBySymbol,new Set(huntResearch.map(x=>x.symbol)),phase(),c=>huntFeatures(c,phase()),auditNow);
 
   research.sort((a,b)=>b.score-a.score);
   const top = research.filter(c=>c.executionFresh===true && c.price>=coreMinPrice).slice(0, Math.min(8, num(env.MAX_WATCH_SYMBOLS, 8)));
@@ -1982,11 +2036,13 @@ async function scanTick(env: Env) {
 
   let paper: any = { ok: true, skipped: "paper unavailable" };
   try {
+    await refreshHeldQuotes(env.MEDS_DB,env.DATA!,snapshots,(paperHeld.results??[]).map(p=>p.symbol),stockFeed());
     paper = await runPaperLab(env, top, snapshots);
   } catch (error) {
     paper = { ok: false, error: error instanceof Error ? error.message : "paper lab failed" };
   }
-  return { ok: true, feed: stockFeed(), scanned: symbols.length, shortlisted: top.length, research_shortlist:research.length,
+  const selfAudit=await auditMovers(env.MEDS_DB,phase(),auditNow);
+  return { ok: !hunt.error && paper.ok!==false, self_audit:selfAudit, usage:env.DATA!.metrics(), feed: stockFeed(), scanned: symbols.length, shortlisted: top.length, research_shortlist:research.length,
     broad_discovery_observations:auditRough.length,gainer_board_size:discovered.gainers.length,
     discovery_warnings:discovered.warnings,
     research_execution_fresh:research.filter(x=>x.executionFresh===true).length,
@@ -2011,65 +2067,47 @@ async function openShadowPosition(env: Env, req: Request) {
 }
 
 async function runTick(env: Env, source: string) {
-  const now = new Date().toISOString();
-  await env.MEDS_DB.prepare(`UPDATE service_state SET last_tick_at=?,last_source=? WHERE id=1`).bind(now,source).run();
-  const state = await env.MEDS_DB.prepare(`SELECT * FROM service_state WHERE id=1`).first<any>();
-  if (env.TRADING_MODE !== "shadow") throw new Error("Only shadow mode is supported; no brokerage execution exists");
-  if (env.SCOUT_ENABLED !== "true" || state.paused) return {ok:true,skipped:"disabled"};
-  if (!inScanWindow()) return {ok:true,skipped:"outside scan window"};
-  const owner = crypto.randomUUID();
-  const lockNow=Date.now();
-  // Keep the lease longer than a normal scan but shorter than two scheduled
-  // cadences. This prevents the one-minute overlap storm that previously
-  // amplified slow scans while still allowing watchdog recovery.
-  const lockLeaseMs=6*60_000;
-  const lastSuccessMs=state.last_success_at?Date.parse(state.last_success_at):0;
-  const staleForMs=lastSuccessMs?Math.max(0,lockNow-lastSuccessMs):Infinity;
-  const scannerStale=!lastSuccessMs || staleForMs>PAPER_CYCLE_STALE_MS;
-  const lockUntil=Number(state.lock_until??0);
-  const remainingLeaseMs=lockUntil>lockNow?lockUntil-lockNow:0;
-  const inferredLockAgeMs=remainingLeaseMs>0 && remainingLeaseMs<=lockLeaseMs
-    ? Math.max(0,lockLeaseMs-remainingLeaseMs) : 0;
-  // Recover both legacy long leases and a genuinely wedged current lease.
-  // We only force-reclaim a normal six-minute lease when the scanner has been
-  // stale for more than two health windows AND that lease is already >2 min
-  // old. That avoids normal overlap while preventing a dead invocation from
-  // blocking every following cron.
-  const wedgedCurrentLease=lockUntil>lockNow && lockUntil<=lockNow+lockLeaseMs && inferredLockAgeMs>2*60_000;
-  // Once the scanner itself is stale, do not wait through a second stale
-  // window to reclaim a lease that has already made no progress for 2 min.
-  if(scannerStale && (lockUntil>lockNow+lockLeaseMs || wedgedCurrentLease)){
-    await env.MEDS_DB.prepare(`UPDATE service_state SET lock_owner=NULL,lock_until=NULL,last_error=? WHERE id=1 AND lock_until=?`)
-      .bind('watchdog reclaimed stale scan lock',state.lock_until).run();
-  }
-  const lock = await env.MEDS_DB.prepare(`UPDATE service_state SET lock_owner=?,lock_until=? WHERE id=1 AND (lock_until IS NULL OR lock_until<?)`)
-    .bind(owner,lockNow+lockLeaseMs,lockNow).run();
-  if (!lock.meta.changes) {
-    if(scannerStale) await env.MEDS_DB.prepare(`UPDATE service_state SET last_error=? WHERE id=1`).bind('scan lock active while scanner is stale; watchdog will retry').run();
-    return {ok:true,skipped:"scan already running"};
-  }
-  try {
-    if (!env.ALPACA_API_KEY || !env.ALPACA_API_SECRET) throw new Error("Missing Alpaca secrets");
-    const result = await scanTick(env);
-    await env.MEDS_DB.prepare(`UPDATE service_state SET last_success_at=?,last_result=?,last_error=NULL WHERE id=1`).bind(now,JSON.stringify(result)).run();
-    // Bounded cleanup per tick, including outside-hours retention on next active scan.
-    await env.MEDS_DB.batch([
-      env.MEDS_DB.prepare(`DELETE FROM signals WHERE id IN (SELECT id FROM signals WHERE created_at<? LIMIT 8)`).bind(new Date(Date.now()-7*86400000).toISOString()),
-      env.MEDS_DB.prepare(`DELETE FROM alert_delivery WHERE event_key IN (SELECT event_key FROM alert_delivery WHERE created_at<? LIMIT 8)`).bind(new Date(Date.now()-30*86400000).toISOString()),
-      env.MEDS_DB.prepare(`DELETE FROM hunt_observations WHERE id IN (SELECT id FROM hunt_observations WHERE created_at<? LIMIT 64)`).bind(new Date(Date.now()-30*86400000).toISOString())
+  if(env.TRADING_MODE!=='shadow') throw new Error('Only shadow mode is supported; no brokerage execution exists');
+  const state=await env.MEDS_DB.prepare('SELECT * FROM service_state WHERE id=1').first<any>();
+  if(env.SCOUT_ENABLED!=='true'||state?.paused) return {ok:true,skipped:'disabled'};
+  if(!inScanWindow()) return {ok:true,skipped:'outside scan window'};
+  const now=new Date(),cadence=plannedCadence(phase(now));
+  if(env.ENGINE_CADENCE==='session'&&state?.last_success_at&&now.getTime()-Date.parse(state.last_success_at)<(cadence*60_000-1000))
+    return {ok:true,skipped:'session cadence',cadence_minutes:cadence};
+  const owner=crypto.randomUUID();
+  const lock=await env.MEDS_DB.prepare(`UPDATE service_state SET lock_owner=?,lock_until=?,last_tick_at=?,last_source=?,tick_count=tick_count+1
+    WHERE id=1 AND paused=0 AND (lock_until IS NULL OR lock_until<=?)`)
+    .bind(owner,now.getTime()+LEASE_MS,now.toISOString(),source,now.getTime()).run();
+  if(!lock.meta.changes) return {ok:true,skipped:'scan already running'};
+  let db: D1Database=env.MEDS_DB;
+  const bucket=bucket5(now),data=new MarketDataCycle(env);
+  const databaseUsage={calls:0,statements:0,rows_read:0,rows_written:0};
+  try{
+    await ensurePaperSchema(env);
+    db=fencedDatabase(env.MEDS_DB,owner,databaseUsage);
+    const prior=await db.prepare('SELECT completed_at FROM engine_cycles WHERE bucket=?').bind(bucket).first<any>();
+    if(prior?.completed_at) return {ok:true,skipped:'cycle already complete'};
+    await db.prepare(`INSERT INTO engine_cycles(bucket,started_at,state,version) VALUES(?,?,'RUNNING',?)
+      ON CONFLICT(bucket) DO UPDATE SET started_at=excluded.started_at,state='RUNNING',version=excluded.version`)
+      .bind(bucket,now.toISOString(),ENGINE_VERSION).run();
+    if(!env.ALPACA_API_KEY||!env.ALPACA_API_SECRET) throw new Error('Missing Alpaca secrets');
+    const result=await scanTick({...env,MEDS_DB:db,DATA:data});
+    const completed=new Date().toISOString();
+    await db.batch([
+      db.prepare(`UPDATE engine_cycles SET completed_at=?,management_at=?,state=?,metrics=? WHERE bucket=?`)
+        .bind(result.ok?completed:null,completed,result.ok?'COMPLETE':'DEGRADED',JSON.stringify({...data.metrics(),database:databaseUsage,database_rows_read_note:'first() does not expose row counts; rows_read is a lower bound'}),bucket),
+      db.prepare(`UPDATE service_state SET last_success_at=CASE WHEN ?=1 THEN ? ELSE last_success_at END,last_result=?,last_error=? WHERE id=1 AND lock_owner=?`)
+        .bind(result.ok?1:0,completed,JSON.stringify(result),result.ok?null:'engine component failed; see last_result',owner),
     ]);
     return result;
-  } catch (error) {
-    const rawMessage = error instanceof Error ? error.message : "Unknown scan failure";
-    // Persist a bounded, credential-safe diagnostic so /health can identify
-    // provider and D1 failures without exposing request headers or secrets.
-    const message = rawMessage
-      .replace(/(APCA-API-(?:KEY-ID|SECRET-KEY)[=: ]+)[^\s,;]+/gi, "$1[redacted]")
-      .slice(0, 300);
-    await env.MEDS_DB.prepare(`UPDATE service_state SET last_error=? WHERE id=1`).bind(message).run();
-    return {ok:false,error:message};
-  } finally {
-    await env.MEDS_DB.prepare(`UPDATE service_state SET lock_owner=NULL,lock_until=NULL WHERE id=1 AND lock_owner=?`).bind(owner).run();
+  }catch(error){
+    const message=(error instanceof Error?error.message:'engine failure').replace(/(APCA-API-(?:KEY-ID|SECRET-KEY)[=: ]+)[^\s,;]+/gi,'$1[redacted]').slice(0,300);
+    // Telemetry is owner-conditional too: a retired invocation must not mark a
+    // healthy replacement as failed or release its lease.
+    await env.MEDS_DB.prepare('UPDATE service_state SET last_error=? WHERE id=1 AND lock_owner=?').bind(message,owner).run();
+    return {ok:false,error:message,usage:data.metrics()};
+  }finally{
+    await env.MEDS_DB.prepare('UPDATE service_state SET lock_owner=NULL,lock_until=NULL WHERE id=1 AND lock_owner=?').bind(owner).run();
   }
 }
 
@@ -2165,7 +2203,7 @@ async function publicStatus(env: Env): Promise<Response> {
     if (!meta) paperError = "paper_meta is not initialized";
     else if (missingLedgers.length) paperError = `missing ledgers: ${missingLedgers.join(", ")}`;
     else if (latestCycle && !latestCycle.completed_at) paperError = "latest paper cycle is incomplete";
-    else if (activeSession && (secondsSinceCycle === null || secondsSinceCycle > 600)) paperError = "paper cycle is stale";
+    else if (scannerEnabled && activeSession && (secondsSinceCycle === null || secondsSinceCycle > (plannedCadence(phase(now))+2)*60)) paperError = "paper cycle is stale";
 
     const paperHealthy = !paperEnabled || paperError === null;
     paper = {
@@ -2419,33 +2457,53 @@ async function publicStatus(env: Env): Promise<Response> {
       }),
       prospective_metrics:epochs.results??[],rejected_entries_24h:rejections.results??[]};
     const valuationRows=valuations.results??[];
-    const optionsOpen=phase(now)==='regular';
-    const valuationIncomplete=valuationRows.some(v=>{
-      if(v.complete) return false;
-      // Outside regular option hours, stale option quotes are expected. Keep
-      // the valuation visibly incomplete (so affected ledgers cannot add new
-      // risk), but do not call the paper engine unhealthy unless some other
-      // valuation defect is present.
-      if(!optionsOpen){
-        try {
-          const diagnostics=JSON.parse(v.diagnostics??'[]');
-          // Outside the regular session, some held equities have no usable
-          // extended-hours print and listed options are closed. Those are
-          // incomplete marks, not a system outage. The ledger remains blocked
-          // from adding new risk because valueLedger.complete is still false.
-          const expectedClosedMarketGap=(d:any)=>{
-            const s=String(d);
-            return s.startsWith('option quote unavailable/stale/invalid:') ||
-              s.startsWith('equity quote unavailable/stale:');
-          };
-          return !Array.isArray(diagnostics) || diagnostics.some((d:any)=>!expectedClosedMarketGap(d));
-        } catch { return true; }
-      }
-      return true;
+    const snapshots=(await env.MEDS_DB.prepare('SELECT * FROM portfolio_valuation_state').all<any>()).results??[];
+    const detailed=snapshots.map(v=>{
+      const marks:MarkState[]=JSON.parse(v.marks);
+      const marksNow=marks.map(m=>({...m,age_seconds:m.quote_at?secondsSince(m.quote_at):null,
+        state:m.state==='FRESH'&&((secondsSince(m.quote_at)??Infinity)>90||(m.asset==='option'&&phase(now)!=='regular'))?'MARK_STALE':m.state}));
+      const complete=!!v.complete&&marksNow.every(m=>m.state==='FRESH');
+      return {...v,complete,live_equity:complete?v.live_equity:null,known_value_at_snapshot:v.known_value,marks:marksNow,
+        state:complete?'VALUED':'PORTFOLIO_PARTIALLY_VALUED',execution_eligible:complete,
+        reporting_value_is_live:complete,reporting_warning:complete?null:'dated retained quotes; excluded from execution and drawdown'};
     });
-    const valuationStale=activeSession && valuationRows.some(v=>(secondsSince(v.created_at)??Infinity)>healthFreshSeconds);
-    if(valuationRows.length!==4 || valuationIncomplete || valuationStale){paper.healthy=false;paper.paper_error='incomplete or stale portfolio valuation';body.ok=false;}
-  } catch {body.diagnostics={simulator_version:SIM_VERSION,execution_version:EXEC_VERSION,warning:'phase1 diagnostics unavailable'};paper.healthy=false;body.ok=false;}
+    const cycle=await env.MEDS_DB.prepare('SELECT * FROM engine_cycles ORDER BY started_at DESC LIMIT 1').first<any>();
+    const cycleUsage=cycle?JSON.parse(cycle.metrics):null;
+    const degraded=detailed.some(v=>!v.complete)||!!cycleUsage?.budget_exhausted||!!cycleUsage?.failures?.length;
+    const currentState=healthState(scannerEnabled,activeSession,state?.last_success_at??null,state?.last_error??null,degraded,
+      env.ENGINE_CADENCE==='session'?plannedCadence(phase(now)):5);
+    const quoteIssues=await env.MEDS_DB.prepare("SELECT * FROM quote_health WHERE state!='FRESH' ORDER BY last_attempt_at DESC LIMIT 100").all<any>();
+    const rejected=await env.MEDS_DB.prepare(`SELECT lane,stage,outcome,reasons,COUNT(*) AS count FROM candidate_decisions WHERE bucket=? AND version=? GROUP BY lane,stage,outcome,reasons`)
+      .bind(cycle?.bucket??'',HUNT_VERSION).all<any>();
+    body.health=currentState;
+    body.ok=!['ENGINE_CRITICAL','ENGINE_STALE'].includes(currentState);
+    Object.assign(scanner,{state:currentState,healthy:body.ok});
+    Object.assign(paper,{state:currentState==='PAUSED'?'PAUSED':currentState==='MARKET_CLOSED'?'MARKET_CLOSED':paper.paper_error?'ENGINE_CRITICAL':degraded?'DEGRADED':'HEALTHY',
+      healthy:!paper.paper_error||!scannerEnabled,valuation_state:degraded?'PORTFOLIO_PARTIALLY_VALUED':'VALUED'});
+    if(scannerEnabled&&paper.paper_error){body.ok=false;body.health='ENGINE_CRITICAL';}
+    body.engine={version:ENGINE_VERSION,last_management_at:cycle?.management_at??null,latest_cycle:cycle,
+      usage:cycleUsage,single_scheduler:'Cloudflare cron',cadence_minutes:plannedCadence(phase(now)),
+      configured_enabled:env.SCOUT_ENABLED==='true',runtime_paused:!!state?.paused,live_execution:false};
+    body.valuations=detailed;
+    body.quote_health=quoteIssues.results??[];
+    body.decisions_latest=(rejected.results??[]).map(r=>({...r,reasons:JSON.parse(r.reasons)}));
+    const leader=body.leader_hunt as any;
+    if(leader){
+      leader.compounding_scoreboard=(leader.compounding_scoreboard??[]).map((a:any)=>{const v=detailed.find(x=>x.account_id===a.account_id);return {...a,current_equity:v?.live_equity??null,current_multiple:v?.complete?v.live_equity/a.starting_equity:null,progress_to_next_pct:v?.complete?a.progress_to_next_pct:null,valuation_at:v?.created_at??null};});
+      leader.session_breakdown=(leader.session_breakdown??[]).map((r:any)=>({...r,avg_open_return_pct:null,open_return_warning:'see dated position marks; unsynchronized portfolio returns are not aggregated'}));
+      leader.health=currentState;leader.healthy=body.ok;leader.last_management_at=cycle?.management_at??null;
+      leader.accounts=(leader.accounts??[]).map((account:any)=>{
+        const v=detailed.find(x=>x.account_id===account.account_id);
+        return {...account,current_equity:v?.live_equity??null,valuation_state:v?.state??'NOT_YET_VALUED',
+          last_complete_equity:account.current_equity,reporting_equity:v?.reporting_value??null,valuation_at:v?.created_at??null,
+          spendable_cash:Math.max(0,account.cash-account.starting_equity*HUNT_CAPITAL_RESERVE_PCT)};
+      });
+    }
+  } catch(error) {
+    body.health='ENGINE_CRITICAL';body.ok=false;
+    body.diagnostics={simulator_version:SIM_VERSION,execution_version:EXEC_VERSION,warning:error instanceof Error?error.message:'diagnostics unavailable'};
+    paper.healthy=false;
+  }
   return Response.json(body, {headers:{"cache-control":"no-store","x-content-type-options":"nosniff"}});
 }
 
@@ -2466,6 +2524,22 @@ async function publicGainerAudit(url:URL,env:Env):Promise<Response>{
   // a reporting request into a 'too many SQL variables' failure.
   const limit=Math.min(page.limit,40),offset=page.offset;
   const requestedDate=url.searchParams.get('date');
+  const requestedPhase=url.searchParams.get('phase');
+  const filters=['version=?'],params:any[]=[HUNT_VERSION];
+  if(requestedDate){filters.push('session_date=?');params.push(requestedDate);}
+  if(requestedPhase){filters.push('phase=?');params.push(requestedPhase);}
+  const latestAudit=await env.MEDS_DB.prepare(`SELECT bucket,session_date,phase FROM mover_audits WHERE ${filters.join(' AND ')} ORDER BY bucket DESC LIMIT 1`).bind(...params).first<any>();
+  if(latestAudit){
+    const records=(await env.MEDS_DB.prepare('SELECT summary FROM mover_audits WHERE bucket=? AND version=? ORDER BY rank LIMIT ? OFFSET ?')
+      .bind(latestAudit.bucket,HUNT_VERSION,limit,offset).all<any>()).results??[];
+    const rows=records.map(r=>JSON.parse(r.summary)),top10=rows.filter(r=>r.rank<=10);
+    return Response.json({ok:true,read_only:true,version:HUNT_VERSION,session_date:latestAudit.session_date,board_at:latestAudit.bucket,
+      board_phase:latestAudit.phase,count:rows.length,rows,summary:{board_size:rows.length,top10_count:top10.length,
+      top10_caught_before_10:top10.filter(r=>r.caught_before_10).length,caught_before_5:rows.filter(r=>r.caught_before_5).length,
+      caught_before_10:rows.filter(r=>r.caught_before_10).length,caught_before_20:rows.filter(r=>r.caught_before_20).length}},
+      {headers:{'cache-control':'no-store','x-content-type-options':'nosniff'}});
+  }
+
   try{
     const latest=requestedDate
       ? await env.MEDS_DB.prepare(`SELECT bucket,session_date,created_at,phase FROM hunt_gainer_board
@@ -2609,15 +2683,15 @@ async function publicPaperRows(pathname: string, url: URL, env: Env): Promise<Re
       p.symbol AS underlying,p.symbol,p.opened_at,p.entry_price,p.quantity,p.remaining_qty,p.entry_notional,p.stop_price,p.target_price,
       p.highest_price,p.lowest_price,p.entry_score,p.entry_day_change_pct,p.opened_phase,p.locked_realized_pnl,p.take200_done,
       p.take200_price,p.take200_at,p.runner_high,p.features,p.version,'market-data' AS data_quality,
-      s.last_bid AS current_bid,s.last_ask AS current_ask,s.last_price AS current_price,s.last_seen_at AS mark_at,
-      CASE WHEN s.last_bid>0 THEN (s.last_bid/p.entry_price-1)*100 ELSE NULL END AS unrealized_return_pct,
-      CASE WHEN s.last_bid>0 THEN ((p.entry_price*3.0)/s.last_bid-1)*100 ELSE NULL END AS distance_to_200_pct,
+      s.bid AS current_bid,s.ask AS current_ask,s.bid AS current_price,s.quote_at AS mark_at,
+      CASE WHEN s.bid>0 THEN (s.bid/p.entry_price-1)*100 ELSE NULL END AS unrealized_return_pct,
+      CASE WHEN s.bid>0 THEN ((p.entry_price*3.0)/s.bid-1)*100 ELSE NULL END AS distance_to_200_pct,
       (SELECT COUNT(*) FROM hunt_account_events e WHERE e.position_id=p.id AND e.event_type='LADDER_25') AS ladder25_done,
       (SELECT COUNT(*) FROM hunt_account_events e WHERE e.position_id=p.id AND e.event_type='LADDER_50') AS ladder50_done,
       (SELECT COUNT(*) FROM hunt_account_events e WHERE e.position_id=p.id AND e.event_type='LADDER_100') AS ladder100_done
       FROM hunt_account_positions p
       LEFT JOIN hunt_accounts a ON a.account_id=p.account_id
-      LEFT JOIN symbol_state s ON s.symbol=p.symbol
+      LEFT JOIN quote_cache s ON s.symbol=p.symbol AND s.asset='equity'
       WHERE p.status='open'
       UNION ALL
       SELECT p.id,a.label AS account,a.starting_equity,p.account_id,'option' AS asset_type,
@@ -2636,7 +2710,12 @@ async function publicPaperRows(pathname: string, url: URL, env: Env): Promise<Re
       ORDER BY starting_equity ASC,opened_at DESC,id DESC LIMIT ? OFFSET ?`,
   };
   try {
-    const rows = await env.MEDS_DB.prepare(queries[pathname]).bind(limit, offset).all();
+    const rows = await env.MEDS_DB.prepare(queries[pathname]).bind(limit, offset).all<any>();
+    if(pathname==='/status/hunt/positions') rows.results=(rows.results??[]).map(r=>{
+      const fresh=(secondsSince(r.mark_at)??Infinity)<=90&&(r.asset_type!=='option'||phase()==='regular');
+      return {...r,quote_state:fresh?'FRESH':r.mark_at?'MARK_STALE':'EXECUTION_UNAVAILABLE',execution_eligible:fresh,
+        retained_return_pct:r.unrealized_return_pct,unrealized_return_pct:fresh?r.unrealized_return_pct:null,distance_to_200_pct:fresh?r.distance_to_200_pct:null};
+    });
     return Response.json({ok:true,read_only:true,limit,offset,count:rows.results?.length ?? 0,rows:rows.results ?? []},
       {headers:{"cache-control":"no-store","x-content-type-options":"nosniff"}});
   } catch (error) {
@@ -2653,12 +2732,23 @@ export default {
   },
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
-    if (url.pathname === "/health" && req.method === "GET") {
-      const state = await env.MEDS_DB.prepare(`SELECT paused,last_tick_at,last_success_at,last_source,last_error FROM service_state WHERE id=1`).first<any>();
-      return Response.json({ok:env.TRADING_MODE==="shadow" && !state?.last_error,mode:"shadow",live_execution:false,
-        enabled:env.SCOUT_ENABLED==="true" && !state?.paused,time:new Date().toISOString(),market:easternParts(),feed:stockFeed(),paper_enabled:env.PAPER_ENABLED!=="false",...state});
+    if (url.pathname === '/health' && req.method === 'GET') {
+      const state=await env.MEDS_DB.prepare('SELECT paused,last_tick_at,last_success_at,last_source,last_error FROM service_state WHERE id=1').first<any>();
+      const enabled=env.SCOUT_ENABLED==='true'&&!state?.paused;
+      const health=env.TRADING_MODE!=='shadow'?'ENGINE_CRITICAL':healthState(enabled,inScanWindow(),state?.last_success_at??null,state?.last_error??null,false,
+        env.ENGINE_CADENCE==='session'?plannedCadence(phase()):5);
+      return Response.json({ok:!['ENGINE_CRITICAL','ENGINE_STALE'].includes(health),health,version:ENGINE_VERSION,leader_version:HUNT_VERSION,
+        mode:'shadow',live_execution:false,enabled,time:new Date().toISOString(),market:easternParts(),feed:stockFeed(),...state});
     }
     if (url.pathname === "/status" && req.method === "GET") return publicStatus(env);
+    if(url.pathname==='/status/hunt/performance'&&req.method==='GET') return Response.json(await performanceReport(env.MEDS_DB,url),{headers:{'cache-control':'no-store'}});
+    if(url.pathname==='/status/hunt/decisions'&&req.method==='GET'){
+      const {limit,offset}=publicPage(url),symbol=url.searchParams.get('symbol');
+      const rows=await env.MEDS_DB.prepare(`SELECT * FROM candidate_decisions ${symbol?'WHERE symbol=?':''} ORDER BY created_at DESC LIMIT ? OFFSET ?`)
+        .bind(...(symbol?[symbol.toUpperCase()]:[]),limit,offset).all<any>();
+      return Response.json({ok:true,read_only:true,rows:(rows.results??[]).map(r=>({...r,reasons:JSON.parse(r.reasons),features:JSON.parse(r.features)}))});
+    }
+
     if (url.pathname === "/status/hunt/gainers" && req.method === "GET") return publicGainerAudit(url,env);
     if (["/status/trades","/status/positions","/status/decisions","/status/hunt","/status/hunt/positions"].includes(url.pathname) && req.method === "GET") {
       return publicPaperRows(url.pathname,url,env);
@@ -2670,10 +2760,18 @@ export default {
     }
     if (url.pathname === "/control/resume" && req.method === "POST") {
       await env.MEDS_DB.prepare(`UPDATE service_state SET paused=0 WHERE id=1`).run();
-      return Response.json({ok:true,paused:false});
+      return Response.json({ok:true,paused:false,enabled:env.SCOUT_ENABLED==="true",message:env.SCOUT_ENABLED==="true"?"paper engine resumes on next configured tick":"SCOUT_ENABLED=false; deployment gate remains disabled"});
     }
     if (url.pathname === "/scan" && req.method === "POST") return Response.json(await runTick(env,"manual"));
-    if (url.pathname === "/shadow/open" && req.method === "POST") return openShadowPosition(env,req);
+    if (url.pathname === '/shadow/open' && req.method === 'POST') {
+      if(env.TRADING_MODE!=='shadow'||env.SCOUT_ENABLED!=='true') return Response.json({error:'shadow engine disabled'},{status:409});
+      const owner=crypto.randomUUID();
+      const lock=await env.MEDS_DB.prepare('UPDATE service_state SET lock_owner=?,lock_until=? WHERE id=1 AND paused=0 AND (lock_until IS NULL OR lock_until<=?)')
+        .bind(owner,Date.now()+LEASE_MS,Date.now()).run();
+      if(!lock.meta.changes) return Response.json({error:'engine busy or paused'},{status:409});
+      try{await ensurePaperSchema(env);return await openShadowPosition({...env,MEDS_DB:fencedDatabase(env.MEDS_DB,owner)},req);}
+      finally{await env.MEDS_DB.prepare('UPDATE service_state SET lock_owner=NULL,lock_until=NULL WHERE id=1 AND lock_owner=?').bind(owner).run();}
+    }
     const tables: Record<string,string> = {
       "/signals":"signals ORDER BY id DESC",
       "/positions":"shadow_positions ORDER BY opened_at DESC",

@@ -41,7 +41,7 @@ test('simulated cron, persistent SQL, exact +20%, runner, dedupe, auth, pause an
   if(url.includes('/options/snapshots'))return Response.json({snapshots:{}});
   if(url.includes('/snapshots')){
    const q=new URL(url).searchParams.get('symbols').split(',');const result={};
-   for(const symbol of q)result[symbol]={latestTrade:{p:symbol==='FRGT'?price:1,t:new Date().toISOString()},latestQuote:{bp:.995,ap:1.005,t:new Date().toISOString()},minuteBar:{c:1,v:minuteVol},dailyBar:{v:20000},prevDailyBar:{c:1,v:10000}};
+   for(const symbol of q)result[symbol]={latestTrade:{p:symbol==='FRGT'?price:1,t:new Date().toISOString()},latestQuote:{bp:symbol==='FRGT'?price/(1-.0002):.995,ap:symbol==='FRGT'?price/(1-.0002)+.01:1.005,t:new Date().toISOString()},minuteBar:{c:1,v:minuteVol,t:new Date().toISOString()},dailyBar:{v:20000},prevDailyBar:{c:1,v:10000}};
    return Response.json(result);
   }
   throw Error('Unexpected URL');
@@ -57,8 +57,8 @@ test('simulated cron, persistent SQL, exact +20%, runner, dedupe, auth, pause an
   assert.equal(db.db.prepare('SELECT consecutive_hits FROM symbol_state WHERE symbol=?').get('TEST').consecutive_hits,1);
   const initialTestSignals=db.db.prepare("SELECT COUNT(*) AS n FROM alert_delivery WHERE event_key LIKE 'signal:TEST:%'").get().n;
   const initialPositionAlerts=db.db.prepare("SELECT COUNT(*) AS n FROM alert_delivery WHERE event_key LIKE 'FRGT:%'").get().n;
-  clock+=60000;minuteVol=150;price=1.2;
-  assert.equal((await runTick(env,'cron')).ok,true);
+  clock+=300000;minuteVol=150;price=1.2;
+  {const tick=await runTick(env,'cron');assert.equal(tick.ok,true,JSON.stringify(tick));}
   let p=db.db.prepare('SELECT * FROM shadow_positions WHERE symbol=?').get('FRGT');
   assert.equal(p.first_tp_done,1);assert.equal(p.remaining_qty,30);assert.ok(Math.abs(p.realized_pnl-14)<1e-8);
   assert.equal(db.db.prepare('SELECT consecutive_hits FROM symbol_state WHERE symbol=?').get('TEST').consecutive_hits,2);
@@ -67,15 +67,15 @@ test('simulated cron, persistent SQL, exact +20%, runner, dedupe, auth, pause an
   assert.equal(db.db.prepare("SELECT COUNT(*) AS n FROM alert_delivery WHERE event_key LIKE 'FRGT:%'").get().n,initialPositionAlerts+1,
     'first take-profit must produce one position alert');
   const beforePositionAlerts=db.db.prepare("SELECT COUNT(*) AS n FROM alert_delivery WHERE event_key LIKE 'FRGT:%'").get().n;
-  clock+=60000;await runTick(env,'cron');
+  clock+=300000;await runTick(env,'cron');
   assert.equal(db.db.prepare("SELECT COUNT(*) AS n FROM alert_delivery WHERE event_key LIKE 'FRGT:%'").get().n,beforePositionAlerts,
     'No duplicate position alert');
   db.db.close();
   const restart=spawnSync(process.execPath,['--input-type=module','-e',`import {DatabaseSync} from 'node:sqlite';const d=new DatabaseSync(process.argv[1]);console.log(JSON.stringify(d.prepare("SELECT remaining_qty,first_tp_done FROM shadow_positions WHERE symbol='FRGT'").get()));`,file],{encoding:'utf8'});
   assert.equal(restart.status,0);assert.deepEqual(JSON.parse(restart.stdout),{remaining_qty:30,first_tp_done:1});
   db=new D1(file);env.MEDS_DB=db;
-  clock+=60000;price=1.3;await runTick(env,'cron');p=db.db.prepare('SELECT * FROM shadow_positions WHERE symbol=?').get('FRGT');assert.equal(p.remaining_qty,15);assert.equal(p.second_tp_done,1);
-  clock+=60000;price=1.1;await runTick(env,'cron');p=db.db.prepare('SELECT * FROM shadow_positions WHERE symbol=?').get('FRGT');assert.equal(p.status,'closed');assert.equal(p.remaining_qty,0);
+  clock+=300000;price=1.3;await runTick(env,'cron');p=db.db.prepare('SELECT * FROM shadow_positions WHERE symbol=?').get('FRGT');assert.equal(p.remaining_qty,15);assert.equal(p.second_tp_done,1);
+  clock+=300000;price=1.1;await runTick(env,'cron');p=db.db.prepare('SELECT * FROM shadow_positions WHERE symbol=?').get('FRGT');assert.equal(p.status,'closed');assert.equal(p.remaining_qty,0);
   assert.equal(db.db.prepare('SELECT COUNT(*) AS n FROM position_events').get().n,3);
   await worker.fetch(request('/control/pause',{}),env);assert.equal((await runTick(env,'cron')).skipped,'disabled');
   await worker.fetch(request('/control/resume',{}),env);
@@ -123,7 +123,7 @@ test('simulated cron, persistent SQL, exact +20%, runner, dedupe, auth, pause an
   for(const m of ['0001_init.sql','0002_operations.sql','0003_tick_counter.sql'])missingDb.db.exec(readFileSync(new URL('../migrations/'+m,import.meta.url),'utf8'));
   const missingStatus=await (await worker.fetch(request('/status',undefined,false),{...env,MEDS_DB:missingDb})).json();
   assert.equal(missingStatus.scanner.healthy,false);
-  assert.equal(missingStatus.paper.schema_version,9);
+  assert.equal(missingStatus.paper.schema_version,10);
   assert.equal(missingDb.db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='hunt_observations'").get().n,1);
   assert.doesNotMatch(String(missingStatus.paper.paper_error??''),/missing tables/);
   missingDb.db.close();rmSync(missingDir,{recursive:true,force:true});
@@ -164,7 +164,7 @@ test('Leader Hunt keeps its own positions in the snapshot universe and accepts q
    db.db.prepare(`INSERT INTO hunt_account_positions(account_id,symbol,opened_at,entry_price,quantity,entry_notional,stop_price,target_price,highest_price,lowest_price,entry_score,entry_day_change_pct,opened_phase,features,status,version,remaining_qty,locked_realized_pnl,take200_done)
      VALUES('H100','HOLD',?,1,1,1,.5,3,1,1,50,0,'overnight','{}','open','leader-hunt-v3-200-runner',1,0,0)`).run(new NativeDate(clock-60_000).toISOString());
    const result=await runTick(env,'cron');
-   assert.equal(result.ok,true);
+   assert.equal(result.ok,true,JSON.stringify(result));
    assert.ok(snapshotRequests.some(batch=>batch.includes('HOLD')),'open Leader symbol must always be quoted');
    assert.ok(db.db.prepare("SELECT COUNT(*) AS n FROM hunt_observations WHERE symbol='TEST'").get().n>0,
      'fresh premarket quote must create research observation even when latest trade is stale');
@@ -200,7 +200,7 @@ test('Leader Hunt can record quiet overnight research without treating a stale q
  const env={MEDS_DB:db,TRADING_MODE:'shadow',SCOUT_ENABLED:'true',ALPACA_API_KEY:'test-only',ALPACA_API_SECRET:'test-only'};
  try{
    const result=await runTick(env,'cron');
-   assert.equal(result.ok,true);
+   assert.equal(result.ok,true,JSON.stringify(result));
    assert.ok(db.db.prepare("SELECT COUNT(*) AS n FROM hunt_observations WHERE symbol='QUIET'").get().n>0,
      'fresh overnight trade/bar should keep research alive even when quote is too old');
    assert.equal(db.db.prepare("SELECT COUNT(*) AS n FROM hunt_account_positions").get().n,0,
