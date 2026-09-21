@@ -9,17 +9,22 @@ import {runnerReasons,optionDirection,orderedRunnerCandidates,preservedMaxHold} 
 import {persistResearch,auditMovers,performanceReport,recordDecision,moverMiss} from '../src/research-audit.ts';
 
 class D1 {
-  constructor(){this.db=new DatabaseSync(':memory:');this.calls=0;}
+  constructor(){this.db=new DatabaseSync(':memory:');this.calls=0;this.statements=0;}
   prepare(sql){const owner=this,db=this.db;const args=[];return {args,bind(...a){return Object.assign(owner.prepare(sql),{args:a});},
     _run(){const r=db.prepare(sql).run(...this.args);return {success:true,meta:{changes:Number(r.changes)}};},
-    async run(){owner.calls++;return this._run();},async all(){owner.calls++;return {results:db.prepare(sql).all(...this.args)};},async first(){owner.calls++;return db.prepare(sql).get(...this.args)??null;}};}
-  async batch(ss){this.calls++;this.db.exec('BEGIN');try{const r=ss.map(s=>s._run());this.db.exec('COMMIT');return r;}catch(e){this.db.exec('ROLLBACK');throw e;}}
+    async run(){owner.calls++;owner.statements++;return this._run();},async all(){owner.calls++;owner.statements++;return {results:db.prepare(sql).all(...this.args)};},async first(){owner.calls++;owner.statements++;return db.prepare(sql).get(...this.args)??null;}};}
+  async batch(ss){this.calls++;this.statements+=ss.length;this.db.exec('BEGIN');try{const r=ss.map(s=>s._run());this.db.exec('COMMIT');return r;}catch(e){this.db.exec('ROLLBACK');throw e;}}
 }
-async function setup(){
+async function setup({legacyTiers=true,leaderOnly=false}={}){
   const MEDS_DB=new D1();
-  for(const m of ['0001_init.sql','0002_operations.sql','0003_tick_counter.sql','0004_autonomous.sql']) MEDS_DB.db.exec(readFileSync(new URL('../migrations/'+m,import.meta.url),'utf8'));
-  const env={MEDS_DB,TRADING_MODE:'shadow',SCOUT_ENABLED:'true',ADMIN_TOKEN:'test',ALPACA_API_KEY:'fixture',ALPACA_API_SECRET:'fixture'};
-  await ensurePaperSchema(env);return {env,db:MEDS_DB.db};
+  for(const m of ['0001_init.sql','0002_operations.sql','0003_tick_counter.sql','0004_autonomous.sql','0005_leader250_capacity.sql']) MEDS_DB.db.exec(readFileSync(new URL('../migrations/'+m,import.meta.url),'utf8'));
+  const env={MEDS_DB,TRADING_MODE:'shadow',SCOUT_ENABLED:'true',PAPER_ENABLED:leaderOnly?'false':'true',LEADER_ONLY:leaderOnly?'true':'false',
+    ADMIN_TOKEN:'test',ALPACA_API_KEY:'fixture',ALPACA_API_SECRET:'fixture'};
+  await ensurePaperSchema(env);
+  if(legacyTiers){
+    MEDS_DB.db.exec("DELETE FROM leader_runtime_accounts; INSERT INTO leader_runtime_accounts(account_id,active,role,created_at) SELECT account_id,1,'test',strftime('%Y-%m-%dT%H:%M:%fZ','now') FROM hunt_accounts WHERE account_id!='H250';");
+  }
+  return {env,db:MEDS_DB.db};
 }
 async function clocked(fn,time='2026-09-18T12:00:00Z'){
   const NativeDate=Date,oldFetch=fetch;let clock=NativeDate.parse(time);
@@ -262,8 +267,19 @@ test('nonempty performance separates entry versions and calculates realized dist
   db.close();
 }));
 
+test('production runtime activates only the $250 Leader account and preserves historical tiers',()=>clocked(async()=>{
+  const {env,db}=await setup({legacyTiers:false,leaderOnly:true});
+  const active=db.prepare("SELECT a.* FROM hunt_accounts a JOIN leader_runtime_accounts r USING(account_id) WHERE r.active=1").all();
+  assert.equal(active.length,1);assert.equal(active[0].account_id,'H250');assert.equal(active[0].starting_equity,250);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM hunt_accounts WHERE account_id IN ('H100','H1K','H10K','H100K','H500K')").get().n,5);
+  await runHuntAccounts(env,[candidate()],{EARLY:snapshot()});
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM hunt_account_positions WHERE account_id='H250'").get().n,1);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM hunt_account_positions WHERE account_id!='H250'").get().n,0);
+  db.close();
+}));
+
 test('broad synthetic cycle measures deployment usage and records controls without fabricating entries',t=>clocked(async()=>{
-  const {env,db}=await setup();
+  const {env,db}=await setup({legacyTiers:false,leaderOnly:true});
   const symbols=Array.from({length:260},(_,i)=>'CTRL'+i);
   globalThis.fetch=async url=>{
     const u=new URL(String(url));
@@ -274,16 +290,21 @@ test('broad synthetic cycle measures deployment usage and records controls witho
     if(u.pathname.includes('/options/'))return Response.json({snapshots:{}});
     throw Error('unexpected fixture URL '+u.pathname);
   };
-  env.MEDS_DB.calls=0;
+  env.MEDS_DB.calls=0;env.MEDS_DB.statements=0;
   const result=await runTick(env,'fixture');
   assert.equal(result.ok,true,JSON.stringify(result));
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM hunt_account_positions').get().n,0);
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM candidate_decisions WHERE stage='RESEARCH'").get().n,260);
   const cycle=db.prepare('SELECT * FROM engine_cycles').get(),metrics=JSON.parse(cycle.metrics);
   assert.equal(cycle.state,'COMPLETE');assert.ok(metrics.requests<=36);assert.ok(metrics.database.calls>0);
-  const callsBefore=env.MEDS_DB.calls;
+  const callsBefore=env.MEDS_DB.calls,statementsBefore=env.MEDS_DB.statements;
+  assert.ok(statementsBefore<=45,`expected meaningful headroom below 50 D1 queries, got ${statementsBefore}`);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM leader_runtime_accounts WHERE active=1 AND account_id='H250'").get().n,1);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM leader_runtime_accounts WHERE active=1 AND account_id!='H250'").get().n,0);
   assert.equal((await runTick(env,'fixture')).skipped,'cycle already complete');
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM engine_cycles').get().n,1);
-  t.diagnostic(JSON.stringify({fixture:'260 broad controls, no holdings',provider_requests:metrics.requests,d1_calls:callsBefore,sql_statements_lower_bound:metrics.database.statements,workers_free_gate:callsBefore<=50?'within_call_limit':'NOT_READY'}));
+  t.diagnostic(JSON.stringify({fixture:'260 broad controls, Leader-only H250, no holdings',provider_requests:metrics.requests,
+    d1_calls:callsBefore,sql_statements:statementsBefore,fenced_statements:metrics.database.statements,
+    workers_free_gate:statementsBefore<=45?'PASS_WITH_HEADROOM':'NOT_READY'}));
   db.close();
 }));
