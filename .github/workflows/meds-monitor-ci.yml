@@ -1,0 +1,28 @@
+name: MEDS Monitor CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "meds-monitor/**"
+      - ".github/workflows/meds-monitor-ci.yml"
+  push:
+    branches: [main, "meds-v8-monitor"]
+    paths:
+      - "meds-monitor/**"
+      - ".github/workflows/meds-monitor-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node --check meds-monitor/scripts/render-github-report.mjs
+      - run: node --test meds-monitor/tests/*.test.mjs
