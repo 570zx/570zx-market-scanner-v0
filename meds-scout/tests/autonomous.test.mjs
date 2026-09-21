@@ -215,6 +215,7 @@ test('pause makes no data requests; resume cannot bypass deployment gate; health
   assert.equal((await response.json()).enabled,false);
   const status=await (await worker.fetch(new Request('https://test/status'),{...env,SCOUT_ENABLED:'false'})).json();
   assert.equal(status.health,'PAUSED');assert.equal(status.live_execution,false);
+  assert.equal(status.paper.valuation_state,'NOT_YET_VALUED','bootstrap must not advertise a valuation before the first v8 mark');
   assert.equal(healthState(true,true,null,null,false),'ENGINE_STALE');
   assert.equal(healthState(true,true,new Date().toISOString(),null,true),'DEGRADED');
   assert.equal(healthState(true,true,new Date().toISOString(),'failure',false),'ENGINE_CRITICAL');
