@@ -2469,7 +2469,9 @@ async function publicStatus(env: Env): Promise<Response> {
     });
     const cycle=await env.MEDS_DB.prepare('SELECT * FROM engine_cycles ORDER BY started_at DESC LIMIT 1').first<any>();
     const cycleUsage=cycle?JSON.parse(cycle.metrics):null;
-    const degraded=detailed.some(v=>!v.complete)||!!cycleUsage?.budget_exhausted||!!cycleUsage?.failures?.length;
+    const expectedValuations=ledgers.length+Number((body.leader_hunt as any)?.accounts?.length??0);
+    const valuationsPending=detailed.length<expectedValuations;
+    const degraded=valuationsPending||detailed.some(v=>!v.complete)||!!cycleUsage?.budget_exhausted||!!cycleUsage?.failures?.length;
     const currentState=healthState(scannerEnabled,activeSession,state?.last_success_at??null,state?.last_error??null,degraded,
       env.ENGINE_CADENCE==='session'?plannedCadence(phase(now)):5);
     const quoteIssues=await env.MEDS_DB.prepare("SELECT * FROM quote_health WHERE state!='FRESH' ORDER BY last_attempt_at DESC LIMIT 100").all<any>();
@@ -2479,7 +2481,7 @@ async function publicStatus(env: Env): Promise<Response> {
     body.ok=!['ENGINE_CRITICAL','ENGINE_STALE'].includes(currentState);
     Object.assign(scanner,{state:currentState,healthy:body.ok});
     Object.assign(paper,{state:currentState==='PAUSED'?'PAUSED':currentState==='MARKET_CLOSED'?'MARKET_CLOSED':paper.paper_error?'ENGINE_CRITICAL':degraded?'DEGRADED':'HEALTHY',
-      healthy:!paper.paper_error||!scannerEnabled,valuation_state:degraded?'PORTFOLIO_PARTIALLY_VALUED':'VALUED'});
+      healthy:!paper.paper_error||!scannerEnabled,valuation_state:valuationsPending?'NOT_YET_VALUED':detailed.some(v=>!v.complete)?'PORTFOLIO_PARTIALLY_VALUED':'VALUED'});
     if(scannerEnabled&&paper.paper_error){body.ok=false;body.health='ENGINE_CRITICAL';}
     body.engine={version:ENGINE_VERSION,last_management_at:cycle?.management_at??null,latest_cycle:cycle,
       usage:cycleUsage,single_scheduler:'Cloudflare cron',cadence_minutes:plannedCadence(phase(now)),
