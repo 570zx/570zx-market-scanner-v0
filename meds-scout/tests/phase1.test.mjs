@@ -44,7 +44,7 @@ test('migration preserves historical trades and drawdown, and is idempotent',asy
  await ensurePaperSchema(env);await ensurePaperSchema(env);
  assert.equal(JSON.stringify(db.prepare('SELECT * FROM paper_trades').all()),trades);
  assert.equal(db.prepare("SELECT max_drawdown_pct AS dd FROM paper_ledgers WHERE ledger_id='C'").get().dd,.51);
- assert.equal(db.prepare('SELECT version FROM paper_meta').get().version,9);
+ assert.equal(db.prepare('SELECT version FROM paper_meta').get().version,10);
  assert.equal(db.prepare('SELECT simulator_version FROM paper_trades').get().simulator_version,'legacy-untrusted');
  db.close();
 });
@@ -218,14 +218,16 @@ test('leader hunt includes true penny stocks without loosening execution discipl
  assert.equal(leaderHuntEligible(penny),true);
  assert.equal(leaderHuntEligible({...penny,price:.09}),false);
  assert.equal(leaderHuntEligible({...penny,spreadPct:8.1}),false);
- assert.equal(db.prepare("SELECT version FROM paper_meta WHERE id=1").get().version,9);
+ assert.equal(db.prepare("SELECT version FROM paper_meta WHERE id=1").get().version,10);
  db.close();
 });
 
 test('leader hunt options share account cash, use whole contracts and follow +200 lifecycle',async()=>{
  const {env,db}=await setup();
  const NativeFetch=globalThis.fetch;
- const now=new Date('2026-09-18T15:00:00Z');
+ const NativeDate=Date;let clock=NativeDate.parse('2026-09-18T15:00:00Z');
+ globalThis.Date=class extends NativeDate{constructor(...a){super(...(a.length?a:[clock]));}static now(){return clock;}};
+ const now=new Date();
  const optionSymbol='TEST260925C00005000';
  globalThis.fetch=async(url)=>{
    url=String(url);
@@ -259,7 +261,7 @@ test('leader hunt options share account cash, use whole contracts and follow +20
    assert.equal(db.prepare("SELECT COUNT(*) n FROM hunt_account_option_trades").get().n,3);
    assert.ok(db.prepare("SELECT MIN(realized_pnl) AS n FROM hunt_account_option_trades").get().n>0);
  }finally{
-   globalThis.fetch=NativeFetch;db.close();
+   globalThis.Date=NativeDate;globalThis.fetch=NativeFetch;db.close();
  }
 });
 
@@ -295,7 +297,7 @@ test('top-gainer audit records broad discovery and explains late discovery',asyn
    assert.equal(res.status,200);
    const body=await res.json();
    assert.equal(body.rows[0].symbol,'MOON');
-   assert.equal(body.rows[0].miss_reason,'DISCOVERED_AFTER_10');
+   assert.equal(body.rows[0].miss_reason,'DISCOVERED_AFTER_THRESHOLD');
    assert.equal(body.rows[0].caught_before_10,false);
  }finally{globalThis.Date=NativeDate;globalThis.fetch=oldFetch;db.close();}
 });

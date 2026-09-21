@@ -1,5 +1,7 @@
 # MEDS Scout Agent — v0.1
 
+**Current implementation: MEDS v8. Scheduled scanning is paused.** See [the v8 engineering report](docs/v8-upgrade.md) for the corrections, validation, usage blocker, and restart criteria. The v0.1 description below is historical; it does not describe the currently enabled schedule or establish Free-plan capacity for v8.
+
 A low-cost / free-first market surveillance agent built specifically around the pattern we identified from MEDS-style moves:
 
 **pressure building → catalyst → abnormal volume → tight execution → persistence → breakout/squeeze acceleration**

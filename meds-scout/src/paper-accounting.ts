@@ -1,5 +1,5 @@
-export const SIM_VERSION = 'phase1-v1';
-export const EXEC_VERSION = 'observed-side-v1';
+export const SIM_VERSION = 'paper-v2-resilient-valuation';
+export const EXEC_VERSION = 'observed-side-v2-liquidity';
 export type Quote = {bp?:number; ap?:number; bs?:number; as?:number; t?:string};
 export const LIMITS = {totalRisk:0.05, underlyingRisk:0.01, underlyingAllocation:0.25, grossAllocation:1, maxAgeMs:90_000, optionFriction:0.20};
 export function validQuote(q:Quote|undefined, now=Date.now()): q is Quote & {bp:number;ap:number;t:string} {
