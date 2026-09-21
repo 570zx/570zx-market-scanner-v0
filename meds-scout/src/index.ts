@@ -10,6 +10,7 @@ interface Env {
   ENGINE_CADENCE?: string;
   ADMIN_TOKEN?: string;
   SCOUT_ENABLED?: string;
+  LEADER_ONLY?: string;
   MEDS_DB: D1Database;
   AI?: Ai;
   ALPACA_API_KEY: string;
@@ -207,37 +208,42 @@ async function persistGainerBoard(env:Env,gainers:any[],now=new Date()){
   if(!gainers.length) return;
   const bucket=bucket5(now),sessionDate=easternParts(now).date,marketPhase=phase(now);
   const rows=gainers.slice(0,50).map((x:any,i:number)=>({
-    rank:i+1,symbol:String(x.symbol??'').toUpperCase(),
-    price:Number(x.price??x.last_price??x.lastPrice),
-    change:Number(x.change),
-    percentChange:Number(x.percent_change??x.percentChange??x.change_percent??x.changePercentage),
-    raw:JSON.stringify(x).slice(0,2000)
-  })).filter((x:any)=>x.symbol);
-  for(let i=0;i<rows.length;i+=50){
-    const statements=rows.slice(i,i+50).map((x:any)=>env.MEDS_DB.prepare(`INSERT OR REPLACE INTO hunt_gainer_board
-      (bucket,session_date,created_at,phase,rank,symbol,price,change,percent_change,raw_json,version)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?)`).bind(bucket,sessionDate,now.toISOString(),marketPhase,x.rank,x.symbol,
-        Number.isFinite(x.price)?x.price:null,Number.isFinite(x.change)?x.change:null,
-        Number.isFinite(x.percentChange)?x.percentChange:null,x.raw,HUNT_VERSION));
-    if(statements.length) await env.MEDS_DB.batch(statements);
-  }
+    bucket,session_date:sessionDate,created_at:now.toISOString(),phase:marketPhase,rank:i+1,
+    symbol:String(x.symbol??'').toUpperCase(),price:Number(x.price??x.last_price??x.lastPrice),
+    change:Number(x.change),percent_change:Number(x.percent_change??x.percentChange??x.change_percent??x.changePercentage),
+    raw_json:JSON.stringify(x).slice(0,2000),version:HUNT_VERSION
+  })).filter((x:any)=>x.symbol).map((x:any)=>({...x,
+    price:Number.isFinite(x.price)?x.price:null,change:Number.isFinite(x.change)?x.change:null,
+    percent_change:Number.isFinite(x.percent_change)?x.percent_change:null}));
+  if(!rows.length) return;
+  await env.MEDS_DB.prepare(`INSERT OR REPLACE INTO hunt_gainer_board
+    (bucket,session_date,created_at,phase,rank,symbol,price,change,percent_change,raw_json,version)
+    SELECT json_extract(value,'$.bucket'),json_extract(value,'$.session_date'),json_extract(value,'$.created_at'),
+      json_extract(value,'$.phase'),json_extract(value,'$.rank'),json_extract(value,'$.symbol'),json_extract(value,'$.price'),
+      json_extract(value,'$.change'),json_extract(value,'$.percent_change'),json_extract(value,'$.raw_json'),json_extract(value,'$.version')
+    FROM json_each(?)`).bind(JSON.stringify(rows)).run();
 }
 
 async function persistBroadDiscovery(env:Env,rows:Candidate[],discovery:DiscoveryResult,shortlisted:Set<string>,now=new Date()){
   if(!rows.length) return;
-  const bucket=bucket5(now),sessionDate=easternParts(now).date;
-  for(let i=0;i<rows.length;i+=50){
-    const statements=rows.slice(i,i+50).map((x:Candidate)=>{
-      const src=discovery.sourceBySymbol.get(x.symbol)??{source:'held_or_recent',rank:null};
-      return env.MEDS_DB.prepare(`INSERT OR REPLACE INTO hunt_discovery_observations
-        (bucket,session_date,created_at,symbol,source,source_rank,price,day_change_pct,score,spread_pct,
-         day_volume,minute_volume,execution_fresh,eligible,shortlisted,version)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(bucket,sessionDate,now.toISOString(),x.symbol,src.source,src.rank,
-          x.price,x.dayChangePct,x.score,x.spreadPct,x.dayVolume,x.minuteVolume,(x as any).executionFresh===true?1:0,
-          leaderEquityRunnerEligible(x)?1:0,shortlisted.has(x.symbol)?1:0,HUNT_VERSION);
-    });
-    if(statements.length) await env.MEDS_DB.batch(statements);
-  }
+  const bucket=bucket5(now),sessionDate=easternParts(now).date,stamp=now.toISOString();
+  const payload=rows.map((x:Candidate)=>{
+    const src=discovery.sourceBySymbol.get(x.symbol)??{source:'held_or_recent',rank:null};
+    return {bucket,session_date:sessionDate,created_at:stamp,symbol:x.symbol,source:src.source,source_rank:src.rank,
+      price:x.price,day_change_pct:x.dayChangePct,score:x.score,spread_pct:x.spreadPct,day_volume:x.dayVolume,
+      minute_volume:x.minuteVolume,execution_fresh:(x as any).executionFresh===true?1:0,
+      eligible:leaderEquityRunnerEligible(x)?1:0,shortlisted:shortlisted.has(x.symbol)?1:0,version:HUNT_VERSION};
+  });
+  await env.MEDS_DB.prepare(`INSERT OR REPLACE INTO hunt_discovery_observations
+    (bucket,session_date,created_at,symbol,source,source_rank,price,day_change_pct,score,spread_pct,
+     day_volume,minute_volume,execution_fresh,eligible,shortlisted,version)
+    SELECT json_extract(value,'$.bucket'),json_extract(value,'$.session_date'),json_extract(value,'$.created_at'),
+      json_extract(value,'$.symbol'),json_extract(value,'$.source'),json_extract(value,'$.source_rank'),
+      json_extract(value,'$.price'),json_extract(value,'$.day_change_pct'),json_extract(value,'$.score'),
+      json_extract(value,'$.spread_pct'),json_extract(value,'$.day_volume'),json_extract(value,'$.minute_volume'),
+      json_extract(value,'$.execution_fresh'),json_extract(value,'$.eligible'),json_extract(value,'$.shortlisted'),
+      json_extract(value,'$.version')
+    FROM json_each(?)`).bind(JSON.stringify(payload)).run();
 }
 
 function selectLeaderResearch(rows:Candidate[],discovery:DiscoveryResult):Candidate[]{
@@ -383,17 +389,36 @@ async function postAlert(env: Env, text: string, eventKey: string) {
   await env.MEDS_DB.prepare(`UPDATE alert_delivery SET status=? WHERE event_key=?`).bind(status,eventKey).run();
 }
 
-async function persistCandidate(env: Env, c: Candidate, status: string, raw: any) {
-  const now = new Date().toISOString();
-  await env.MEDS_DB.batch([
+async function persistCandidates(env:Env,rows:{candidate:Candidate;status:string;raw:any}[],includeCoreSignals=true){
+  if(!rows.length) return;
+  const now=new Date().toISOString();
+  const payload=rows.map(({candidate:c,status,raw})=>({
+    symbol:c.symbol,last_price:c.price,last_bid:c.bid,last_ask:c.ask,day_volume:c.dayVolume,
+    previous_day_volume:c.previousDayVolume,last_minute_volume:c.minuteVolume,score:c.score,status,
+    consecutive_hits:c.consecutiveHits,last_seen_at:now,created_at:now,price:c.price,bid:c.bid,ask:c.ask,
+    day_change_pct:c.dayChangePct,spread_pct:c.spreadPct,volume_accel:c.volumeAccel,catalyst_score:c.catalystScore,
+    borrow_fee:c.borrowFee??null,short_interest_pct:c.shortInterestPct??null,borrow_available:c.borrowAvailable??null,
+    reasons:c.reasons.join('; '),catalyst_summary:c.catalystSummary,raw_json:JSON.stringify(raw).slice(0,12000)
+  }));
+  const statements:D1PreparedStatement[]=[
     env.MEDS_DB.prepare(`INSERT INTO symbol_state(symbol,last_price,last_bid,last_ask,day_volume,previous_day_volume,last_minute_volume,score,status,consecutive_hits,last_seen_at)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?)
-      ON CONFLICT(symbol) DO UPDATE SET last_price=excluded.last_price,last_bid=excluded.last_bid,last_ask=excluded.last_ask,day_volume=excluded.day_volume,previous_day_volume=excluded.previous_day_volume,last_minute_volume=excluded.last_minute_volume,score=excluded.score,status=excluded.status,consecutive_hits=excluded.consecutive_hits,last_seen_at=excluded.last_seen_at`)
-      .bind(c.symbol,c.price,c.bid,c.ask,c.dayVolume,c.previousDayVolume,c.minuteVolume,c.score,status,c.consecutiveHits,now),
-    env.MEDS_DB.prepare(`INSERT INTO signals(created_at,symbol,score,status,price,bid,ask,day_change_pct,spread_pct,volume_accel,catalyst_score,borrow_fee,short_interest_pct,borrow_available,reasons,catalyst_summary,raw_json)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-      .bind(now,c.symbol,c.score,status,c.price,c.bid,c.ask,c.dayChangePct,c.spreadPct,c.volumeAccel,c.catalystScore,c.borrowFee ?? null,c.shortInterestPct ?? null,c.borrowAvailable ?? null,c.reasons.join("; "),c.catalystSummary,JSON.stringify(raw).slice(0,12000))
-  ]);
+      SELECT json_extract(value,'$.symbol'),json_extract(value,'$.last_price'),json_extract(value,'$.last_bid'),json_extract(value,'$.last_ask'),
+        json_extract(value,'$.day_volume'),json_extract(value,'$.previous_day_volume'),json_extract(value,'$.last_minute_volume'),
+        json_extract(value,'$.score'),json_extract(value,'$.status'),json_extract(value,'$.consecutive_hits'),json_extract(value,'$.last_seen_at')
+      FROM json_each(?) WHERE 1
+      ON CONFLICT(symbol) DO UPDATE SET last_price=excluded.last_price,last_bid=excluded.last_bid,last_ask=excluded.last_ask,
+        day_volume=excluded.day_volume,previous_day_volume=excluded.previous_day_volume,last_minute_volume=excluded.last_minute_volume,
+        score=excluded.score,status=excluded.status,consecutive_hits=excluded.consecutive_hits,last_seen_at=excluded.last_seen_at`)
+      .bind(JSON.stringify(payload))
+  ];
+  if(includeCoreSignals) statements.push(env.MEDS_DB.prepare(`INSERT INTO signals(created_at,symbol,score,status,price,bid,ask,day_change_pct,spread_pct,volume_accel,catalyst_score,borrow_fee,short_interest_pct,borrow_available,reasons,catalyst_summary,raw_json)
+      SELECT json_extract(value,'$.created_at'),json_extract(value,'$.symbol'),json_extract(value,'$.score'),json_extract(value,'$.status'),
+        json_extract(value,'$.price'),json_extract(value,'$.bid'),json_extract(value,'$.ask'),json_extract(value,'$.day_change_pct'),
+        json_extract(value,'$.spread_pct'),json_extract(value,'$.volume_accel'),json_extract(value,'$.catalyst_score'),
+        json_extract(value,'$.borrow_fee'),json_extract(value,'$.short_interest_pct'),json_extract(value,'$.borrow_available'),
+        json_extract(value,'$.reasons'),json_extract(value,'$.catalyst_summary'),json_extract(value,'$.raw_json')
+      FROM json_each(?)`).bind(JSON.stringify(payload)));
+  await env.MEDS_DB.batch(statements);
 }
 
 async function manageShadowPositions(env: Env, snapshots: Record<string, Snapshot>) {
@@ -1207,15 +1232,22 @@ async function runHuntAccounts(env:PaperEnv,candidates:PaperCandidate[],snaps:Re
 async function runLeaderHunt(env:PaperEnv,candidates:PaperCandidate[],snaps:Record<string,PaperSnapshot>,now=new Date()){
   await ensurePaperSchema(env);
   const marketPhase=phase(now),bucket=bucket5(now);
-  const legacyExits=await manageLeaderHuntPositions(env,snaps,now);
+  const legacyExits=0; // pre-v8.1 generic Leader positions are historical only
   const tracked=candidates.slice(0,HUNT_TRACKED_PER_CYCLE);
-  for(const c of tracked){
-    const features=JSON.stringify(huntFeatures(c,marketPhase)).slice(0,12000);
-    const dayVolumeRatio=c.previousDayVolume>0?c.dayVolume/c.previousDayVolume:0;
-    await env.MEDS_DB.prepare(`INSERT OR IGNORE INTO hunt_observations(bucket,created_at,symbol,phase,price,bid,ask,day_change_pct,score,spread_pct,volume_accel,day_volume_ratio,consecutive_hits,catalyst_score,status,features,version)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-      .bind(bucket,now.toISOString(),c.symbol,marketPhase,c.price,c.bid,c.ask,c.dayChangePct,c.score,c.spreadPct,c.volumeAccel,dayVolumeRatio,c.consecutiveHits,c.catalystScore,
-        leaderEquityRunnerEligible(c) && (c as any).executionFresh===true ? 'ELIGIBLE':'TRACKED',features,HUNT_VERSION).run();
+  if(tracked.length){
+    const observations=tracked.map(c=>({bucket,created_at:now.toISOString(),symbol:c.symbol,phase:marketPhase,price:c.price,bid:c.bid,ask:c.ask,
+      day_change_pct:c.dayChangePct,score:c.score,spread_pct:c.spreadPct,volume_accel:c.volumeAccel,
+      day_volume_ratio:c.previousDayVolume>0?c.dayVolume/c.previousDayVolume:0,consecutive_hits:c.consecutiveHits,
+      catalyst_score:c.catalystScore,status:leaderEquityRunnerEligible(c)&&(c as any).executionFresh===true?'ELIGIBLE':'TRACKED',
+      features:JSON.stringify(huntFeatures(c,marketPhase)).slice(0,12000),version:HUNT_VERSION}));
+    await env.MEDS_DB.prepare(`INSERT OR IGNORE INTO hunt_observations
+      (bucket,created_at,symbol,phase,price,bid,ask,day_change_pct,score,spread_pct,volume_accel,day_volume_ratio,consecutive_hits,catalyst_score,status,features,version)
+      SELECT json_extract(value,'$.bucket'),json_extract(value,'$.created_at'),json_extract(value,'$.symbol'),json_extract(value,'$.phase'),
+        json_extract(value,'$.price'),json_extract(value,'$.bid'),json_extract(value,'$.ask'),json_extract(value,'$.day_change_pct'),
+        json_extract(value,'$.score'),json_extract(value,'$.spread_pct'),json_extract(value,'$.volume_accel'),json_extract(value,'$.day_volume_ratio'),
+        json_extract(value,'$.consecutive_hits'),json_extract(value,'$.catalyst_score'),json_extract(value,'$.status'),
+        json_extract(value,'$.features'),json_extract(value,'$.version')
+      FROM json_each(?)`).bind(JSON.stringify(observations)).run();
   }
   const accounts=await runHuntAccounts(env,tracked,snaps,now);
   await env.MEDS_DB.prepare(`UPDATE hunt_observations SET status='ACCOUNT_SAMPLED' WHERE bucket=? AND symbol IN
@@ -1995,6 +2027,7 @@ async function scanTick(env: Env) {
   try{news=await fetchNewsForSymbols(env,research.map(x=>x.symbol));}catch{/* non-fatal discovery enrichment */}
   const borrow: Record<string,any> = {}; // No verified free borrow provider configured.
 
+  const candidateWrites:{candidate:Candidate;status:string;raw:any}[]=[];
   for (const c of research) {
     const h = heuristicCatalyst(news, c.symbol);
     c.catalystScore = h.score;
@@ -2005,8 +2038,9 @@ async function scanTick(env: Env) {
     c.borrowAvailable = bm.available_shares ?? bm.borrowAvailable;
     scoreCandidate(c, regularSession());
     const status = c.score >= 82 ? "A_PLUS_ARMED" : c.score >= threshold ? "IGNITION_WATCH" : "WATCH";
-    await persistCandidate(env, c, status, snapshots[c.symbol]);
+    candidateWrites.push({candidate:c,status,raw:snapshots[c.symbol]});
   }
+  await persistCandidates(env,candidateWrites,env.LEADER_ONLY!=='true');
   // Re-apply the early-source reservation after final catalyst scoring. v5
   // reserved early movers during research selection, then accidentally lost
   // that priority by score-sorting immediately before Leader entry selection.
