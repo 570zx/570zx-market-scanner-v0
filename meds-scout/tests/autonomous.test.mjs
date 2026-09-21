@@ -210,7 +210,7 @@ test('performance default isolates current version, reports empty distribution h
   const {env,db}=await setup();
   const r=await performanceReport(env.MEDS_DB,new URL('https://test/status/hunt/performance'));
   assert.equal(r.version,HUNT_VERSION);assert.equal(r.summary.trades,0);assert.equal(r.summary.median_return,null);
-  assert.match(r.sample_unit,/correlated/);db.close();
+  assert.match(r.sample_unit,/\$250/);db.close();
 }));
 
 test('pause makes no data requests; resume cannot bypass deployment gate; health is session aware',()=>clocked(async()=>{
