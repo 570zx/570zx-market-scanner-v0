@@ -945,8 +945,8 @@ async function markHuntAccounts(env:PaperEnv,snaps:Record<string,PaperSnapshot>,
   const accounts=(await env.MEDS_DB.prepare(`SELECT a.* FROM hunt_accounts a JOIN leader_runtime_accounts r ON r.account_id=a.account_id AND r.active=1 ORDER BY a.starting_equity`).all<any>()).results??[];
   const positions=(await env.MEDS_DB.prepare(`SELECT p.* FROM hunt_account_positions p JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1 WHERE p.status='open'`).all<any>()).results??[];
   const options=(await env.MEDS_DB.prepare(`SELECT p.* FROM hunt_account_option_positions p JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1 WHERE p.status='open'`).all<any>()).results??[];
-  await retainQuotes(env.MEDS_DB,'equity',snaps,[...new Set(positions.map(p=>String(p.symbol)))],stockFeed(now));
-  const retained=await retainedQuoteMap(env.MEDS_DB);
+  if(positions.length) await retainQuotes(env.MEDS_DB,'equity',snaps,[...new Set(positions.map(p=>String(p.symbol)))],stockFeed(now));
+  const retained=(positions.length||options.length)?await retainedQuoteMap(env.MEDS_DB):new Map<string,any>();
   for(const a of accounts){
     const marks:MarkState[]=[];
     for(const p of positions.filter(p=>p.account_id===a.account_id)){
@@ -1237,7 +1237,6 @@ async function runHuntAccounts(env:PaperEnv,candidates:PaperCandidate[],snaps:Re
   };
 }
 async function runLeaderHunt(env:PaperEnv,candidates:PaperCandidate[],snaps:Record<string,PaperSnapshot>,now=new Date()){
-  await ensurePaperSchema(env);
   const marketPhase=phase(now),bucket=bucket5(now);
   const legacyExits=0; // pre-v8.1 generic Leader positions are historical only
   const tracked=candidates.slice(0,HUNT_TRACKED_PER_CYCLE);
@@ -1257,7 +1256,7 @@ async function runLeaderHunt(env:PaperEnv,candidates:PaperCandidate[],snaps:Reco
       FROM json_each(?)`).bind(JSON.stringify(observations)).run();
   }
   const accounts=await runHuntAccounts(env,tracked,snaps,now);
-  await env.MEDS_DB.prepare(`UPDATE hunt_observations SET status='ACCOUNT_SAMPLED' WHERE bucket=? AND symbol IN
+  if(accounts.account_entries>0) await env.MEDS_DB.prepare(`UPDATE hunt_observations SET status='ACCOUNT_SAMPLED' WHERE bucket=? AND symbol IN
     (SELECT symbol FROM hunt_account_positions WHERE opened_at>=? AND version=? UNION SELECT underlying FROM hunt_account_option_positions WHERE opened_at>=? AND version=?)`)
     .bind(bucket,bucket,HUNT_VERSION,bucket,HUNT_VERSION).run();
   const openRow=await env.MEDS_DB.prepare(`SELECT
@@ -1946,7 +1945,6 @@ async function scanTick(env: Env) {
   const maxChange = num(env.MAX_DAY_CHANGE_PCT, 25);
   const threshold = num(env.MIN_SIGNAL_SCORE, 67);
 
-  await ensurePaperSchema(env);
   const discovered = await discoverSymbols(env);
   const auditNow=new Date();
   await persistGainerBoard(env,discovered.gainers,auditNow);
