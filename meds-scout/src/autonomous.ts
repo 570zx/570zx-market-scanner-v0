@@ -1,8 +1,8 @@
 import {validQuote, SIM_VERSION, EXEC_VERSION, type Quote} from './paper-accounting.ts';
 
-export const ENGINE_VERSION = 'meds-v8-autonomous-audit';
-export const LEADER_VERSION = 'leader-hunt-v8-autonomous-audit';
-export const SCHEMA_VERSION = 10;
+export const ENGINE_VERSION = 'meds-v8.1-leader250-capacity';
+export const LEADER_VERSION = 'leader-hunt-v8.1-leader250-capacity';
+export const SCHEMA_VERSION = 11;
 export const LEASE_MS = 6 * 60_000;
 
 // Additive, replayable migration. Existing trades, versions, cash and peaks
@@ -21,6 +21,9 @@ export const AUTONOMOUS_SCHEMA = [
   `CREATE TABLE IF NOT EXISTS research_outcomes(session_date TEXT NOT NULL,symbol TEXT NOT NULL,version TEXT NOT NULL,first_provider_at TEXT,first_seen_at TEXT,first_price REAL,first_change REAL,source TEXT,instrument_type TEXT NOT NULL,shortlisted_at TEXT,runner_at TEXT,executable_at TEXT,last_seen_at TEXT NOT NULL,high REAL,low REAL,latest_features TEXT NOT NULL,PRIMARY KEY(session_date,symbol,version))`,
   `CREATE TABLE IF NOT EXISTS mover_audits(bucket TEXT NOT NULL,symbol TEXT NOT NULL,session_date TEXT NOT NULL,phase TEXT NOT NULL,rank INTEGER NOT NULL,summary TEXT NOT NULL,version TEXT NOT NULL,PRIMARY KEY(bucket,symbol,version))`,
   `CREATE INDEX IF NOT EXISTS idx_mover_audit_session ON mover_audits(session_date,bucket,rank)`,
+  `CREATE TABLE IF NOT EXISTS leader_runtime_accounts(account_id TEXT PRIMARY KEY,active INTEGER NOT NULL DEFAULT 1,role TEXT NOT NULL DEFAULT 'leader',created_at TEXT NOT NULL)`,
+  `INSERT OR IGNORE INTO hunt_accounts(account_id,label,starting_equity,cash,current_equity,realized_pnl,max_equity,max_drawdown_pct,updated_at) VALUES('H250','$250',250,250,250,0,250,0,strftime('%Y-%m-%dT%H:%M:%fZ','now'))`,
+  `INSERT OR REPLACE INTO leader_runtime_accounts(account_id,active,role,created_at) VALUES('H250',1,'leader',COALESCE((SELECT created_at FROM leader_runtime_accounts WHERE account_id='H250'),strftime('%Y-%m-%dT%H:%M:%fZ','now')))`,
   `CREATE TABLE IF NOT EXISTS hunt_revisions(account_id TEXT PRIMARY KEY,revision INTEGER NOT NULL DEFAULT 0)`,
   `INSERT OR IGNORE INTO hunt_revisions SELECT account_id,0 FROM hunt_accounts`,
   `CREATE TABLE IF NOT EXISTS hunt_risk_guards(account_id TEXT PRIMARY KEY,expected_revision INTEGER NOT NULL)`,
@@ -43,7 +46,7 @@ export const AUTONOMOUS_SCHEMA = [
   `DROP TRIGGER IF EXISTS paper_cycle_version_v3`,
   `CREATE TRIGGER IF NOT EXISTS paper_trade_version_v8 AFTER INSERT ON paper_trades BEGIN UPDATE paper_trades SET simulator_version='${SIM_VERSION}',execution_version='${EXEC_VERSION}' WHERE id=NEW.id; END`,
   `CREATE TRIGGER IF NOT EXISTS paper_cycle_version_v8 AFTER INSERT ON paper_cycles BEGIN UPDATE paper_cycles SET simulator_version='${SIM_VERSION}',execution_version='${EXEC_VERSION}' WHERE bucket=NEW.bucket; END`,
-  `UPDATE paper_meta SET version=10 WHERE id=1`,
+  `UPDATE paper_meta SET version=11 WHERE id=1`,
 ];
 
 export async function ensureAutonomousSchema(db:D1Database) {
