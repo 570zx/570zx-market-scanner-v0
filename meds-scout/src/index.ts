@@ -1940,6 +1940,7 @@ async function runPaperLab(env:PaperEnv,candidates:PaperCandidate[],snaps:Record
 async function scanTick(env: Env) {
   if (!inScanWindow()) return { ok: true, skipped: "outside scan window" };
   env={...env,DATA:env.DATA??new MarketDataCycle(env)};
+  const leaderOnly=env.LEADER_ONLY==='true';
   const coreMinPrice = num(env.MIN_PRICE, 0.5);
   const minPrice = Math.min(coreMinPrice,HUNT_MIN_STOCK_PRICE);
   const maxChange = num(env.MAX_DAY_CHANGE_PCT, 25);
@@ -1949,11 +1950,13 @@ async function scanTick(env: Env) {
   const discovered = await discoverSymbols(env);
   const auditNow=new Date();
   await persistGainerBoard(env,discovered.gainers,auditNow);
-  const paperHeld=await env.MEDS_DB.prepare("SELECT symbol FROM paper_positions WHERE status='open' UNION SELECT underlying AS symbol FROM paper_option_positions WHERE status='open'").all<{symbol:string}>();
-  const held = await env.MEDS_DB.prepare(`SELECT symbol FROM shadow_positions WHERE status='open'`).all<{symbol:string}>();
-  const huntHeld=await env.MEDS_DB.prepare(`SELECT DISTINCT symbol FROM hunt_account_positions WHERE status='open'
-    UNION SELECT DISTINCT symbol FROM hunt_positions WHERE status='open'
-    UNION SELECT DISTINCT underlying AS symbol FROM hunt_account_option_positions WHERE status='open'`).all<{symbol:string}>();
+  const paperHeld=leaderOnly?{results:[] as {symbol:string}[]}:await env.MEDS_DB.prepare("SELECT symbol FROM paper_positions WHERE status='open' UNION SELECT underlying AS symbol FROM paper_option_positions WHERE status='open'").all<{symbol:string}>();
+  const held=leaderOnly?{results:[] as {symbol:string}[]}:await env.MEDS_DB.prepare(`SELECT symbol FROM shadow_positions WHERE status='open'`).all<{symbol:string}>();
+  const huntHeld=await env.MEDS_DB.prepare(`SELECT DISTINCT p.symbol FROM hunt_account_positions p
+      JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1 WHERE p.status='open'
+    UNION
+    SELECT DISTINCT p.underlying AS symbol FROM hunt_account_option_positions p
+      JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1 WHERE p.status='open'`).all<{symbol:string}>();
   const huntRecent=await env.MEDS_DB.prepare(`SELECT symbol,MAX(created_at) AS last_seen
     FROM hunt_observations WHERE created_at>=? GROUP BY symbol ORDER BY last_seen DESC LIMIT 80`)
     .bind(new Date(Date.now()-12*60*60000).toISOString()).all<{symbol:string}>();
@@ -1976,7 +1979,7 @@ async function scanTick(env: Env) {
   const priorMap = new Map((prior.results ?? []).map(p=>[p.symbol,p]));
   const snapshots = await fetchSnapshots(env, symbols);
   await refreshHeldQuotes(env.MEDS_DB,env.DATA!,snapshots,heldSymbols,stockFeed());
-  await manageShadowPositions(env, snapshots);
+  if(!leaderOnly) await manageShadowPositions(env, snapshots);
 
   const rough: Candidate[] = [];
   const auditRough: Candidate[] = [];
@@ -2065,15 +2068,17 @@ async function scanTick(env: Env) {
 
   research.sort((a,b)=>b.score-a.score);
   const top = research.filter(c=>c.executionFresh===true && c.price>=coreMinPrice).slice(0, Math.min(8, num(env.MAX_WATCH_SYMBOLS, 8)));
-  for (const c of top) {
-    const previous = priorMap.get(c.symbol);
-    const oldAlert = previous?.last_alert_at ? Date.parse(previous.last_alert_at) : 0;
-    const cooldown = Date.now() - oldAlert < 8 * 60 * 1000;
-    if (c.score >= threshold && !cooldown) {
-      const borrowText = c.borrowFee != null ? `\nBorrow: ${c.borrowFee.toFixed(1)}% | SI ${c.shortInterestPct?.toFixed?.(1) ?? "?"}% | avail ${c.borrowAvailable ?? "?"}` : "";
-      const msg = `${c.score >= 82 ? "🔥 A+ ARMED" : "🚨 IGNITION WATCH"} — ${c.symbol}\nPrice ${c.price.toFixed(3)} | Day ${c.dayChangePct.toFixed(1)}% | Spread ${c.spreadPct.toFixed(1)}%\nVol accel ${(c.volumeAccel*100).toFixed(0)}% | Day/PriorVol ${(c.previousDayVolume>0?c.dayVolume/c.previousDayVolume:0).toFixed(2)}x${borrowText}\nCatalyst: ${c.catalystSummary || "none found"}\nWhy: ${c.reasons.slice(0,5).join(" + ")}\nSTATUS: PRE-MOVE / VERIFY BEFORE ENTRY`;
-      await postAlert(env, msg, `signal:${c.symbol}:${Math.floor(Date.now()/480000)}`);
-      await env.MEDS_DB.prepare(`UPDATE symbol_state SET last_alert_at=? WHERE symbol=?`).bind(new Date().toISOString(), c.symbol).run();
+  if(!leaderOnly){
+    for (const c of top) {
+      const previous = priorMap.get(c.symbol);
+      const oldAlert = previous?.last_alert_at ? Date.parse(previous.last_alert_at) : 0;
+      const cooldown = Date.now() - oldAlert < 8 * 60 * 1000;
+      if (c.score >= threshold && !cooldown) {
+        const borrowText = c.borrowFee != null ? `\nBorrow: ${c.borrowFee.toFixed(1)}% | SI ${c.shortInterestPct?.toFixed?.(1) ?? "?"}% | avail ${c.borrowAvailable ?? "?"}` : "";
+        const msg = `${c.score >= 82 ? "🔥 A+ ARMED" : "🚨 IGNITION WATCH"} — ${c.symbol}\nPrice ${c.price.toFixed(3)} | Day ${c.dayChangePct.toFixed(1)}% | Spread ${c.spreadPct.toFixed(1)}%\nVol accel ${(c.volumeAccel*100).toFixed(0)}% | Day/PriorVol ${(c.previousDayVolume>0?c.dayVolume/c.previousDayVolume:0).toFixed(2)}x${borrowText}\nCatalyst: ${c.catalystSummary || "none found"}\nWhy: ${c.reasons.slice(0,5).join(" + ")}\nSTATUS: PRE-MOVE / VERIFY BEFORE ENTRY`;
+        await postAlert(env, msg, `signal:${c.symbol}:${Math.floor(Date.now()/480000)}`);
+        await env.MEDS_DB.prepare(`UPDATE symbol_state SET last_alert_at=? WHERE symbol=?`).bind(new Date().toISOString(), c.symbol).run();
+      }
     }
   }
 
@@ -2081,12 +2086,14 @@ async function scanTick(env: Env) {
   try { hunt=await runLeaderHunt(env,huntResearch,snapshots); }
   catch(error){ hunt={version:HUNT_VERSION,error:error instanceof Error?error.message:'leader hunt failed'}; }
 
-  let paper: any = { ok: true, skipped: "paper unavailable" };
-  try {
-    await refreshHeldQuotes(env.MEDS_DB,env.DATA!,snapshots,(paperHeld.results??[]).map(p=>p.symbol),stockFeed());
-    paper = await runPaperLab(env, top, snapshots);
-  } catch (error) {
-    paper = { ok: false, error: error instanceof Error ? error.message : "paper lab failed" };
+  let paper:any={ok:true,skipped:leaderOnly?'leader-only runtime':'paper unavailable'};
+  if(!leaderOnly){
+    try {
+      await refreshHeldQuotes(env.MEDS_DB,env.DATA!,snapshots,(paperHeld.results??[]).map(p=>p.symbol),stockFeed());
+      paper=await runPaperLab(env,top,snapshots);
+    } catch(error) {
+      paper={ok:false,error:error instanceof Error?error.message:'paper lab failed'};
+    }
   }
   const selfAudit=await auditMovers(env.MEDS_DB,phase(),auditNow);
   return { ok: !hunt.error && paper.ok!==false, self_audit:selfAudit, usage:env.DATA!.metrics(), feed: stockFeed(), scanned: symbols.length, shortlisted: top.length, research_shortlist:research.length,
