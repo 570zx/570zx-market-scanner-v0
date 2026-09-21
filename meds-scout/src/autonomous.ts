@@ -61,14 +61,17 @@ export function fencedDatabase(db:D1Database, owner:string,usage:DatabaseUsage={
   const underlying=new WeakMap<object,D1PreparedStatement>();
   const batch=async(statements:D1PreparedStatement[])=>{
     const now=Date.now();
-    usage.calls++;usage.statements+=statements.length+2;
+    // The invocation acquires a six-minute lease before entering the fenced DB.
+    // Every mutation re-checks ownership/expiry transactionally, but does not
+    // spend another D1 query renewing the lease. A pathological >6 minute
+    // cycle fails closed instead of extending itself indefinitely.
+    usage.calls++;usage.statements+=statements.length+1;
     const results=await db.batch([
       db.prepare('INSERT OR REPLACE INTO engine_write_guard VALUES(1,?,?)').bind(owner,now),
       ...statements.map(s=>underlying.get(s)??s),
-      db.prepare('UPDATE service_state SET lock_until=? WHERE id=1 AND lock_owner=?').bind(now+LEASE_MS,owner),
     ]);
     for(const r of results){usage.rows_read+=Number(r.meta?.rows_read??0);usage.rows_written+=Number(r.meta?.rows_written??0);}
-    return results.slice(1,-1);
+    return results.slice(1);
   };
   const wrap=(statement:D1PreparedStatement):D1PreparedStatement=>{
     const p=new Proxy(statement,{get(target,key){
