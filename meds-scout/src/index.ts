@@ -483,6 +483,7 @@ type PaperEnv = {
   ALPACA_API_KEY: string;
   ALPACA_API_SECRET: string;
   PAPER_ENABLED?: string;
+  LEADER_ONLY?: string;
 };
 
 type PaperSnapshot = {
@@ -941,9 +942,9 @@ async function manageLeaderHuntPositions(env:PaperEnv,snaps:Record<string,PaperS
 
 
 async function markHuntAccounts(env:PaperEnv,snaps:Record<string,PaperSnapshot>,now=new Date(),huntOptionMarks:Record<string,OptionSnap>={}){
-  const accounts=(await env.MEDS_DB.prepare('SELECT * FROM hunt_accounts ORDER BY starting_equity').all<any>()).results??[];
-  const positions=(await env.MEDS_DB.prepare("SELECT * FROM hunt_account_positions WHERE status='open'").all<any>()).results??[];
-  const options=(await env.MEDS_DB.prepare("SELECT * FROM hunt_account_option_positions WHERE status='open'").all<any>()).results??[];
+  const accounts=(await env.MEDS_DB.prepare(`SELECT a.* FROM hunt_accounts a JOIN leader_runtime_accounts r ON r.account_id=a.account_id AND r.active=1 ORDER BY a.starting_equity`).all<any>()).results??[];
+  const positions=(await env.MEDS_DB.prepare(`SELECT p.* FROM hunt_account_positions p JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1 WHERE p.status='open'`).all<any>()).results??[];
+  const options=(await env.MEDS_DB.prepare(`SELECT p.* FROM hunt_account_option_positions p JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1 WHERE p.status='open'`).all<any>()).results??[];
   await retainQuotes(env.MEDS_DB,'equity',snaps,[...new Set(positions.map(p=>String(p.symbol)))],stockFeed(now));
   const retained=await retainedQuoteMap(env.MEDS_DB);
   for(const a of accounts){
@@ -980,8 +981,8 @@ function reportingMark(symbol:string,asset:string,q:any,qty:number,retained:Map<
 }
 
 async function manageHuntAccountPositions(env:PaperEnv,snaps:Record<string,PaperSnapshot>,now=new Date(),markAtEnd=true){
-  const rows=await env.MEDS_DB.prepare("SELECT * FROM hunt_account_positions WHERE status='open' ORDER BY id").all<any>();
-  const ladderRows=await env.MEDS_DB.prepare("SELECT position_id,event_type FROM hunt_account_events WHERE event_type LIKE 'LADDER_%'").all<any>();
+  const rows=await env.MEDS_DB.prepare(`SELECT p.* FROM hunt_account_positions p JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1 WHERE p.status='open' ORDER BY p.id`).all<any>();
+  const ladderRows=await env.MEDS_DB.prepare(`SELECT e.position_id,e.event_type FROM hunt_account_events e JOIN hunt_account_positions p ON p.id=e.position_id JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1 WHERE e.event_type LIKE 'LADDER_%'`).all<any>();
   const ladderByPosition=new Map<number,Set<string>>();
   for(const e of ladderRows.results??[]){
     const id=Number(e.position_id),set=ladderByPosition.get(id)??new Set<string>();
@@ -989,7 +990,7 @@ async function manageHuntAccountPositions(env:PaperEnv,snaps:Record<string,Paper
   }
   const deferredMarks:any[]=[];
   let exits=0,take200s=0,ladderSells=0;
-  const intents=(await env.MEDS_DB.prepare("SELECT * FROM hunt_exit_intents WHERE kind='equity'").all<any>()).results??[];
+  const intents=(await env.MEDS_DB.prepare(`SELECT i.* FROM hunt_exit_intents i JOIN hunt_account_positions p ON p.id=i.position_id JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1 WHERE i.kind='equity'`).all<any>()).results??[];
   for(const p of rows.results??[]){
     const positionVersion=String(p.version??HUNT_VERSION);
     const snap=snaps[p.symbol],q=snap?.latestQuote;
@@ -1139,12 +1140,18 @@ async function manageHuntAccountPositions(env:PaperEnv,snaps:Record<string,Paper
 }
 
 async function loadHuntBook(env:PaperEnv,now:Date){
-  const accounts=(await env.MEDS_DB.prepare('SELECT a.*,r.revision FROM hunt_accounts a JOIN hunt_revisions r USING(account_id) ORDER BY starting_equity').all<any>()).results??[];
-  const open=(await env.MEDS_DB.prepare(`SELECT account_id,symbol FROM hunt_account_positions WHERE status='open'
-    UNION ALL SELECT account_id,underlying AS symbol FROM hunt_account_option_positions WHERE status='open'`).all<any>()).results??[];
+  const accounts=(await env.MEDS_DB.prepare(`SELECT a.*,v.revision FROM hunt_accounts a
+    JOIN leader_runtime_accounts r ON r.account_id=a.account_id AND r.active=1
+    JOIN hunt_revisions v ON v.account_id=a.account_id ORDER BY a.starting_equity`).all<any>()).results??[];
+  const open=(await env.MEDS_DB.prepare(`SELECT p.account_id,p.symbol FROM hunt_account_positions p
+      JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1 WHERE p.status='open'
+    UNION ALL SELECT p.account_id,p.underlying AS symbol FROM hunt_account_option_positions p
+      JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1 WHERE p.status='open'`).all<any>()).results??[];
   const cutoff=new Date(now.getTime()-HUNT_REENTRY_COOLDOWN_MIN*60000).toISOString();
-  const recent=(await env.MEDS_DB.prepare(`SELECT account_id,symbol FROM hunt_account_trades WHERE closed_at>=?
-    UNION ALL SELECT account_id,underlying AS symbol FROM hunt_account_option_trades WHERE closed_at>=?`).bind(cutoff,cutoff).all<any>()).results??[];
+  const recent=(await env.MEDS_DB.prepare(`SELECT t.account_id,t.symbol FROM hunt_account_trades t
+      JOIN leader_runtime_accounts r ON r.account_id=t.account_id AND r.active=1 WHERE t.closed_at>=?
+    UNION ALL SELECT t.account_id,t.underlying AS symbol FROM hunt_account_option_trades t
+      JOIN leader_runtime_accounts r ON r.account_id=t.account_id AND r.active=1 WHERE t.closed_at>=?`).bind(cutoff,cutoff).all<any>()).results??[];
   return accounts.map(a=>({...a,open:new Set(open.filter(p=>p.account_id===a.account_id).map(p=>p.symbol)),
     count:open.filter(p=>p.account_id===a.account_id).length,cooldown:new Set(recent.filter(p=>p.account_id===a.account_id).map(p=>p.symbol))}));
 }
@@ -1254,8 +1261,8 @@ async function runLeaderHunt(env:PaperEnv,candidates:PaperCandidate[],snaps:Reco
     (SELECT symbol FROM hunt_account_positions WHERE opened_at>=? AND version=? UNION SELECT underlying FROM hunt_account_option_positions WHERE opened_at>=? AND version=?)`)
     .bind(bucket,bucket,HUNT_VERSION,bucket,HUNT_VERSION).run();
   const openRow=await env.MEDS_DB.prepare(`SELECT
-    (SELECT COUNT(*) FROM hunt_account_positions WHERE status='open')+
-    (SELECT COUNT(*) FROM hunt_account_option_positions WHERE status='open') AS n`).first<any>();
+    (SELECT COUNT(*) FROM hunt_account_positions p JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1 WHERE p.status='open')+
+    (SELECT COUNT(*) FROM hunt_account_option_positions p JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1 WHERE p.status='open') AS n`).first<any>();
   const open=Number(openRow?.n??0);
   return {version:HUNT_VERSION,tracked:tracked.length,
     research_eligible:tracked.filter(leaderHuntEligible).length,
@@ -1506,7 +1513,13 @@ async function selectLeaderOption(env:PaperEnv,c:PaperCandidate,now=new Date()):
 
 async function fetchHuntOptionMarks(env:PaperEnv,now=new Date()){
   if(phase(now)!=='regular') return {} as Record<string,OptionSnap>;
-  const rows=await env.MEDS_DB.prepare("SELECT DISTINCT symbol FROM hunt_account_option_positions WHERE status='open' UNION SELECT long_symbol AS symbol FROM paper_option_positions WHERE status='open' UNION SELECT short_symbol AS symbol FROM paper_option_positions WHERE status='open' AND short_symbol IS NOT NULL").all<{symbol:string}>();
+  const leaderOnly=env.LEADER_ONLY==='true'||env.PAPER_ENABLED==='false';
+  const sql=leaderOnly
+    ? `SELECT DISTINCT p.symbol FROM hunt_account_option_positions p JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1 WHERE p.status='open'`
+    : `SELECT DISTINCT symbol FROM hunt_account_option_positions WHERE status='open'
+       UNION SELECT long_symbol AS symbol FROM paper_option_positions WHERE status='open'
+       UNION SELECT short_symbol AS symbol FROM paper_option_positions WHERE status='open' AND short_symbol IS NOT NULL`;
+  const rows=await env.MEDS_DB.prepare(sql).all<{symbol:string}>();
   const symbols=(rows.results??[]).map(x=>x.symbol);
   if(!symbols.length) return {} as Record<string,OptionSnap>;
   try{return await optionMarks(env,symbols);}catch{return {} as Record<string,OptionSnap>;}
@@ -1514,9 +1527,9 @@ async function fetchHuntOptionMarks(env:PaperEnv,now=new Date()){
 
 async function manageHuntOptionPositions(env:PaperEnv,marks:Record<string,OptionSnap>,now=new Date()){
   if(phase(now)!=='regular') return {exits:0,take200s:0,ladderSells:0};
-  const rows=await env.MEDS_DB.prepare("SELECT * FROM hunt_account_option_positions WHERE status='open' ORDER BY id").all<any>();
+  const rows=await env.MEDS_DB.prepare(`SELECT p.* FROM hunt_account_option_positions p JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1 WHERE p.status='open' ORDER BY p.id`).all<any>();
   let exits=0,take200s=0,ladderSells=0;
-  const intents=(await env.MEDS_DB.prepare("SELECT * FROM hunt_exit_intents WHERE kind='option'").all<any>()).results??[];
+  const intents=(await env.MEDS_DB.prepare(`SELECT i.* FROM hunt_exit_intents i JOIN hunt_account_option_positions p ON p.id=i.position_id JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1 WHERE i.kind='option'`).all<any>()).results??[];
   for(const p of rows.results??[]){
     const q=marks[p.symbol]?.latestQuote;
     if(!validQuote(q,env.DATA?Date.now():now.getTime())) continue;
