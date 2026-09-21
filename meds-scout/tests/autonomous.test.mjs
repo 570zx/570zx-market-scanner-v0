@@ -17,7 +17,7 @@ class D1 {
 }
 async function setup({legacyTiers=true,leaderOnly=false}={}){
   const MEDS_DB=new D1();
-  for(const m of ['0001_init.sql','0002_operations.sql','0003_tick_counter.sql','0004_autonomous.sql','0005_leader250_capacity.sql']) MEDS_DB.db.exec(readFileSync(new URL('../migrations/'+m,import.meta.url),'utf8'));
+  for(const m of ['0001_init.sql','0002_operations.sql','0003_tick_counter.sql','0004_autonomous.sql']) MEDS_DB.db.exec(readFileSync(new URL('../migrations/'+m,import.meta.url),'utf8'));
   const env={MEDS_DB,TRADING_MODE:'shadow',SCOUT_ENABLED:'true',PAPER_ENABLED:leaderOnly?'false':'true',LEADER_ONLY:leaderOnly?'true':'false',
     ADMIN_TOKEN:'test',ALPACA_API_KEY:'fixture',ALPACA_API_SECRET:'fixture'};
   await ensurePaperSchema(env);
