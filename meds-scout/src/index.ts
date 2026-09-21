@@ -2307,20 +2307,22 @@ async function publicStatus(env: Env): Promise<Response> {
   try {
     const since=new Date(Date.now()-86400000).toISOString();
     const h=await env.MEDS_DB.prepare(`SELECT
-      (SELECT COUNT(*) FROM hunt_observations WHERE created_at>=?) AS observations_24h,
-      (SELECT COUNT(*) FROM hunt_account_positions WHERE status='open') AS equity_open_positions,
-      (SELECT COUNT(*) FROM hunt_account_option_positions WHERE status='open') AS option_open_positions,
-      (SELECT COUNT(*) FROM hunt_account_trades WHERE closed_at>=?) AS equity_trades_24h,
-      (SELECT COUNT(*) FROM hunt_account_option_trades WHERE closed_at>=?) AS option_trades_24h,
-      (SELECT COUNT(*) FROM hunt_account_trades WHERE closed_at>=? AND realized_pnl>0) AS equity_winners_24h,
-      (SELECT COUNT(*) FROM hunt_account_option_trades WHERE closed_at>=? AND realized_pnl>0) AS option_winners_24h,
-      (SELECT MAX(created_at) FROM hunt_observations) AS latest_observation_at,
-      (SELECT MAX(closed_at) FROM hunt_account_trades) AS latest_equity_trade_at,
-      (SELECT MAX(closed_at) FROM hunt_account_option_trades) AS latest_option_trade_at`)
-      .bind(...Array(5).fill(since)).first<any>();
-    const combinedReturns=await env.MEDS_DB.prepare(`SELECT return_pct,realized_pnl,closed_at,'equity' AS asset_type FROM hunt_account_trades WHERE closed_at>=?
+      (SELECT COUNT(*) FROM hunt_observations WHERE created_at>=? AND version=?) AS observations_24h,
+      (SELECT COUNT(*) FROM hunt_account_positions p JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1 WHERE p.status='open') AS equity_open_positions,
+      (SELECT COUNT(*) FROM hunt_account_option_positions p JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1 WHERE p.status='open') AS option_open_positions,
+      (SELECT COUNT(*) FROM hunt_account_trades t JOIN leader_runtime_accounts r ON r.account_id=t.account_id AND r.active=1 WHERE t.closed_at>=?) AS equity_trades_24h,
+      (SELECT COUNT(*) FROM hunt_account_option_trades t JOIN leader_runtime_accounts r ON r.account_id=t.account_id AND r.active=1 WHERE t.closed_at>=?) AS option_trades_24h,
+      (SELECT COUNT(*) FROM hunt_account_trades t JOIN leader_runtime_accounts r ON r.account_id=t.account_id AND r.active=1 WHERE t.closed_at>=? AND t.realized_pnl>0) AS equity_winners_24h,
+      (SELECT COUNT(*) FROM hunt_account_option_trades t JOIN leader_runtime_accounts r ON r.account_id=t.account_id AND r.active=1 WHERE t.closed_at>=? AND t.realized_pnl>0) AS option_winners_24h,
+      (SELECT MAX(created_at) FROM hunt_observations WHERE version=?) AS latest_observation_at,
+      (SELECT MAX(t.closed_at) FROM hunt_account_trades t JOIN leader_runtime_accounts r ON r.account_id=t.account_id AND r.active=1) AS latest_equity_trade_at,
+      (SELECT MAX(t.closed_at) FROM hunt_account_option_trades t JOIN leader_runtime_accounts r ON r.account_id=t.account_id AND r.active=1) AS latest_option_trade_at`)
+      .bind(since,HUNT_VERSION,since,since,since,since,HUNT_VERSION).first<any>();
+    const combinedReturns=await env.MEDS_DB.prepare(`SELECT t.return_pct,t.realized_pnl,t.closed_at,'equity' AS asset_type
+      FROM hunt_account_trades t JOIN leader_runtime_accounts r ON r.account_id=t.account_id AND r.active=1 WHERE t.closed_at>=?
       UNION ALL
-      SELECT return_pct,realized_pnl,closed_at,'option' AS asset_type FROM hunt_account_option_trades WHERE closed_at>=?`)
+      SELECT t.return_pct,t.realized_pnl,t.closed_at,'option' AS asset_type
+      FROM hunt_account_option_trades t JOIN leader_runtime_accounts r ON r.account_id=t.account_id AND r.active=1 WHERE t.closed_at>=?`)
       .bind(since,since).all<any>();
     const returnRows=combinedReturns.results??[];
     const returns=returnRows.map((x:any)=>Number(x.return_pct)).filter(Number.isFinite);
@@ -2354,8 +2356,8 @@ async function publicStatus(env: Env): Promise<Response> {
       (SELECT COUNT(*) FROM hunt_account_option_trades t WHERE t.account_id=a.account_id AND t.closed_at>=? AND t.realized_pnl>0) AS option_winners_24h,
       (SELECT COUNT(*) FROM hunt_account_trades t WHERE t.account_id=a.account_id AND t.closed_at>=?) AS equity_trades_24h,
       (SELECT COUNT(*) FROM hunt_account_option_trades t WHERE t.account_id=a.account_id AND t.closed_at>=?) AS option_trades_24h
-      FROM hunt_accounts a ORDER BY a.starting_equity`).bind(since,since,since,since).all<any>();
-    const milestoneRows=await env.MEDS_DB.prepare(`SELECT * FROM hunt_account_milestones ORDER BY account_id,multiple`).all<any>();
+      FROM hunt_accounts a JOIN leader_runtime_accounts r ON r.account_id=a.account_id AND r.active=1 ORDER BY a.starting_equity`).bind(since,since,since,since).all<any>();
+    const milestoneRows=await env.MEDS_DB.prepare(`SELECT m.* FROM hunt_account_milestones m JOIN leader_runtime_accounts r ON r.account_id=m.account_id AND r.active=1 ORDER BY m.account_id,m.multiple`).all<any>();
     const milestonesByAccount=new Map<string,any[]>();
     for(const row of milestoneRows.results??[]){
       const arr=milestonesByAccount.get(String(row.account_id))??[];
@@ -2511,7 +2513,7 @@ async function publicStatus(env: Env): Promise<Response> {
       }),
       prospective_metrics:epochs.results??[],rejected_entries_24h:rejections.results??[]};
     const valuationRows=valuations.results??[];
-    const snapshots=(await env.MEDS_DB.prepare('SELECT * FROM portfolio_valuation_state').all<any>()).results??[];
+    const snapshots=(await env.MEDS_DB.prepare(`SELECT v.* FROM portfolio_valuation_state v WHERE v.account_id IN (SELECT account_id FROM leader_runtime_accounts WHERE active=1) OR (?=1 AND v.account_id LIKE 'PAPER:%')`).bind(paperEnabled?1:0).all<any>()).results??[];
     const detailed=snapshots.map(v=>{
       const marks:MarkState[]=JSON.parse(v.marks);
       const marksNow=marks.map(m=>({...m,age_seconds:m.quote_at?secondsSince(m.quote_at):null,
@@ -2746,6 +2748,7 @@ async function publicPaperRows(pathname: string, url: URL, env: Env): Promise<Re
       (SELECT COUNT(*) FROM hunt_account_events e WHERE e.position_id=p.id AND e.event_type='LADDER_50') AS ladder50_done,
       (SELECT COUNT(*) FROM hunt_account_events e WHERE e.position_id=p.id AND e.event_type='LADDER_100') AS ladder100_done
       FROM hunt_account_positions p
+      JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1
       LEFT JOIN hunt_accounts a ON a.account_id=p.account_id
       LEFT JOIN quote_cache s ON s.symbol=p.symbol AND s.asset='equity'
       WHERE p.status='open'
@@ -2761,6 +2764,7 @@ async function publicPaperRows(pathname: string, url: URL, env: Env): Promise<Re
       (SELECT COUNT(*) FROM hunt_account_option_events e WHERE e.position_id=p.id AND e.event_type='LADDER_50') AS ladder50_done,
       (SELECT COUNT(*) FROM hunt_account_option_events e WHERE e.position_id=p.id AND e.event_type='LADDER_100') AS ladder100_done
       FROM hunt_account_option_positions p
+      JOIN leader_runtime_accounts r ON r.account_id=p.account_id AND r.active=1
       LEFT JOIN hunt_accounts a ON a.account_id=p.account_id
       WHERE p.status='open'
       ORDER BY starting_equity ASC,opened_at DESC,id DESC LIMIT ? OFFSET ?`,
