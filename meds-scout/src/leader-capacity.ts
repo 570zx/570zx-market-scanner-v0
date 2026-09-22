@@ -7,6 +7,21 @@ import {cycleBucket,sessionDate,moverMiss} from './research-audit.ts';
 export const CAPACITY_ENGINE='meds-v8.1-leader250-capacity';
 export const CAPACITY_VERSION='leader-hunt-v8.3-capital-rotation';
 export const ACTIVE_ACCOUNT='H250';
+export const ACTIVE_LEADER_RISK_POLICY=Object.freeze({
+  starting_equity:250,
+  protected_cash_reserve:30,
+  target_entry_notional:10,
+  max_open_positions:32,
+  max_equity_entries_per_cycle:6,
+  max_option_entries_per_cycle:3,
+  max_minute_participation:0.05,
+  equity_stop_loss_pct:0.05,
+  option_stop_loss_pct:0.35,
+  reentry_cooldown_minutes:15,
+  max_quote_age_seconds:90,
+  max_rotations_per_cycle:1,
+  live_execution:false,
+});
 export const CAPACITY_SCHEMA=[
   `CREATE TABLE IF NOT EXISTS leader_runtime_config(id INTEGER PRIMARY KEY CHECK(id=1),account_id TEXT NOT NULL,version TEXT NOT NULL,normal_enabled INTEGER NOT NULL CHECK(normal_enabled=0))`,
   `INSERT OR IGNORE INTO leader_runtime_config VALUES(1,'${ACTIVE_ACCOUNT}','${CAPACITY_VERSION}',0)`,
