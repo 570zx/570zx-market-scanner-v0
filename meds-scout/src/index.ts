@@ -2183,6 +2183,7 @@ async function publicStatus(env: Env): Promise<Response> {
     feed: stockFeed(now),
     last_tick_at: state?.last_tick_at ?? null,
     last_success_at: state?.last_success_at ?? null,
+    last_source: state?.last_source ?? null,
     last_error: state?.last_error ?? null,
     seconds_since_tick: secondsSinceTick,
     seconds_since_success: secondsSinceSuccess,
@@ -2798,7 +2799,16 @@ async function publicPaperRows(pathname: string, url: URL, env: Env): Promise<Re
 export { runTick, scanTick, manageShadowPositions, inScanWindow, heuristicCatalyst, ensurePaperSchema, valueLedger, markLedger, manageEquityPositions, manageOptionPositions, enterEquityProposal, enterOptionsForCandidate, leaderHuntEligible, leaderEquityRunnerEligible, leaderEquityRunnerScore, runLeaderHunt, manageLeaderHuntPositions, runHuntAccounts, manageHuntAccountPositions, markHuntAccounts, selectLeaderOption, enterLeaderHuntOptions, manageHuntOptionPositions, HUNT_VERSION };
 export default {
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
-    ctx.waitUntil(runTick(env,"cron"));
+    ctx.waitUntil((async()=>{
+      // Scheduler heartbeat is intentionally independent of cycle success.
+      // If this timestamp stops moving, Cloudflare never invoked the Worker;
+      // if it moves while last_success_at stalls, the failure is inside MEDS.
+      try{
+        await env.MEDS_DB.prepare('UPDATE service_state SET last_tick_at=?,last_source=? WHERE id=1')
+          .bind(new Date().toISOString(),'cron_heartbeat').run();
+      }catch{}
+      return runTick(env,"cron");
+    })());
   },
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
