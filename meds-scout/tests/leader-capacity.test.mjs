@@ -141,19 +141,21 @@ test('research firsts and excursions survive later cycles; migration never reset
 // CI requires real D1 metadata; SQLite mock zeros are not a row-capacity result.
 test('real D1 metadata: maximum mixed full cycle',{skip:process.env.MEDS_REAL_D1!=='true',timeout:90000},async t=>{
   const {Miniflare,convertV4MiniflareOptions}=await import('miniflare');
-  const mf=new Miniflare(convertV4MiniflareOptions({modules:true,script:'export default {fetch(){return new Response("fixture")}}',d1Databases:['DB']}));
-  try{const real=await mf.getD1Database('DB');await clocked(async()=>{
-    const {env,db}=await setup();mixedBook(db);
+  const mf=new Miniflare(convertV4MiniflareOptions({modules:true,script:'export default {fetch(){return new Response("fixture")}}',d1Databases:['DB','EQUITY','ENTRY','FAILURE','OPTIONS']}));
+  try{for(const scenario of ['DB','EQUITY','ENTRY','FAILURE','OPTIONS']){const real=await mf.getD1Database(scenario);await clocked(async()=>{
+    const {env,db}=await setup();
+    if(scenario==='DB'||scenario==='FAILURE')mixedBook(db);
+    if(scenario==='EQUITY')seed(db,32,'equity',1);
     const schema=db.prepare("SELECT type,name,sql FROM sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%' ORDER BY CASE type WHEN 'table' THEN 0 WHEN 'index' THEN 1 ELSE 2 END").all();
     for(const row of schema.filter(r=>r.type==='table'))await real.prepare(row.sql).run();
     for(const row of schema.filter(r=>r.type==='table'))for(const record of db.prepare('SELECT * FROM '+row.name).all()){
       const cols=Object.keys(record);await real.prepare(`INSERT INTO ${row.name}(${cols.join(',')}) VALUES(${cols.map(()=>'?').join(',')})`).bind(...Object.values(record)).run();
     }
     for(const row of schema.filter(r=>r.type!=='table'))await real.prepare(row.sql).run();
-    env.MEDS_DB=real;provider({mixed:true});const r=await runTick(env,'real-d1');assert.equal(r.ok,true,JSON.stringify(r));assert.ok(r.database.statements<=40);
-    assert.ok(r.database.rows_read>0);assert.ok(r.database.rows_written>0);t.diagnostic('REAL_D1_CAPACITY '+JSON.stringify(r));
-    assert.ok(r.database.rows_written*151<80000,'151 cycles/day must leave 20% write headroom');assert.ok(r.database.rows_read*151<4000000,'151 cycles/day must leave 20% read headroom');db.close();
-  },'2026-09-18T15:00:00Z');}finally{await mf.dispose();}
+    env.MEDS_DB=real;provider(scenario==='DB'?{mixed:true}:scenario==='FAILURE'?{fail:true}:scenario==='OPTIONS'?{price:100,optionBid:1,optionAsk:1.05}:{});const r=await runTick(env,'real-d1');assert.equal(r.ok,true,JSON.stringify(r));assert.ok(r.database.statements<=40);
+    assert.ok(r.database.rows_read>0);assert.ok(r.database.rows_written>0);const storage=await real.prepare("SELECT length(CAST(payload AS BLOB)) audit_bytes FROM leader_cycle_audit ORDER BY bucket DESC LIMIT 1").first();t.diagnostic('REAL_D1_CAPACITY '+JSON.stringify({scenario,...r,...storage}));
+    if(scenario==='DB')assert.ok(r.database.rows_written*151<80000,'mixed-cycle daily projection must leave 20% write headroom');assert.ok(r.database.rows_read*151<4000000,'151 cycles/day must leave 20% read headroom');db.close();
+  },'2026-09-18T15:00:00Z');}}finally{await mf.dispose();}
 });
 
 test('set-based position management matches v8 cash, quantities, lifecycle and realized accounting',()=>clocked(async()=>{

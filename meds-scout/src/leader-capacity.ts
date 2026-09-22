@@ -18,13 +18,13 @@ export const CAPACITY_SCHEMA=[
 ];
 export async function ensureCapacitySchema(db:D1Database){await db.batch(CAPACITY_SCHEMA.map(s=>db.prepare(s)));}
 export type Row=Record<string,any>;
-export type Usage={calls:number;statements:number;rows_read:number;rows_written:number;by_query:Record<string,number>};
+export type Usage={calls:number;statements:number;rows_read:number;rows_written:number;row_metrics_available:boolean;by_query:Record<string,number>};
 export class CycleDB {
-  db:D1Database;usage:Usage={calls:0,statements:0,rows_read:0,rows_written:0,by_query:{}};
+  db:D1Database;usage:Usage={calls:0,statements:0,rows_read:0,rows_written:0,row_metrics_available:true,by_query:{}};
   private reads=0;private waiters:Array<()=>void>=[];
   constructor(db:D1Database){this.db=db;}
   private count(n:number,label:string){this.usage.calls++;this.usage.statements+=n;this.usage.by_query[label]=(this.usage.by_query[label]??0)+n;}
-  private meta(r:any){this.usage.rows_read+=Number(r.meta?.rows_read??0);this.usage.rows_written+=Number(r.meta?.rows_written??0);}
+  private meta(r:any){if(r.meta?.rows_read==null||r.meta?.rows_written==null)this.usage.row_metrics_available=false;this.usage.rows_read+=Number(r.meta?.rows_read??0);this.usage.rows_written+=Number(r.meta?.rows_written??0);}
   async all(sql:string,args:any[]=[],label='read'){if(this.reads>=6)await new Promise<void>(resolve=>this.waiters.push(resolve));this.reads++;try{this.count(1,label);const r=await this.db.prepare(sql).bind(...args).all<Row>();this.meta(r);return r.results??[];}finally{this.reads--;this.waiters.shift()?.();}}
   async run(sql:string,args:any[]=[],label='control'){this.count(1,label);const r=await this.db.prepare(sql).bind(...args).run();this.meta(r);return r;}
   async batch(ss:D1PreparedStatement[]){this.count(ss.length,'atomic_cycle');const r=await this.db.batch(ss);r.forEach(x=>this.meta(x));return r;}
