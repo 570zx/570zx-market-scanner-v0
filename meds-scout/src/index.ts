@@ -2814,11 +2814,21 @@ export default {
     const url = new URL(req.url);
     if (url.pathname === '/health' && req.method === 'GET') {
       const state=await env.MEDS_DB.prepare('SELECT paused,last_tick_at,last_success_at,last_source,last_error FROM service_state WHERE id=1').first<any>();
-      const enabled=env.SCOUT_ENABLED==='true'&&!state?.paused;
-      const health=env.TRADING_MODE!=='shadow'?'ENGINE_CRITICAL':healthState(enabled,inScanWindow(),state?.last_success_at??null,state?.last_error??null,false,
+      const enabled=env.SCOUT_ENABLED==='true'&&!state?.paused,active=inScanWindow();
+      let degraded=false,valuation_state:'VALUED'|'PORTFOLIO_PARTIALLY_VALUED'|'NOT_YET_VALUED'='VALUED';
+      if(env.LEADER_ONLY==='true'){
+        const [v,cycle]=await Promise.all([
+          env.MEDS_DB.prepare('SELECT complete FROM portfolio_valuation_state WHERE account_id=?').bind(ACTIVE_ACCOUNT).first<any>(),
+          env.MEDS_DB.prepare('SELECT metrics FROM engine_cycles ORDER BY started_at DESC LIMIT 1').first<any>(),
+        ]);
+        valuation_state=!v?'NOT_YET_VALUED':v.complete?'VALUED':'PORTFOLIO_PARTIALLY_VALUED';
+        let metrics:any={};try{metrics=cycle?.metrics?JSON.parse(cycle.metrics):{};}catch{}
+        degraded=valuation_state!=='VALUED'||!!metrics?.budget_exhausted||!!metrics?.failures?.length;
+      }
+      const health=env.TRADING_MODE!=='shadow'?'ENGINE_CRITICAL':healthState(enabled,active,state?.last_success_at??null,state?.last_error??null,degraded,
         env.ENGINE_CADENCE==='session'?plannedCadence(phase()):5);
       return Response.json({ok:!['ENGINE_CRITICAL','ENGINE_STALE'].includes(health),health,version:env.LEADER_ONLY==='true'?CAPACITY_ENGINE:ENGINE_VERSION,leader_version:env.LEADER_ONLY==='true'?CAPACITY_VERSION:HUNT_VERSION,
-        mode:'shadow',live_execution:false,enabled,time:new Date().toISOString(),market:easternParts(),feed:stockFeed(),...state});
+        mode:'shadow',live_execution:false,enabled,valuation_state,time:new Date().toISOString(),market:easternParts(),feed:stockFeed(),...state});
     }
     if (url.pathname === "/status" && req.method === "GET") return publicStatus(env);
     if(url.pathname==='/status/hunt/performance'&&req.method==='GET') return Response.json(await performanceReport(env.MEDS_DB,url,env.LEADER_ONLY==='true'?CAPACITY_VERSION:undefined),{headers:{'cache-control':'no-store'}});
