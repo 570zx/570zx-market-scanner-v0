@@ -74,15 +74,38 @@ const rungPolicy=[['LADDER_25',.25,.025],['LADDER_50',.5,.025],['LADDER_100',1,.
 export class LeaderPlan {
   account:Row;positions:Row[];events:Row[]=[];trades:Row[]=[];newPositions:Row[]=[];decisions:Row[]=[];intents:Row[]=[];
   touched:Row[]=[];cooldown:Set<string>;priorEvents:Row[];priorIntents:Row[];now:Date;phase:string;
+  rotationState:Row;rotationStateChanged=false;currentBySymbol:Map<string,Row>;equityLiquidity=new Map<string,number>();
   cashCredit=0;cashDebit=0;pnlDelta=0;executionDeadline=Infinity;rotations=0;
-  constructor(account:Row,positions:Row[],events:Row[],intents:Row[],cooldown:string[],now:Date,phase:string){
+  constructor(account:Row,positions:Row[],events:Row[],intents:Row[],cooldown:string[],now:Date,phase:string,rotationState:Row|null=null,currentCandidates:Row[]=[]){
     this.account={...account};this.positions=positions.map(p=>({...p}));this.priorEvents=events;this.priorIntents=intents;this.cooldown=new Set(cooldown);this.now=now;this.phase=phase;
+    this.rotationState=rotationState?{...rotationState}:{account_id:ACTIVE_ACCOUNT,session_date:sessionDate(now),rotations:0,last_rotation_at:null,last_victim_symbol:null,last_replacement_symbol:null,version:CAPACITY_VERSION};
+    this.currentBySymbol=new Map(currentCandidates.map(c=>[c.symbol,c]));
   }
   fresh(q:any){return validQuote(q,Date.now());}
-  usedQuote(q:any){this.executionDeadline=Math.min(this.executionDeadline,Date.parse(q.t)+90_000);}
+  usedQuote(q:any){this.executionDeadline=Math.min(this.executionDeadline,Date.parse(q.t)+ACTIVE_LEADER_RISK_POLICY.max_quote_age_seconds*1000);}
   get cash(){return Number(this.account.cash)+this.cashCredit-this.cashDebit;}
   get open(){return [...this.positions,...this.newPositions].filter(p=>p.status==='open');}
-  reason(symbol:string){if(this.open.some(p=>(p.underlying??p.symbol)===symbol))return 'DUPLICATE_POSITION';if(this.cooldown.has(symbol))return 'REENTRY_COOLDOWN';if(this.open.length>=32)return 'OPEN_POSITION_CAP';if(this.cash-30<=.01)return 'CAPITAL_RESERVE_BLOCK';return null;}
+  reason(symbol:string){if(this.open.some(p=>(p.underlying??p.symbol)===symbol))return 'DUPLICATE_POSITION';if(this.cooldown.has(symbol))return 'REENTRY_COOLDOWN';if(this.open.length>=ACTIVE_LEADER_RISK_POLICY.max_open_positions)return 'OPEN_POSITION_CAP';if(this.cash-ACTIVE_LEADER_RISK_POLICY.protected_cash_reserve<=.01)return 'CAPITAL_RESERVE_BLOCK';return null;}
+  equityAvailable(symbol:string,snap:any){
+    if(!this.equityLiquidity.has(symbol))this.equityLiquidity.set(symbol,equityExitCapacity(snap,Date.now()));
+    return this.equityLiquidity.get(symbol)??0;
+  }
+  consumeEquity(symbol:string,snap:any,qty:number){
+    const available=this.equityAvailable(symbol,snap);
+    if(!(qty>=0)||qty>available+1e-9)return false;
+    this.equityLiquidity.set(symbol,Math.max(0,available-qty));return true;
+  }
+  equityEntrySizing(c:Row,stocks:Record<string,any>,cashOverride=this.cash){
+    const snap=stocks[c.symbol],q=snap?.latestQuote;if(!this.fresh(q))return {ok:false,reason:'EXECUTION_QUOTE_STALE'};
+    const minuteVolume=Number(snap?.minuteBar?.v??0),liquidity=this.equityAvailable(c.symbol,snap);
+    const budget=Math.min(ACTIVE_LEADER_RISK_POLICY.target_entry_notional,Math.max(0,cashOverride-ACTIVE_LEADER_RISK_POLICY.protected_cash_reserve));
+    let qty=Math.min(budget/q.ap,liquidity);
+    const fill=(n:number)=>q.ap*(1+Math.min(.01,.0002+n/Math.max(1,minuteVolume)*.025));
+    if(qty*fill(qty)>budget)qty=budget/fill(qty);
+    const px=fill(qty),cost=qty*px;
+    if(!(cost>.01)||!(qty>0))return {ok:false,reason:minuteVolume>0?'POSITION_SIZE_ZERO':'MINUTE_LIQUIDITY_LIMIT'};
+    return {ok:true,q,snap,budget,minuteVolume,liquidity,qty,px,cost};
+  }
   decision(c:Row,lane:string,stage:string,reasons:string[],features:Row={},entered=false){this.decisions.push({bucket:cycleBucket(this.now),created_at:this.now.toISOString(),symbol:c.symbol,lane,account_id:ACTIVE_ACCOUNT,stage,outcome:entered?'ENTERED':reasons.length?'REJECTED':'ELIGIBLE',reasons,features:{...features,price:c.price,day_change_pct:c.dayChangePct,cash:this.cash},version:CAPACITY_VERSION});}
   event(p:Row,type:string,fill:number,qty:number,pnl:number,details:Row){this.events.push({kind:p.kind,account_id:ACTIVE_ACCOUNT,position_id:p.id,underlying:p.underlying,symbol:p.symbol,created_at:this.now.toISOString(),event_type:type,price:fill,quantity:qty,realized_pnl:pnl,details:JSON.stringify(details),version:p.version});}
   sell(p:Row,qty:number,fill:number,type:string|null,details:Row={}){
@@ -91,8 +114,8 @@ export class LeaderPlan {
     if(type)this.event(p,type,fill,qty,pnl,details);return pnl;
   }
   close(p:Row,fill:number,reason:string,runnerQty=0){
-    const total=p.locked_realized_pnl,peak=Number(p.runner_high??p.highest_price);
-    this.trades.push({...p,closed_at:this.now.toISOString(),exit_price:fill,exit_value:p.entry_notional+total,realized_pnl:total,
+    const total=p.locked_realized_pnl,peak=Number(p.runner_high??p.highest_price);let parsed:Row={};try{parsed=JSON.parse(p.features??'{}');}catch{}
+    this.trades.push({...p,features:JSON.stringify({...parsed,management_policy_version:CAPACITY_VERSION}),closed_at:this.now.toISOString(),exit_price:fill,exit_value:p.entry_notional+total,realized_pnl:total,
       return_pct:total/p.entry_notional*100,mfe_pct:(p.highest_price/p.entry_price-1)*100,mae_pct:(p.lowest_price/p.entry_price-1)*100,
       minutes_held:(this.now.getTime()-Date.parse(p.opened_at))/60000,exit_reason:reason,take200_hit:p.take200_done,
       runner_quantity:runnerQty,peak_gap_pct:p.take200_done&&reason!=='take_200'?(peak-fill)/peak*100:null,data_quality:'indicative'});
