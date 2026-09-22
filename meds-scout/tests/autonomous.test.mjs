@@ -205,6 +205,23 @@ test('final enriched audit persists exact account rejection and honest sampled e
   assert.equal(a.caught_before_10,false);assert.match(a.provider_time_basis,/poll/);db.close();
 }));
 
+test('continuation mover miss reports the real rejection above +10 percent',()=>{
+  const first={first_seen_at:'2026-09-18T15:00:00Z',first_change:25,shortlisted_at:'2026-09-18T15:05:00Z'};
+  assert.equal(moverMiss(first,null,['CAPITAL_RESERVE_BLOCK']),'CAPITAL_RESERVE_BLOCK');
+  assert.equal(moverMiss(first,null,['SPREAD_TOO_WIDE']),'SPREAD_TOO_WIDE');
+});
+
+test('scheduled heartbeat advances even when the Leader engine is disabled',()=>clocked(async()=>{
+  const {env,db}=await setup();env.SCOUT_ENABLED='false';
+  const waits=[];await worker.scheduled({},env,{waitUntil:p=>waits.push(p)});
+  await Promise.all(waits);
+  const state=db.prepare('SELECT last_tick_at,last_source,last_success_at FROM service_state WHERE id=1').get();
+  assert.equal(state.last_source,'cron_heartbeat');
+  assert.equal(state.last_tick_at,new Date().toISOString());
+  assert.equal(state.last_success_at,null);
+  db.close();
+},'2026-09-18T15:00:00Z'));
+
 test('performance default isolates current version, reports empty distribution honestly',()=>clocked(async()=>{
   const {env,db}=await setup();
   const r=await performanceReport(env.MEDS_DB,new URL('https://test/status/hunt/performance'));
