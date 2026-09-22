@@ -31,13 +31,17 @@ const quote=(bp=4,ap=4.01,age=0)=>({bp,ap,bs:100,as:100,t:new Date(Date.now()-ag
 const snapshot=(bp=4,ap=4.01,v=100000)=>({latestQuote:quote(bp,ap),minuteBar:{v,c:bp,h:ap,l:bp,o:bp,t:new Date().toISOString()},prevDailyBar:{c:3.9,v:100000},dailyBar:{v:200000}});
 const candidate=(overrides={})=>({symbol:'EARLY',price:4,bid:4,ask:4.01,spreadPct:.25,dayChangePct:3,score:55,catalystScore:0,catalystSummary:'',volumeAccel:.15,dayVolume:200000,previousDayVolume:100000,minuteVolume:100000,consecutiveHits:2,executionFresh:true,quoteAgeMs:0,discoverySource:'top_gainer',discoveryRank:1,reasons:[],...overrides});
 
-test('runner gate diagnoses negatives, preserves blue-chip options, and refuses volume-contraction puts',()=>{
+test('runner gate allows evidence-backed continuation without a positive-move cap',()=>{
   assert.deepEqual(runnerReasons(candidate()),[]);
   assert.ok(runnerReasons(candidate({price:300})).includes('PRICE_ABOVE_RUNNER_LANE'));
   assert.equal(optionDirection(candidate({price:300})), 'bull');
   assert.ok(runnerReasons(candidate({catalystScore:-22})).includes('CATALYST_NEGATIVE'));
   assert.ok(runnerReasons(candidate({price:.09})).includes('PRICE_BELOW_MIN'));
-  assert.ok(runnerReasons(candidate({dayChangePct:11})).includes('MOVE_ALREADY_EXTENDED'));
+  assert.deepEqual(runnerReasons(candidate({dayChangePct:25})),[]);
+  assert.deepEqual(runnerReasons(candidate({dayChangePct:125,volumeAccel:.2})),[]);
+  assert.deepEqual(runnerReasons(candidate({dayChangePct:200,volumeAccel:.25})),[]);
+  assert.ok(runnerReasons(candidate({dayChangePct:25,discoverySource:'most_active_trades',volumeAccel:0,dayVolume:10000,previousDayVolume:100000,consecutiveHits:1})).includes('CONTINUATION_SIGNAL_WEAK'));
+  assert.ok(runnerReasons(candidate({dayChangePct:100,spreadPct:4})).includes('CONTINUATION_SPREAD_TOO_WIDE'));
   assert.ok(runnerReasons(candidate({spreadPct:10})).includes('SPREAD_TOO_WIDE'));
   assert.equal(optionDirection(candidate({dayChangePct:-2,volumeAccel:-.2,dayVolume:1000})),null);
   assert.equal(optionDirection(candidate({dayChangePct:-2,catalystScore:-22})),'bear');
