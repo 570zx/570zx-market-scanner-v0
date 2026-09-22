@@ -130,19 +130,20 @@ export class LeaderPlan {
       if(option){p.current_mark=q.bp;p.current_mark_at=q.t;}
       this.touched.push(p);
       const pending=this.priorIntents.find(i=>i.kind===p.kind&&i.position_id===p.id);
-      let available=option?Math.max(0,Math.floor(q.bs??0)):equityExitCapacity(snap,Date.now());
+      let available=option?Math.max(0,Math.floor(q.bs??0)):this.equityAvailable(p.symbol,snap);
+      const use=(qty:number)=>{if(option){available-=qty;return true;}const ok=this.consumeEquity(p.symbol,snap,qty);if(ok)available=this.equityAvailable(p.symbol,snap);return ok;};
       const fill=(qty:number)=>q.bp*(1-(option?.005:Math.min(.01,Math.max(.0002,.0002+qty/Math.max(1,snap.minuteBar?.v??1)*.025))));
       if(!p.take200_done&&!pending){
         for(const [event,threshold,fraction] of rungPolicy){
           if(q.bp<p.entry_price*(1+threshold)||this.priorEvents.some(e=>e.kind===p.kind&&e.position_id===p.id&&e.event_type===event))continue;
           const qty=Math.min(p.remaining_qty,option?Math.floor(p.quantity*fraction):p.quantity*fraction);
-          if(qty<=0||qty>available)continue;
-          this.usedQuote(q);available-=qty;this.sell(p,qty,fill(qty),event,{threshold_return_pct:threshold,fraction,observed_bid:q.bp});
+          if(qty<=0||qty>available||!use(qty))continue;
+          this.usedQuote(q);this.sell(p,qty,fill(qty),event,{threshold_return_pct:threshold,fraction,observed_bid:q.bp});
         }
       }
       if(!p.take200_done&&!pending&&q.bp>=p.entry_price*3){
         const runner=Math.min(p.remaining_qty,option?Math.floor(p.quantity*.05):p.quantity*.05),qty=p.remaining_qty-runner;
-        if(qty>0&&qty<=available){this.usedQuote(q);const px=fill(qty);this.sell(p,qty,px,'TAKE_200',{remaining_qty:runner,observed_bid:q.bp});p.take200_done=1;p.take200_price=px;p.take200_at=this.now.toISOString();p.runner_high=runner?p.highest_price:null;if(!runner)this.close(p,px,'take_200');}
+        if(qty>0&&qty<=available&&use(qty)){this.usedQuote(q);const px=fill(qty);this.sell(p,qty,px,'TAKE_200',{remaining_qty:runner,observed_bid:q.bp});p.take200_done=1;p.take200_price=px;p.take200_at=this.now.toISOString();p.runner_high=runner?p.highest_price:null;if(!runner)this.close(p,px,'take_200');}
         continue;
       }
       let reason=pending?.reason;
@@ -157,7 +158,7 @@ export class LeaderPlan {
       if(!reason)continue;
       const qty=Math.min(p.remaining_qty,available),remaining=p.remaining_qty;
       if(qty<remaining)this.intents.push({kind:p.kind,position_id:p.id,reason,requested_at:this.now.toISOString()});
-      if(!qty)continue;
+      if(!qty||!use(qty))continue;
       this.usedQuote(q);const px=fill(qty);
       const finalPnl=this.sell(p,qty,px,qty<remaining?'PARTIAL_EXIT_'+this.now.toISOString():p.take200_done?'RUNNER_EXIT':null,{reason,liquidity_limited:qty<remaining});
       if(qty===remaining){this.close(p,px,reason,p.take200_done?remaining:0);p.locked_realized_pnl-=finalPnl;}
