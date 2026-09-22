@@ -1,5 +1,5 @@
 import {runLeaderCycle} from './leader-runtime.ts';
-import {CAPACITY_ENGINE,CAPACITY_VERSION,ACTIVE_ACCOUNT} from './leader-capacity.ts';
+import {CAPACITY_ENGINE,CAPACITY_VERSION,ACTIVE_ACCOUNT,ACTIVE_LEADER_RISK_POLICY} from './leader-capacity.ts';
 import {equityExitCapacity,partialLeaderExit} from './position-liquidity.ts';
 import {persistResearch,auditMovers,recordDecision,decisionStatement,performanceReport} from './research-audit.ts';
 import {ENGINE_VERSION, LEADER_VERSION, SCHEMA_VERSION, LEASE_MS, ensureAutonomousSchema, fencedDatabase, markState, saveValuation, healthState, plannedCadence, type MarkState} from './autonomous.ts';
@@ -2481,7 +2481,7 @@ async function publicStatus(env: Env): Promise<Response> {
     const epochs=await env.MEDS_DB.prepare('SELECT * FROM paper_metric_epochs WHERE simulator_version=?').bind(SIM_VERSION).all<any>();
     const rejections=await env.MEDS_DB.prepare("SELECT reason,COUNT(*) AS count FROM paper_decisions WHERE decision LIKE 'REJECTED%' AND created_at>=? GROUP BY reason ORDER BY count DESC LIMIT 20").bind(new Date(Date.now()-86400000).toISOString()).all<any>();
     body.diagnostics={simulator_version:SIM_VERSION,execution_version:EXEC_VERSION,legacy_drawdown_quality:'pre-fix/untrusted; preserved unchanged',
-      risk_limits:LIMITS,valuations:(valuations.results??[]).map(v=>{
+      risk_limits:env.LEADER_ONLY==='true'?ACTIVE_LEADER_RISK_POLICY:LIMITS,valuations:(valuations.results??[]).map(v=>{
         const exposures:Exposure[]=JSON.parse(v.exposures);
         const byUnderlying:Record<string,{planned_risk:number;reserved_risk:number;notional:number}>={};
         for(const e of exposures){const a=byUnderlying[e.underlying]??={planned_risk:0,reserved_risk:0,notional:0};a.planned_risk+=e.risk;a.reserved_risk+=e.risk+Math.max(0,-e.unrealized);a.notional+=e.notional;}
@@ -2515,10 +2515,10 @@ async function publicStatus(env: Env): Promise<Response> {
     Object.assign(scanner,{state:currentState,healthy:body.ok});
     Object.assign(paper,{state:currentState==='PAUSED'?'PAUSED':currentState==='MARKET_CLOSED'?'MARKET_CLOSED':paper.paper_error?'ENGINE_CRITICAL':degraded?'DEGRADED':'HEALTHY',
       healthy:!paper.paper_error||!scannerEnabled,valuation_state:valuationsPending?'NOT_YET_VALUED':detailed.some(v=>!v.complete)?'PORTFOLIO_PARTIALLY_VALUED':'VALUED'});
-    if(scannerEnabled&&paper.paper_error){body.ok=false;body.health='ENGINE_CRITICAL';}
+    if(env.LEADER_ONLY!=='true'&&scannerEnabled&&paper.paper_error){body.ok=false;body.health='ENGINE_CRITICAL';}
     body.engine={version:env.LEADER_ONLY==='true'?CAPACITY_ENGINE:ENGINE_VERSION,runtime:env.LEADER_ONLY==='true'?'leader_only':'legacy',active_account:env.LEADER_ONLY==='true'?ACTIVE_ACCOUNT:null,normal_paper_executed:env.LEADER_ONLY!=='true',last_management_at:cycle?.management_at??null,latest_cycle:cycle,
       usage:cycleUsage,single_scheduler:'Cloudflare cron',cadence_minutes:plannedCadence(phase(now)),
-      configured_enabled:env.SCOUT_ENABLED==='true',runtime_paused:!!state?.paused,live_execution:false};
+      configured_enabled:env.SCOUT_ENABLED==='true',runtime_paused:!!state?.paused,live_execution:false,active_risk_policy:env.LEADER_ONLY==='true'?ACTIVE_LEADER_RISK_POLICY:null};
     body.valuations=detailed;
     body.quote_health=env.LEADER_ONLY==='true'?detailed.flatMap(v=>v.marks.filter((m:any)=>m.state!=='FRESH')):quoteIssues.results??[];
     body.decisions_latest=(rejected.results??[]).map(r=>({...r,reasons:JSON.parse(r.reasons)}));
