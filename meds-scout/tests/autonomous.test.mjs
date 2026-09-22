@@ -243,6 +243,13 @@ test('pause makes no data requests; resume cannot bypass deployment gate; health
   assert.equal(plannedCadence('overnight'),30);assert.equal(plannedCadence('regular'),5);db.close();
 }));
 
+test('v8.2 and v8.3 missing hold metadata preserve the long-hold policy',()=>{
+  assert.equal(preservedMaxHold('leader-hunt-v8.2-continuation-runner','equity','{}'),720);
+  assert.equal(preservedMaxHold('leader-hunt-v8.3-capital-rotation','equity','not-json'),720);
+  assert.equal(preservedMaxHold('leader-hunt-v8.3-capital-rotation','option','{}'),1440);
+  assert.equal(preservedMaxHold('unknown-policy','equity','{}'),120);
+});
+
 test('data budget and per-cycle memoization bound duplicate provider requests',()=>clocked(async()=>{
   const data=new MarketDataCycle({ALPACA_API_KEY:'test',ALPACA_API_SECRET:'test'},2);
   let calls=0;globalThis.fetch=async()=>{calls++;return Response.json({ok:true});};
