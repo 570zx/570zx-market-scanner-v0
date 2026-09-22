@@ -21,10 +21,11 @@ export type Row=Record<string,any>;
 export type Usage={calls:number;statements:number;rows_read:number;rows_written:number;by_query:Record<string,number>};
 export class CycleDB {
   db:D1Database;usage:Usage={calls:0,statements:0,rows_read:0,rows_written:0,by_query:{}};
+  private reads=0;private waiters:Array<()=>void>=[];
   constructor(db:D1Database){this.db=db;}
   private count(n:number,label:string){this.usage.calls++;this.usage.statements+=n;this.usage.by_query[label]=(this.usage.by_query[label]??0)+n;}
   private meta(r:any){this.usage.rows_read+=Number(r.meta?.rows_read??0);this.usage.rows_written+=Number(r.meta?.rows_written??0);}
-  async all(sql:string,args:any[]=[],label='read'){this.count(1,label);const r=await this.db.prepare(sql).bind(...args).all<Row>();this.meta(r);return r.results??[];}
+  async all(sql:string,args:any[]=[],label='read'){if(this.reads>=6)await new Promise<void>(resolve=>this.waiters.push(resolve));this.reads++;try{this.count(1,label);const r=await this.db.prepare(sql).bind(...args).all<Row>();this.meta(r);return r.results??[];}finally{this.reads--;this.waiters.shift()?.();}}
   async run(sql:string,args:any[]=[],label='control'){this.count(1,label);const r=await this.db.prepare(sql).bind(...args).run();this.meta(r);return r;}
   async batch(ss:D1PreparedStatement[]){this.count(ss.length,'atomic_cycle');const r=await this.db.batch(ss);r.forEach(x=>this.meta(x));return r;}
 }
@@ -65,7 +66,7 @@ export class LeaderPlan {
     this.trades.push({...p,closed_at:this.now.toISOString(),exit_price:fill,exit_value:p.entry_notional+total,realized_pnl:total,
       return_pct:total/p.entry_notional*100,mfe_pct:(p.highest_price/p.entry_price-1)*100,mae_pct:(p.lowest_price/p.entry_price-1)*100,
       minutes_held:(this.now.getTime()-Date.parse(p.opened_at))/60000,exit_reason:reason,take200_hit:p.take200_done,
-      runner_quantity:runnerQty,peak_gap_pct:p.take200_done?(peak-fill)/peak*100:null,data_quality:'indicative'});
+      runner_quantity:runnerQty,peak_gap_pct:p.take200_done&&reason!=='take_200'?(peak-fill)/peak*100:null,data_quality:'indicative'});
     p.status='closed';p.remaining_qty=0;this.cooldown.add(p.underlying??p.symbol);
   }
   manage(stocks:Record<string,any>,options:Record<string,any>){
@@ -89,7 +90,7 @@ export class LeaderPlan {
       }
       if(!p.take200_done&&!pending&&q.bp>=p.entry_price*3){
         const runner=Math.min(p.remaining_qty,option?Math.floor(p.quantity*.05):p.quantity*.05),qty=p.remaining_qty-runner;
-        if(qty>0&&qty<=available){this.usedQuote(q);const px=fill(qty);this.sell(p,qty,px,'TAKE_200',{remaining_qty:runner,observed_bid:q.bp});p.take200_done=1;p.take200_price=px;p.take200_at=this.now.toISOString();p.runner_high=p.highest_price;if(!runner)this.close(p,px,'take_200');}
+        if(qty>0&&qty<=available){this.usedQuote(q);const px=fill(qty);this.sell(p,qty,px,'TAKE_200',{remaining_qty:runner,observed_bid:q.bp});p.take200_done=1;p.take200_price=px;p.take200_at=this.now.toISOString();p.runner_high=runner?p.highest_price:null;if(!runner)this.close(p,px,'take_200');}
         continue;
       }
       let reason=pending?.reason;
@@ -106,8 +107,8 @@ export class LeaderPlan {
       if(qty<remaining)this.intents.push({kind:p.kind,position_id:p.id,reason,requested_at:this.now.toISOString()});
       if(!qty)continue;
       this.usedQuote(q);const px=fill(qty);
-      this.sell(p,qty,px,qty<remaining?'PARTIAL_EXIT_'+this.now.toISOString():p.take200_done?'RUNNER_EXIT':null,{reason,liquidity_limited:qty<remaining});
-      if(qty===remaining)this.close(p,px,reason,p.take200_done?remaining:0);
+      const finalPnl=this.sell(p,qty,px,qty<remaining?'PARTIAL_EXIT_'+this.now.toISOString():p.take200_done?'RUNNER_EXIT':null,{reason,liquidity_limited:qty<remaining});
+      if(qty===remaining){this.close(p,px,reason,p.take200_done?remaining:0);p.locked_realized_pnl-=finalPnl;}
     }
   }
   enterEquities(candidates:Row[],stocks:Record<string,any>,features:(c:any)=>Row){
@@ -140,6 +141,7 @@ export class LeaderPlan {
     if(this.phase!=='regular')return;
     let attempts=0,signals=0;
     for(const c of candidates){
+      if(!(c.price>=.1&&c.dayChangePct>=-8&&c.dayChangePct<=10&&c.spreadPct<=(c.price<.5?8:6)&&c.score>=15))continue;
       const direction=optionDirection(c as any);if(!direction)continue;
       const reject=(reasons:string[],stage='ENTRY',extra:Row={})=>this.decision(c,'OPTIONS_MOMENTUM',stage,reasons,{...features(c),...extra});
       if(!this.fresh(stocks[c.symbol]?.latestQuote)){reject(['EXECUTION_QUOTE_STALE']);continue;}

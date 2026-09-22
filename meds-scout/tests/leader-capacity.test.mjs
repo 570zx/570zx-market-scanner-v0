@@ -1,5 +1,5 @@
 import {test} from 'node:test';
-import {ensureCapacitySchema,ACTIVE_ACCOUNT,CAPACITY_VERSION,LeaderPlan} from '../src/leader-capacity.ts';
+import {ensureCapacitySchema,ACTIVE_ACCOUNT,CAPACITY_VERSION,LeaderPlan,accountingStatements} from '../src/leader-capacity.ts';
 import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {readFileSync} from 'node:fs';
@@ -50,19 +50,19 @@ function provider({price=4,fail=false,minuteVolume=100000,optionBid=.08,optionAs
   };return requests;
 }
 function historical(db){return JSON.stringify(Object.fromEntries(['paper_ledgers','paper_positions','paper_option_positions','paper_trades','paper_cycles','paper_decisions','hunt_accounts','hunt_account_positions','hunt_account_option_positions','hunt_account_trades','hunt_account_option_trades','hunt_account_events','hunt_account_option_events'].map(table=>[table,db.prepare('SELECT * FROM '+table+(table.startsWith('hunt_account')?" WHERE account_id!='H250'":'')+' ORDER BY 1').all()])));}
-function seed(db,n=16,kind='equity',entry=4){
+function seed(db,n=16,kind='equity',entry=4,account=ACTIVE_ACCOUNT){
   const stamp=new Date(Date.now()-300000).toISOString();
   for(let i=0;i<n;i++){
     const symbol=kind==='option'?'OPT'+i+'260925C00100000':'HELD'+i,quantity=kind==='option'?1:.25,cost=entry*quantity*(kind==='option'?100:1);
-    const row={account_id:ACTIVE_ACCOUNT,symbol,opened_at:stamp,entry_price:entry,quantity,entry_notional:cost,stop_price:entry*.95,target_price:entry*3,highest_price:entry,lowest_price:entry,entry_score:55,entry_day_change_pct:2,opened_phase:'regular',features:JSON.stringify({max_hold_minutes:kind==='option'?1440:720}),status:'open',version:CAPACITY_VERSION,remaining_qty:quantity,locked_realized_pnl:0,take200_done:0};
+    const row={account_id:account,symbol,opened_at:stamp,entry_price:entry,quantity,entry_notional:cost,stop_price:entry*.95,target_price:entry*3,highest_price:entry,lowest_price:entry,entry_score:55,entry_day_change_pct:2,opened_phase:'regular',features:JSON.stringify({max_hold_minutes:kind==='option'?1440:720}),status:'open',version:CAPACITY_VERSION,remaining_qty:quantity,locked_realized_pnl:0,take200_done:0};
     if(kind==='option')Object.assign(row,{underlying:'OPT'+i,current_mark:entry,current_mark_at:stamp,data_quality:'indicative'});
     const cols=Object.keys(row);db.prepare(`INSERT INTO hunt_account_${kind==='option'?'option_':''}positions(${cols.join(',')}) VALUES(${cols.map(()=>'?').join(',')})`).run(...Object.values(row));
-    db.prepare('UPDATE hunt_accounts SET cash=cash-? WHERE account_id=?').run(cost,ACTIVE_ACCOUNT);
+    db.prepare('UPDATE hunt_accounts SET cash=cash-? WHERE account_id=?').run(cost,account);
   }
 }
 
 test('one-account full discovery/entry cycle uses set-based writes and leaves history byte-for-byte unchanged',t=>clocked(async()=>{
-  const {env,db}=await setup(),before=historical(db);provider();
+  const {env,db}=await setup();seed(db,2,'equity',4,'H100');seed(db,2,'option',.03,'H1K');const before=historical(db);provider();
   const r=await runTick(env,'capacity');assert.equal(r.ok,true,JSON.stringify(r));assert.equal(r.hunt.account_entries,6);
   assert.equal(historical(db),before);assert.equal(r.normal_paper_executed,false);assert.ok(r.database.statements<=35);
   const p=db.prepare("SELECT * FROM hunt_account_positions WHERE account_id='H250'").all();assert.equal(p.length,6);
@@ -153,3 +153,17 @@ test('real D1 metadata: maximum mixed full cycle',{skip:process.env.MEDS_REAL_D1
     assert.ok(r.database.rows_written*151<80000,'151 cycles/day must leave 20% write headroom');assert.ok(r.database.rows_read*151<4000000,'151 cycles/day must leave 20% read headroom');db.close();
   },'2026-09-18T15:00:00Z');}finally{await mf.dispose();}
 });
+
+test('set-based position management matches v8 cash, quantities, lifecycle and realized accounting',()=>clocked(async()=>{
+  const a=await setup(),b=await setup();mixedBook(a.db);mixedBook(b.db);
+  const stocks=Object.fromEntries(Array.from({length:16},(_,i)=>['HELD'+i,snapshot(4,4.01,i===1?.02:100000)]));
+  const marks=Object.fromEntries(Array.from({length:16},(_,i)=>['OPT'+i+'260925C00100000',{latestQuote:quote(.08,.09)}]));
+  await manageHuntAccountPositions(a.env,stocks,new Date(),false);await manageHuntOptionPositions(a.env,marks,new Date());
+  const account=b.db.prepare("SELECT a.*,r.revision FROM hunt_accounts a JOIN hunt_revisions r USING(account_id) WHERE account_id='H250'").get();
+  const positions=b.db.prepare("SELECT *, 'equity' kind FROM hunt_account_positions").all().concat(b.db.prepare("SELECT *, 'option' kind FROM hunt_account_option_positions").all());
+  const plan=new LeaderPlan(account,positions,[],[],[],new Date(),'regular');plan.manage(stocks,marks);await b.env.MEDS_DB.batch(accountingStatements(b.env.MEDS_DB,plan));
+  for(const sql of ["SELECT cash,realized_pnl FROM hunt_accounts WHERE account_id='H250'","SELECT status,remaining_qty,locked_realized_pnl,take200_done,highest_price,lowest_price FROM hunt_account_positions ORDER BY id","SELECT status,remaining_qty,locked_realized_pnl,take200_done,highest_price,lowest_price FROM hunt_account_option_positions ORDER BY id"]){
+    const left=a.db.prepare(sql).all(),right=b.db.prepare(sql).all();assert.equal(left.length,right.length);
+    left.forEach((row,i)=>Object.keys(row).forEach(k=>typeof row[k]==='number'?assert.ok(Math.abs(row[k]-right[i][k])<1e-8,k):assert.equal(row[k],right[i][k],k)));
+  }a.db.close();b.db.close();
+},'2026-09-18T15:00:00Z'));

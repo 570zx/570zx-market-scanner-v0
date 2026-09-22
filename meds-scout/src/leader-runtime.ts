@@ -100,16 +100,12 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
       if(JSON.stringify(old)!==JSON.stringify(next)){map[symbol]=next;shardMap.set(shard,map);changed.add(shard);}
     }
     if(changed.size)ss.push(ingest(env.MEDS_DB,'leader_research_shards',[...changed].map(shard=>({session_date:date,shard,version:CAPACITY_VERSION,data:JSON.stringify(shardMap.get(shard))})),['session_date','shard','version','data'],'ON CONFLICT(session_date,shard,version) DO UPDATE SET data=excluded.data'));
-    ss.push(ingest(env.MEDS_DB,'leader_cycle_audit',[{bucket,created_at:stamp,version:CAPACITY_VERSION,payload:JSON.stringify({phase:marketPhase,research,decisions:plan.decisions})}],['bucket','created_at','version','payload'],'ON CONFLICT(bucket) DO NOTHING'));
-    const observationCols='bucket,created_at,symbol,phase,price,bid,ask,day_change_pct,score,spread_pct,volume_accel,day_volume_ratio,consecutive_hits,catalyst_score,status,features,version'.split(',');
     if(selected.length){
-      ss.push(ingest(env.MEDS_DB,'hunt_observations',selected.map(c=>({bucket,created_at:stamp,symbol:c.symbol,phase:marketPhase,price:c.price,bid:c.bid,ask:c.ask,day_change_pct:c.dayChangePct,score:c.score,spread_pct:c.spreadPct,volume_accel:c.volumeAccel,day_volume_ratio:c.previousDayVolume>0?c.dayVolume/c.previousDayVolume:0,consecutive_hits:c.consecutiveHits,catalyst_score:c.catalystScore,status:plan.newPositions.some(p=>(p.underlying??p.symbol)===c.symbol)?'ACCOUNT_SAMPLED':!runnerReasons(c).length&&c.executionFresh?'ELIGIBLE':'TRACKED',features:JSON.stringify(features(c)),version:CAPACITY_VERSION})),observationCols,'ON CONFLICT DO NOTHING'));
       const cols='symbol,last_price,last_bid,last_ask,day_volume,previous_day_volume,last_minute_volume,score,status,consecutive_hits,last_seen_at'.split(',');
       ss.push(ingest(env.MEDS_DB,'symbol_state',selected.map(c=>({symbol:c.symbol,last_price:c.price,last_bid:c.bid,last_ask:c.ask,day_volume:c.dayVolume,previous_day_volume:c.previousDayVolume,last_minute_volume:c.minuteVolume,score:c.score,status:'WATCH',consecutive_hits:c.consecutiveHits,last_seen_at:stamp})),cols,upsert(cols,['symbol'])));
     }
     const board=discovery.gainers.slice(0,50).map((g:any,i:number)=>({bucket,session_date:date,created_at:stamp,phase:marketPhase,rank:i+1,symbol:g.symbol,price:g.price??null,change:g.change??null,percent_change:g.percent_change??g.percentChange??null,raw_json:JSON.stringify(g),version:CAPACITY_VERSION}));
     if(board.length){
-      ss.push(ingest(env.MEDS_DB,'hunt_gainer_board',board,['bucket','session_date','created_at','phase','rank','symbol','price','change','percent_change','raw_json','version'],'ON CONFLICT DO NOTHING'));
       const audits=board.slice(0,20).map((g:any)=>{
         const f=shardMap.get(shardFor(g.symbol))?.[g.symbol],entry=f?.entry,reject=f?.early_rejection??f?.first_rejection,reasons=reject?.reasons??[];
         const summary={symbol:g.symbol,rank:g.rank,board_at:stamp,board_phase:marketPhase,current_gain_pct:g.percent_change,current_price:g.price,instrument_type:f?.instrument_type??'unknown',first_provider_at:f?.first_provider_at??null,
@@ -123,15 +119,14 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
       });
       ss.push(ingest(env.MEDS_DB,'mover_audits',audits,['bucket','symbol','session_date','phase','rank','summary','version'],'ON CONFLICT DO NOTHING'));
     }
-    const quoteRows:Row[]=[],healthRows:Row[]=[];
+    ss.push(ingest(env.MEDS_DB,'leader_cycle_audit',[{bucket,created_at:stamp,version:CAPACITY_VERSION,payload:JSON.stringify({phase:marketPhase,research,decisions:plan.decisions,board,shortlist:selected.map(c=>c.symbol)})}],['bucket','created_at','version','payload'],'ON CONFLICT(bucket) DO NOTHING'));
+    const quoteRows:Row[]=[];
     const wanted=new Map([...equities,...options,...plan.newPositions].map(p=>[p.kind+':'+p.symbol,p]));
     for(const p of wanted.values()){
       const q=(p.kind==='option'?optionMarks:stocks)[p.symbol]?.latestQuote,shaped=q&&q.bp>0&&q.ap>=q.bp&&fresh(q.t,365*86400000),isFresh=validQuote(q);
       if(shaped)quoteRows.push({asset:p.kind,symbol:p.symbol,feed:p.kind==='option'?'indicative':d.feed(now),quote_at:q.t,bid:q.bp,ask:q.ap,bid_size:q.bs??null,ask_size:q.as??null,retrieved_at:stamp});
-      healthRows.push({asset:p.kind,symbol:p.symbol,state:isFresh?'FRESH':shaped?'MARK_STALE':'EXECUTION_UNAVAILABLE',quote_at:shaped?q.t:null,last_attempt_at:stamp,attempts:missing.includes(p.symbol)?2:1,error:isFresh?null:'bounded retry on next engine cycle'});
     }
     if(quoteRows.length){const cols=Object.keys(quoteRows[0]);ss.push(ingest(env.MEDS_DB,'quote_cache',quoteRows,cols,upsert(cols,['asset','symbol'])+' WHERE excluded.quote_at>quote_cache.quote_at'));}
-    if(healthRows.length){const cols=Object.keys(healthRows[0]);ss.push(ingest(env.MEDS_DB,'quote_health',healthRows,cols,upsert(cols,['asset','symbol'])));}
     const v=valuation(plan,stocks,optionMarks,retained),vCols=Object.keys(v);ss.push(ingest(env.MEDS_DB,'portfolio_valuation_state',[v],vCols,upsert(vCols,['account_id'])));
     const peak=v.complete?Math.max(accounts[0].max_equity,v.live_equity!):accounts[0].max_equity,dd=v.complete?Math.max(accounts[0].max_drawdown_pct,1-v.live_equity!/peak):accounts[0].max_drawdown_pct;
     ss.push(env.MEDS_DB.prepare('UPDATE hunt_accounts SET current_equity=CASE WHEN ? THEN ? ELSE current_equity END,max_equity=?,max_drawdown_pct=?,updated_at=? WHERE account_id=?').bind(v.complete,v.live_equity,peak,dd,stamp,ACTIVE_ACCOUNT));
