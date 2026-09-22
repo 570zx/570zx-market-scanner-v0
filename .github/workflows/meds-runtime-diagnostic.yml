@@ -1,0 +1,32 @@
+name: MEDS Runtime Diagnostic
+
+on:
+  push:
+    branches: [meds-diagnose-runtime]
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch MEDS public diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://meds-scout-agent.sucharda-dodge.workers.dev"
+          echo "=== UTC NOW ==="
+          date -u --iso-8601=seconds
+          echo
+          echo "=== HEALTH ==="
+          curl -fsS "$base/health" | python -m json.tool
+          echo
+          echo "=== STATUS ==="
+          curl -fsS "$base/status" | python -m json.tool
+          echo
+          echo "=== RAIN DECISIONS ==="
+          curl -fsS "$base/status/hunt/decisions?symbol=RAIN&limit=100" | python -m json.tool
+          echo
+          echo "=== RAIN RESEARCH ==="
+          curl -fsS "$base/status/hunt/research?symbol=RAIN&limit=100" | python -m json.tool
