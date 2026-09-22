@@ -20,7 +20,7 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
   const state=(await db.all(`SELECT s.*,m.version AS schema_version,(SELECT completed_at FROM engine_cycles WHERE bucket=?) AS completed_at FROM service_state s JOIN paper_meta m ON m.id=s.id WHERE s.id=1`,[engineBucket],'state'))[0];
   if(env.SCOUT_ENABLED!=='true'||state?.paused)return {ok:true,skipped:'disabled',version:CAPACITY_ENGINE};
   if(!d.active(now))return {ok:true,skipped:'outside scan window'};
-  if(state?.schema_version!==11)return {ok:false,error:'DEPLOYMENT_MIGRATION_REQUIRED: expected schema 11'};
+  if(state?.schema_version!==12)return {ok:false,error:'DEPLOYMENT_MIGRATION_REQUIRED: expected schema 12'};
   if(state.completed_at)return {ok:true,skipped:'cycle already complete'};
   const owner=crypto.randomUUID();
   const claim=await db.run(`UPDATE service_state SET lock_owner=?,lock_until=?,last_tick_at=?,last_source=?,tick_count=tick_count+1 WHERE id=1 AND paused=0 AND (lock_until IS NULL OR lock_until<=?)`,[owner,now.getTime()+LEASE_MS,now.toISOString(),source,now.getTime()],'lease_claim');
@@ -30,8 +30,8 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
     if(!env.ALPACA_API_KEY||!env.ALPACA_API_SECRET)throw Error('Missing Alpaca secrets');
     // Reads are independent of the number of historical accounts or held symbols.
     // No normal ledger/position/decision query exists in this runtime.
-    const [accounts,equities,options,events,intents,cooldowns,prior,retained,shards]=await Promise.all([
-      db.all(`SELECT a.*,r.revision FROM hunt_accounts a JOIN hunt_revisions r USING(account_id) JOIN leader_runtime_config c USING(account_id) WHERE c.id=1 AND a.account_id=?`,[ACTIVE_ACCOUNT],'active_account'),
+    const [accounts,equities,options,events,intents,cooldowns,prior,retained,shards,rotationState]=await Promise.all([
+      db.all(`SELECT a.*,r.revision,c.version AS runtime_config_version FROM hunt_accounts a JOIN hunt_revisions r USING(account_id) JOIN leader_runtime_config c USING(account_id) WHERE c.id=1 AND a.account_id=?`,[ACTIVE_ACCOUNT],'active_account'),
       db.all(`SELECT *, 'equity' AS kind FROM hunt_account_positions WHERE account_id=? AND status='open' ORDER BY id`,[ACTIVE_ACCOUNT],'equity_inventory'),
       db.all(`SELECT *, 'option' AS kind FROM hunt_account_option_positions WHERE account_id=? AND status='open' ORDER BY id`,[ACTIVE_ACCOUNT],'option_inventory'),
       db.all(`SELECT 'equity' AS kind,position_id,event_type FROM hunt_account_events WHERE account_id=? AND position_id IN (SELECT id FROM hunt_account_positions WHERE account_id=? AND status='open') UNION ALL SELECT 'option',position_id,event_type FROM hunt_account_option_events WHERE account_id=? AND position_id IN (SELECT id FROM hunt_account_option_positions WHERE account_id=? AND status='open')`,[ACTIVE_ACCOUNT,ACTIVE_ACCOUNT,ACTIVE_ACCOUNT,ACTIVE_ACCOUNT],'lifecycle'),
@@ -40,8 +40,9 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
       db.all(`SELECT * FROM symbol_state WHERE last_seen_at>=?`,[new Date(now.getTime()-12*3600000).toISOString()],'symbol_state'),
       db.all(`SELECT * FROM quote_cache WHERE (asset='equity' AND symbol IN (SELECT symbol FROM hunt_account_positions WHERE account_id=? AND status='open')) OR (asset='option' AND symbol IN (SELECT symbol FROM hunt_account_option_positions WHERE account_id=? AND status='open'))`,[ACTIVE_ACCOUNT,ACTIVE_ACCOUNT],'retained_marks'),
       db.all(`SELECT shard,data FROM leader_research_shards WHERE session_date=? AND version=?`,[date,CAPACITY_VERSION],'research_state'),
+      db.all(`SELECT * FROM leader_rotation_state WHERE account_id=? AND session_date=?`,[ACTIVE_ACCOUNT,date],'rotation_state'),
     ]);
-    if(accounts.length!==1||accounts[0].starting_equity!==250)throw Error('ACTIVE_ACCOUNT_CONFIGURATION_INVALID');
+    if(accounts.length!==1||accounts[0].starting_equity!==250||accounts[0].runtime_config_version!==CAPACITY_VERSION)throw Error('ACTIVE_ACCOUNT_CONFIGURATION_INVALID');
     if(equities.length+options.length>32)throw Error('ACTIVE_ACCOUNT_POSITION_CAP_INVALID');
     const discovery=await d.discover(runEnv,prior.slice().sort((a,b)=>b.score-a.score).slice(0,80).map(p=>p.symbol));
     const held=[...new Set([...equities.map(p=>p.symbol),...options.map(p=>p.underlying)])];
@@ -79,7 +80,7 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
     let news:any[]=[];try{news=await d.news(runEnv,selected.map(c=>c.symbol));}catch{}
     for(const c of selected){const h=d.catalyst(news,c.symbol);c.catalystScore=h.score;c.catalystSummary=h.summary;d.score(c,marketPhase==='regular');}
     selected=d.select(selected,discovery);
-    const features=(c:any)=>d.features(c,marketPhase),plan=new LeaderPlan(accounts[0],[...equities,...options],events,intents,cooldowns.map(c=>c.symbol),now,marketPhase);
+    const features=(c:any)=>d.features(c,marketPhase),plan=new LeaderPlan(accounts[0],[...equities,...options],events,intents,cooldowns.map(c=>c.symbol),now,marketPhase,rotationState[0]??null,rows);
     plan.manage(stocks,optionMarks);const managementAt=new Date().toISOString();plan.enterEquities(selected,stocks,features);
     await plan.enterOptions(selected,stocks,optionMarks,(c,dir)=>d.chain(runEnv,c,dir),features);
     if(Date.now()>plan.executionDeadline)throw Error('EXECUTION_QUOTES_EXPIRED_BEFORE_COMMIT');
@@ -139,7 +140,7 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
     const milestones=v.complete?[2,5,10,25,50,100].filter(m=>v.live_equity!/250>=m).map(multiple=>({account_id:ACTIVE_ACCOUNT,multiple,reached_at:stamp,equity:v.live_equity,max_drawdown_pct:dd,version:CAPACITY_VERSION})):[];
     if(milestones.length)ss.push(ingest(env.MEDS_DB,'hunt_account_milestones',milestones,['account_id','multiple','reached_at','equity','max_drawdown_pct','version'],'ON CONFLICT DO NOTHING'));
     const result={ok:true,version:CAPACITY_ENGINE,runtime:'leader_only',active_account:ACTIVE_ACCOUNT,normal_paper_executed:false,scanned:symbols.length,research_shortlist:selected.length,research_execution_fresh:selected.filter(c=>c.executionFresh).length,
-      hunt:{version:CAPACITY_VERSION,account_entries:plan.newPositions.length,exits:plan.trades.length,open:plan.open.length,tracked:selected.length},usage:data.metrics(),valuation_state:v.complete?'VALUED':'PORTFOLIO_PARTIALLY_VALUED'};
+      hunt:{version:CAPACITY_VERSION,account_entries:plan.newPositions.length,exits:plan.trades.length,open:plan.open.length,tracked:selected.length,rotations:plan.rotations,session_rotations:Number(plan.rotationState.rotations??0)},usage:data.metrics(),valuation_state:v.complete?'VALUED':'PORTFOLIO_PARTIALLY_VALUED'};
     // Fence, every accounting/telemetry set, cycle completion and lock release
     // form ONE transaction. No intermediate fills survive an audit failure.
     const projected=db.usage.statements+ss.length+4;
