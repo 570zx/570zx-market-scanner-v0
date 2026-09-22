@@ -120,10 +120,17 @@ function inScanWindow(date = new Date()): boolean {
   return true;
 }
 
-function stockFeed(date = new Date()): "iex" | "overnight" {
+function stockFeed(date = new Date()): "iex" | "overnight" | "delayed_sip" {
   const p = easternParts(date);
   const mins = p.hour * 60 + p.minute;
-  return mins >= 20 * 60 || mins < 4 * 60 ? "overnight" : "iex";
+  // Free real-time IEX is useful during the regular session, but it does not
+  // provide a representative extended-hours quote surface. Use Alpaca's
+  // derived overnight feed from 20:00-04:00 ET and 15-minute delayed SIP for
+  // premarket/postmarket research. validQuote() still requires an execution-
+  // fresh quote, so delayed SIP can inform research but can never authorize a fill.
+  if (mins >= 20 * 60 || mins < 4 * 60) return "overnight";
+  if (mins < 9 * 60 + 30 || mins >= 16 * 60) return "delayed_sip";
+  return "iex";
 }
 
 function freshTimestamp(ts: string | undefined, maxAgeMs: number): boolean {
