@@ -1,7 +1,7 @@
 {
-  "method": "Actual local workerd/D1 metadata from GitHub Actions; fixture provider data; includes all cycle SQL and final metrics UPDATE; excludes fixture setup and post-run verification reads",
-  "commit": "4d5dec9aee5265877bc615aa990d6b19f94cd962",
-  "ci_job": 106617246546,
+  "method": "Actual local workerd/D1 metadata from GitHub Actions, with 5,000 historical account events; fixture provider data; all cycle statements counted, including controls and final metrics update. Setup and post-run verification reads excluded.",
+  "commit": "afb8b3e90f5150da66c09a9abb8c18bd92b70608",
+  "ci_job": 106691448151,
   "production_cpu_measured": false,
   "scenarios": [
     {
@@ -34,7 +34,7 @@
       "database": {
         "calls": 13,
         "statements": 34,
-        "rows_read": 2953,
+        "rows_read": 1270,
         "rows_written": 500,
         "row_metrics_available": true,
         "by_query": {
@@ -86,7 +86,7 @@
       "database": {
         "calls": 13,
         "statements": 25,
-        "rows_read": 9733,
+        "rows_read": 1639,
         "rows_written": 536,
         "row_metrics_available": true,
         "by_query": {
@@ -138,7 +138,7 @@
       "database": {
         "calls": 13,
         "statements": 24,
-        "rows_read": 106,
+        "rows_read": 109,
         "rows_written": 150,
         "row_metrics_available": true,
         "by_query": {
@@ -231,7 +231,7 @@
       "database": {
         "calls": 13,
         "statements": 20,
-        "rows_read": 134,
+        "rows_read": 168,
         "rows_written": 43,
         "row_metrics_available": true,
         "by_query": {
@@ -283,7 +283,7 @@
       "database": {
         "calls": 13,
         "statements": 21,
-        "rows_read": 63,
+        "rows_read": 65,
         "rows_written": 117,
         "row_metrics_available": true,
         "by_query": {

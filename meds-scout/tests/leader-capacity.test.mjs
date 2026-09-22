@@ -177,3 +177,16 @@ test('set-based position management matches v8 cash, quantities, lifecycle and r
     left.forEach((row,i)=>Object.keys(row).forEach(k=>typeof row[k]==='number'?assert.ok(Math.abs(row[k]-right[i][k])<1e-8,k):assert.equal(row[k],right[i][k],k)));
   }a.db.close();b.db.close();
 },'2026-09-18T15:00:00Z'));
+
+test('mixed management recovers held stock and option quotes with one bounded retry each',t=>clocked(async()=>{
+  const {env,db}=await setup();mixedBook(db);provider({mixed:true});const original=fetch;let optionFailures=0;
+  globalThis.fetch=async url=>{
+    const u=new URL(String(url));
+    if(u.pathname.includes('/stocks/snapshots')){const response=await original(url),body=await response.json();for(const [symbol,s] of Object.entries(body))if(symbol.startsWith('HELD')||symbol.startsWith('OPT'))s.latestQuote=quote(4,4.008,120000);return Response.json(body);}
+    if(u.pathname.includes('/stocks/quotes/latest'))return Response.json({quotes:Object.fromEntries(u.searchParams.get('symbols').split(',').map(s=>[s,quote(4,4.008)]))});
+    if(u.pathname==='/v1beta1/options/snapshots'&&optionFailures++===0)return new Response('retry fixture',{status:503});
+    return original(url);
+  };
+  const r=await runTick(env,'recovery');assert.equal(r.ok,true,JSON.stringify(r));assert.equal(r.usage.retries,2);assert.ok(r.hunt.exits>=17);assert.ok(r.database.statements<=40);
+  t.diagnostic(JSON.stringify({scenario:'mixed retry recovery',...r.database,provider:r.usage.requests}));db.close();
+},'2026-09-18T15:00:00Z'));
