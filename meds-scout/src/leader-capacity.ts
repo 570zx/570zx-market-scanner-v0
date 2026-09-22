@@ -85,7 +85,7 @@ export class LeaderPlan {
   usedQuote(q:any){this.executionDeadline=Math.min(this.executionDeadline,Date.parse(q.t)+ACTIVE_LEADER_RISK_POLICY.max_quote_age_seconds*1000);}
   get cash(){return Number(this.account.cash)+this.cashCredit-this.cashDebit;}
   get open(){return [...this.positions,...this.newPositions].filter(p=>p.status==='open');}
-  reason(symbol:string){if(this.open.some(p=>(p.underlying??p.symbol)===symbol))return 'DUPLICATE_POSITION';if(this.cooldown.has(symbol))return 'REENTRY_COOLDOWN';if(this.open.length>=ACTIVE_LEADER_RISK_POLICY.max_open_positions)return 'OPEN_POSITION_CAP';if(this.cash-ACTIVE_LEADER_RISK_POLICY.protected_cash_reserve<=.01)return 'CAPITAL_RESERVE_BLOCK';return null;}
+  reason(symbol:string){if(this.open.some(p=>(p.underlying??p.symbol)===symbol))return 'DUPLICATE_POSITION';if(this.cooldown.has(symbol))return 'REENTRY_COOLDOWN';if(this.priorIntents.length||this.intents.length)return 'PENDING_EXIT_RISK_BLOCK';if(this.open.length>=ACTIVE_LEADER_RISK_POLICY.max_open_positions)return 'OPEN_POSITION_CAP';if(this.cash-ACTIVE_LEADER_RISK_POLICY.protected_cash_reserve<=.01)return 'CAPITAL_RESERVE_BLOCK';return null;}
   equityAvailable(symbol:string,snap:any){
     if(!this.equityLiquidity.has(symbol))this.equityLiquidity.set(symbol,equityExitCapacity(snap,Date.now()));
     return this.equityLiquidity.get(symbol)??0;
