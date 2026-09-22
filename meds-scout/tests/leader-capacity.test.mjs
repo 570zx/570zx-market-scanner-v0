@@ -35,12 +35,12 @@ const candidate=(overrides={})=>({symbol:'EARLY',price:4,bid:4,ask:4.01,spreadPc
 function provider({price=4,fail=false,minuteVolume=100000,optionBid=.08,optionAsk=.09,bidSize=100,mixed=false}={}){
   const symbols=Array.from({length:260},(_,i)=>'TEST'+i),requests=[];
   globalThis.fetch=async url=>{
-    const u=new URL(String(url));requests.push(u.pathname);
+    const u=new URL(String(url));requests.push(u.pathname+u.search);
     if(fail)return new Response('fixture down',{status:503});
     if(u.pathname.endsWith('/movers'))return Response.json({gainers:symbols.slice(0,50).map(symbol=>({symbol,price,percent_change:2})),losers:[]});
     if(u.pathname.endsWith('/most-actives'))return Response.json({most_actives:symbols.map(symbol=>({symbol}))});
     if(u.pathname.includes('/news'))return Response.json({news:price>=100||mixed?symbols.map(symbol=>({symbols:[symbol],headline:'FDA approval'})):[]});
-    if(u.pathname.includes('/stocks/snapshots'))return Response.json(Object.fromEntries(u.searchParams.get('symbols').split(',').map(s=>[s,(()=>{const px=mixed&&s.startsWith('TEST')&&Number(s.slice(4))%2===0?100:price;return {...snapshot(px,px*1.002,mixed&&s==='HELD1'?.02:minuteVolume),prevDailyBar:{c:px/1.02,v:100000}};})()])));
+    if(u.pathname.includes('/stocks/snapshots'))return Response.json(Object.fromEntries(u.searchParams.get('symbols').split(',').map(s=>[s,(()=>{const px=mixed&&s.startsWith('TEST')&&Number(s.slice(4))%2===0?100:price;const snap={...snapshot(px,px*1.002,mixed&&s==='HELD1'?.02:minuteVolume),prevDailyBar:{c:px/1.02,v:100000}};if(u.searchParams.get('feed')==='delayed_sip')snap.latestQuote.t=new Date(Date.now()-15*60_000).toISOString();return snap;})()])));
     if(u.pathname.includes('/stocks/quotes/latest'))return Response.json({quotes:{}});
     if(u.pathname.includes('/options/snapshots')){
       const syms=u.searchParams.get('symbols')?.split(',')??[u.pathname.split('/').at(-1)+'260925C00100000'];
@@ -60,6 +60,19 @@ function seed(db,n=16,kind='equity',entry=4,account=ACTIVE_ACCOUNT){
     db.prepare('UPDATE hunt_accounts SET cash=cash-? WHERE account_id=?').run(cost,account);
   }
 }
+
+test('premarket uses delayed SIP for research without treating delayed quotes as executable',t=>clocked(async()=>{
+  const {env,db}=await setup();const requests=provider();
+  const r=await runTick(env,'premarket-feed');
+  assert.equal(r.ok,true,JSON.stringify(r));
+  assert.ok(requests.some(x=>x.includes('/v2/stocks/snapshots')&&x.includes('feed=delayed_sip')),'premarket snapshots must use delayed SIP');
+  assert.ok(r.research_shortlist>0,'delayed SIP should keep premarket research alive');
+  assert.equal(r.research_execution_fresh,0,'15-minute delayed SIP must not be treated as execution-fresh');
+  assert.equal(r.hunt.account_entries,0,'delayed research quotes must never create a fill');
+  assert.ok(r.database.statements<=40);
+  t.diagnostic(JSON.stringify({scenario:'premarket delayed SIP research',research:r.research_shortlist,execution_fresh:r.research_execution_fresh,...r.database}));
+  db.close();
+},'2026-09-18T12:00:00Z'));
 
 test('one-account full discovery/entry cycle uses set-based writes and leaves history byte-for-byte unchanged',t=>clocked(async()=>{
   const {env,db}=await setup();seed(db,2,'equity',4,'H100');seed(db,2,'option',.03,'H1K');const before=historical(db);provider();
