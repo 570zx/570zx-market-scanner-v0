@@ -165,6 +165,33 @@ test('pause fence rejects the cycle; metric failure preserves committed success'
   const r=await runTick(env,'metrics');assert.equal(r.ok,true);assert.ok(r.metrics_warning);assert.equal(r.hunt.account_entries,6);db.close();
 },'2026-09-18T15:00:00Z'));
 
+test('session cadence keys off the due bucket instead of last-success jitter',()=>clocked(async()=>{
+  const {env,db}=await setup();env.ENGINE_CADENCE='session';provider();
+  db.prepare("UPDATE service_state SET last_success_at=? WHERE id=1").run(new Date(Date.now()-298000).toISOString());
+  const r=await runTick(env,'jitter');
+  assert.equal(r.ok,true,JSON.stringify(r));
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM engine_cycles').get().n,1);
+  db.close();
+},'2026-09-18T15:00:00Z'));
+
+test('Leader-only status ignores frozen normal-paper staleness and reports the active risk policy',()=>clocked(async()=>{
+  const {env,db}=await setup();provider();env.ENGINE_CADENCE='session';
+  const r=await runTick(env,'health');assert.equal(r.ok,true,JSON.stringify(r));
+  const status=await (await worker.fetch(new Request('https://test/status'),env)).json();
+  const health=await (await worker.fetch(new Request('https://test/health'),env)).json();
+  assert.notEqual(status.health,'ENGINE_CRITICAL');
+  assert.equal(status.paper.state,'HISTORICAL_INACTIVE');
+  assert.equal(status.engine.active_risk_policy.target_entry_notional,10);
+  assert.equal(status.diagnostics.risk_limits.protected_cash_reserve,30);
+  assert.equal(health.health,status.health);
+  assert.equal(health.valuation_state,'VALUED');
+  const cycle=db.prepare('SELECT started_at,completed_at,management_at,metrics FROM engine_cycles').get();
+  assert.ok(Date.parse(cycle.completed_at)>=Date.parse(cycle.started_at));
+  assert.ok(Date.parse(cycle.management_at)>=Date.parse(cycle.started_at));
+  assert.ok(Number(JSON.parse(cycle.metrics).wall_time_ms)>=0);
+  db.close();
+},'2026-09-18T15:00:00Z'));
+
 test('research firsts and excursions survive later cycles; migration never resets capital',()=>clocked(async advance=>{
   const {env,db}=await setup();provider();assert.equal((await runTick(env,'first')).ok,true);
   const cash=db.prepare("SELECT cash FROM hunt_accounts WHERE account_id='H250'").get().cash;await ensureCapacitySchema(env.MEDS_DB);assert.equal(db.prepare("SELECT cash FROM hunt_accounts WHERE account_id='H250'").get().cash,cash);
