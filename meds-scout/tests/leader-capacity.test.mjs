@@ -145,11 +145,17 @@ test('real D1 metadata: maximum mixed full cycle',{skip:process.env.MEDS_REAL_D1
   try{for(const scenario of ['DB','EQUITY','ENTRY','FAILURE','OPTIONS']){const real=await mf.getD1Database(scenario);await clocked(async()=>{
     const {env,db}=await setup();
     if(scenario==='DB'||scenario==='FAILURE')mixedBook(db);
+    // Historical volume must not multiply active-account lifecycle scans.
+    seed(db,1,'equity',1,'H100');
+    const oldId=db.prepare("SELECT id FROM hunt_account_positions WHERE account_id='H100'").get().id;
+    const oldEvent=db.prepare("INSERT INTO hunt_account_events(account_id,position_id,symbol,created_at,event_type,price,quantity,realized_pnl,details,version) VALUES('H100',?,'HELD0','2026-09-01T15:00:00Z',?,1,.00000001,0,'{}','leader-hunt-v7-asymmetric-runner')");
+    for(let i=0;i<5000;i++)oldEvent.run(oldId,'PARTIAL_EXIT_'+i);
     if(scenario==='EQUITY')seed(db,32,'equity',1);
     const schema=db.prepare("SELECT type,name,sql FROM sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%' ORDER BY CASE type WHEN 'table' THEN 0 WHEN 'index' THEN 1 ELSE 2 END").all();
     for(const row of schema.filter(r=>r.type==='table'))await real.prepare(row.sql).run();
-    for(const row of schema.filter(r=>r.type==='table'))for(const record of db.prepare('SELECT * FROM '+row.name).all()){
-      const cols=Object.keys(record);await real.prepare(`INSERT INTO ${row.name}(${cols.join(',')}) VALUES(${cols.map(()=>'?').join(',')})`).bind(...Object.values(record)).run();
+    for(const row of schema.filter(r=>r.type==='table')){
+      const records=db.prepare('SELECT * FROM '+row.name).all();
+      for(let i=0;i<records.length;i+=200){const chunk=records.slice(i,i+200),cols=Object.keys(chunk[0]);await real.prepare(`INSERT INTO ${row.name}(${cols.join(',')}) SELECT ${cols.map(c=>`json_extract(value,'$.${c}')`).join(',')} FROM json_each(?)`).bind(JSON.stringify(chunk)).run();}
     }
     for(const row of schema.filter(r=>r.type!=='table'))await real.prepare(row.sql).run();
     env.MEDS_DB=real;provider(scenario==='DB'?{mixed:true}:scenario==='FAILURE'?{fail:true}:scenario==='OPTIONS'?{price:100,optionBid:1,optionAsk:1.05}:{});const r=await runTick(env,'real-d1');assert.equal(r.ok,true,JSON.stringify(r));assert.ok(r.database.statements<=40);

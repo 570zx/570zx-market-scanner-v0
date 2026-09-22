@@ -14,6 +14,14 @@ export const CAPACITY_SCHEMA=[
   `INSERT OR IGNORE INTO hunt_revisions VALUES('${ACTIVE_ACCOUNT}',0)`,
   `CREATE TABLE IF NOT EXISTS leader_cycle_audit(bucket TEXT PRIMARY KEY,created_at TEXT NOT NULL,version TEXT NOT NULL,payload TEXT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS leader_research_shards(session_date TEXT NOT NULL,shard INTEGER NOT NULL,version TEXT NOT NULL,data TEXT NOT NULL,PRIMARY KEY(session_date,shard,version))`,
+  `CREATE INDEX IF NOT EXISTS idx_hunt_account_event_position ON hunt_account_events(account_id,position_id,event_type)`,
+  `DROP INDEX IF EXISTS idx_hunt_account_event_time`,
+  `DROP TRIGGER IF EXISTS hunt_account_events_once_v8`,
+  `CREATE TRIGGER hunt_account_events_once_v8 BEFORE INSERT ON hunt_account_events WHEN EXISTS(SELECT 1 FROM hunt_account_events WHERE account_id=NEW.account_id AND position_id=NEW.position_id AND event_type=NEW.event_type) BEGIN SELECT RAISE(ABORT,'Leader lifecycle event already applied'); END`,
+  `CREATE INDEX IF NOT EXISTS idx_hunt_option_event_position ON hunt_account_option_events(account_id,position_id,event_type)`,
+  `DROP INDEX IF EXISTS idx_hunt_option_event_time`,
+  `DROP TRIGGER IF EXISTS hunt_account_option_events_once_v8`,
+  `CREATE TRIGGER hunt_account_option_events_once_v8 BEFORE INSERT ON hunt_account_option_events WHEN EXISTS(SELECT 1 FROM hunt_account_option_events WHERE account_id=NEW.account_id AND position_id=NEW.position_id AND event_type=NEW.event_type) BEGIN SELECT RAISE(ABORT,'Leader lifecycle event already applied'); END`,
   `UPDATE paper_meta SET version=11 WHERE id=1`,
 ];
 export async function ensureCapacitySchema(db:D1Database){await db.batch(CAPACITY_SCHEMA.map(s=>db.prepare(s)));}
