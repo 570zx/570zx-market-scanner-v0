@@ -140,12 +140,15 @@ function mixedBook(db){
   db.exec("UPDATE hunt_accounts SET cash=cash+350,realized_pnl=350,current_equity=600,max_equity=600 WHERE account_id='H250'");
   db.exec("UPDATE hunt_account_positions SET entry_price=1,entry_notional=.25,stop_price=.95,target_price=3,highest_price=1,lowest_price=1 WHERE account_id='H250' AND symbol NOT IN ('HELD0','HELD1'); UPDATE hunt_accounts SET cash=cash+14 WHERE account_id='H250'");
 }
-test('maximum mixed path: both entry assets, both exits, events and partial intents',t=>clocked(async()=>{
+test('maximum mixed management stays reduce-only while a partial exit intent is unresolved',t=>clocked(async()=>{
   const {env,db}=await setup();mixedBook(db);provider({mixed:true});const r=await runTick(env,'worst');assert.equal(r.ok,true,JSON.stringify(r));assert.ok(r.database.statements<=40);
   for(const table of ['hunt_account_trades','hunt_account_option_trades','hunt_exit_intents'])assert.ok(db.prepare('SELECT COUNT(*) n FROM '+table).get().n,table);
-  assert.ok(db.prepare("SELECT COUNT(*) n FROM hunt_account_option_positions WHERE account_id='H250' AND symbol LIKE 'TEST%'").get().n);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM hunt_account_option_positions WHERE account_id='H250' AND symbol LIKE 'TEST%'").get().n,0);
+  assert.ok(r.hunt.account_entries===0);
   assert.ok(db.prepare("SELECT cash FROM hunt_accounts WHERE account_id='H250'").get().cash>=30);
-  t.diagnostic(JSON.stringify({scenario:'mixed maximum',...r.database,provider:r.usage.requests}));db.close();
+  const audit=JSON.parse(db.prepare('SELECT payload FROM leader_cycle_audit').get().payload);
+  assert.ok(audit.decisions.some(d=>d.reasons?.includes('PENDING_EXIT_RISK_BLOCK')));
+  t.diagnostic(JSON.stringify({scenario:'mixed reduce-only under pending exit',...r.database,provider:r.usage.requests}));db.close();
 },'2026-09-18T15:00:00Z'));
 
 test('late audit failure rolls back every fill and permits an idempotent retry',()=>clocked(async()=>{
