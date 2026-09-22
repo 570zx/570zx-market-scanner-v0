@@ -74,6 +74,29 @@ test('premarket uses delayed SIP for research without treating delayed quotes as
   db.close();
 },'2026-09-18T12:00:00Z'));
 
+test('regular-session continuation runner can enter above the old +45% shortlist ceiling',t=>clocked(async()=>{
+  const {env,db}=await setup();provider();const original=globalThis.fetch;
+  globalThis.fetch=async url=>{
+    const response=await original(url),u=new URL(String(url));
+    if(!u.pathname.includes('/stocks/snapshots'))return response;
+    const body=await response.json();
+    for(const snap of Object.values(body)){
+      const px=(snap.latestQuote.bp+snap.latestQuote.ap)/2;
+      snap.prevDailyBar={c:px/1.60,v:100000};
+    }
+    return Response.json(body);
+  };
+  const r=await runTick(env,'continuation-60pct');
+  assert.equal(r.ok,true,JSON.stringify(r));
+  assert.ok(r.research_shortlist>0,'+60% movers must survive shortlist construction');
+  assert.ok(r.hunt.account_entries>0,'evidence-backed +60% movers must remain enterable');
+  const entries=db.prepare("SELECT entry_day_change_pct FROM hunt_account_positions WHERE account_id='H250'").all();
+  assert.ok(entries.some(x=>x.entry_day_change_pct>45),'at least one entry must prove the old +45% hard cap is gone');
+  assert.ok(r.database.statements<=40);
+  t.diagnostic(JSON.stringify({scenario:'continuation above old cap',entries:r.hunt.account_entries,...r.database}));
+  db.close();
+},'2026-09-18T15:00:00Z'));
+
 test('one-account full discovery/entry cycle uses set-based writes and leaves history byte-for-byte unchanged',t=>clocked(async()=>{
   const {env,db}=await setup();seed(db,2,'equity',4,'H100');seed(db,2,'option',.03,'H1K');const before=historical(db);provider();
   const r=await runTick(env,'capacity');assert.equal(r.ok,true,JSON.stringify(r));assert.equal(r.hunt.account_entries,6);

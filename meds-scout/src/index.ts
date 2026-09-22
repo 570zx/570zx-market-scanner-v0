@@ -261,19 +261,30 @@ function selectLeaderResearch(rows:Candidate[],discovery:DiscoveryResult):Candid
     most_active_trades:3,
   };
   const byScore=[...rows].sort((a,b)=>b.score-a.score);
+  const sourceSort=(a:Candidate,b:Candidate)=>{
+    const as=discovery.sourceBySymbol.get(a.symbol)??{source:'',rank:null};
+    const bs=discovery.sourceBySymbol.get(b.symbol)??{source:'',rank:null};
+    const p=(sourcePriority[as.source]??99)-(sourcePriority[bs.source]??99);
+    if(p) return p;
+    const r=(as.rank??9999)-(bs.rank??9999);
+    return r || b.score-a.score;
+  };
   const earlySource=rows
     .filter(c=>{
       const source=discovery.sourceBySymbol.get(c.symbol)?.source??'';
       return sourcePriority[source]!==undefined && c.dayChangePct>=-8 && c.dayChangePct<=10;
     })
-    .sort((a,b)=>{
-      const as=discovery.sourceBySymbol.get(a.symbol)??{source:'',rank:null};
-      const bs=discovery.sourceBySymbol.get(b.symbol)??{source:'',rank:null};
-      const p=(sourcePriority[as.source]??99)-(sourcePriority[bs.source]??99);
-      if(p) return p;
-      const r=(as.rank??9999)-(bs.rank??9999);
-      return r || b.score-a.score;
-    });
+    .sort(sourceSort);
+  // Reserve part of the shortlist for already-moving names from genuine
+  // discovery surfaces. This prevents liquid household names from crowding
+  // out obscure continuation runners merely because the latter were first
+  // observed above +10%.
+  const continuationSource=rows
+    .filter(c=>{
+      const source=discovery.sourceBySymbol.get(c.symbol)?.source??'';
+      return ['top_gainer','fresh_news'].includes(source) && c.dayChangePct>10;
+    })
+    .sort(sourceSort);
 
   const chosen:Candidate[]=[];
   const seen=new Set<string>();
@@ -283,6 +294,11 @@ function selectLeaderResearch(rows:Candidate[],discovery:DiscoveryResult):Candid
   };
   for(const c of earlySource){
     if(chosen.length>=Math.min(HUNT_EARLY_SOURCE_RESERVE,HUNT_TRACKED_PER_CYCLE)) break;
+    add(c);
+  }
+  const continuationTarget=Math.min(HUNT_EARLY_SOURCE_RESERVE+HUNT_CONTINUATION_SOURCE_RESERVE,HUNT_TRACKED_PER_CYCLE);
+  for(const c of continuationSource){
+    if(chosen.length>=continuationTarget) break;
     add(c);
   }
   for(const c of byScore) add(c);
@@ -339,9 +355,10 @@ function scoreCandidate(c: Candidate, isRegular: boolean): Candidate {
 
   if (c.price >= HUNT_MIN_STOCK_PRICE && c.price < 0.5) { s += 10; r.push("sub-$0.50 penny asymmetric range"); }
   else if (c.price >= 0.5 && c.price <= 10) { s += 8; r.push("low-dollar asymmetric range"); }
-  if (c.dayChangePct >= -3 && c.dayChangePct <= 12) { s += 16; r.push("still early / not extended"); }
-  else if (c.dayChangePct > 12 && c.dayChangePct <= 25) { s += 7; r.push("momentum active but less early"); }
-  else if (c.dayChangePct > 25) { s -= 18; r.push("already extended"); }
+  if (c.dayChangePct >= -3 && c.dayChangePct <= 12) { s += 16; r.push("early momentum"); }
+  else if (c.dayChangePct > 12 && c.dayChangePct <= 35) { s += 9; r.push("continuation momentum"); }
+  else if (c.dayChangePct > 35 && c.dayChangePct <= 75) { s += 3; r.push("strong continuation; require confirmation"); }
+  else if (c.dayChangePct > 75) { s -= 6; r.push("extreme continuation; high proof threshold"); }
 
   if (c.spreadPct <= 1.5) { s += 15; r.push("tight spread"); }
   else if (c.spreadPct <= 3.0) { s += 7; }
@@ -771,6 +788,7 @@ function bucket5(date=new Date()){
 const HUNT_VERSION=LEADER_VERSION;
 const HUNT_TRACKED_PER_CYCLE=24;
 const HUNT_EARLY_SOURCE_RESERVE=12;
+const HUNT_CONTINUATION_SOURCE_RESERVE=8;
 const HUNT_DISCOVERY_MAX_SYMBOLS=260;
 const HUNT_SCAN_MAX_SYMBOLS=320;
 const HUNT_CAPITAL_RESERVE_PCT=0.12;

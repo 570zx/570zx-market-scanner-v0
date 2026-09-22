@@ -71,7 +71,11 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
         discoverySource:info?.source,discoveryRank:info?.rank??null,dataWarnings:prevClose>0?[]:['REFERENCE_PRICE_UNAVAILABLE']};
       d.score(c,marketPhase==='regular');rows.push(c);
     }
-    let selected=d.select(rows.filter(c=>c.price>=.1&&c.dayChangePct<=45&&c.dayChangePct>=-15),discovery);
+    // Never hard-cap positive day change before policy evaluation. A name first
+    // seen at +25% can still have most of an asymmetric move ahead of it.
+    // Negative controls remain bounded; positive continuation is governed by
+    // runnerReasons() evidence thresholds rather than an arbitrary percent cap.
+    let selected=d.select(rows.filter(c=>c.price>=.1&&c.dayChangePct>=-15),discovery);
     let news:any[]=[];try{news=await d.news(runEnv,selected.map(c=>c.symbol));}catch{}
     for(const c of selected){const h=d.catalyst(news,c.symbol);c.catalystScore=h.score;c.catalystSummary=h.summary;d.score(c,marketPhase==='regular');}
     selected=d.select(selected,discovery);
