@@ -249,6 +249,56 @@ test('elite continuation runner can rotate one weak holding when only reserve ca
   db.close();
 },'2026-09-18T15:00:00Z'));
 
+test('rotation never sells a victim when the replacement has zero executable minute liquidity',()=>clocked(async()=>{
+  const {db}=await setup();
+  const account=db.prepare("SELECT a.*,r.revision FROM hunt_accounts a JOIN hunt_revisions r USING(account_id) WHERE account_id='H250'").get();account.cash=30;
+  const held={id:9101,kind:'equity',account_id:'H250',symbol:'OLD',opened_at:new Date(Date.now()-3600000).toISOString(),entry_price:4,quantity:2.5,remaining_qty:2.5,entry_notional:10,stop_price:3.8,target_price:12,highest_price:4.1,lowest_price:3.9,entry_score:30,entry_day_change_pct:2,opened_phase:'regular',features:'{}',status:'open',version:'leader-hunt-v8.1-leader250-capacity',locked_realized_pnl:0,take200_done:0};
+  const strong=candidate({symbol:'RAIN',price:1.105,bid:1.10,ask:1.11,spreadPct:.9,dayChangePct:65,score:80,catalystScore:22,volumeAccel:1,dayVolume:9000000,previousDayVolume:100000,minuteVolume:0,consecutiveHits:4,discoverySource:'top_gainer'});
+  const plan=new LeaderPlan(account,[held],[],[],[],new Date(),'regular',null,[strong,candidate({symbol:'OLD',score:30})]);
+  plan.enterEquities([strong],{OLD:snapshot(3.96,3.97,100000),RAIN:snapshot(1.10,1.11,0)},c=>({score:c.score}));
+  assert.equal(plan.rotations,0);
+  assert.equal(plan.trades.length,0);
+  assert.equal(plan.newPositions.length,0);
+  assert.equal(plan.positions[0].status,'open');
+  assert.match(plan.decisions.at(-1).reasons.join(','),/CAPITAL_RESERVE_BLOCK/);
+  db.close();
+},'2026-09-18T15:00:00Z'));
+
+test('partial stop consumes the shared minute liquidity and blocks same-cycle rotation',()=>clocked(async()=>{
+  const {db}=await setup();
+  const account=db.prepare("SELECT a.*,r.revision FROM hunt_accounts a JOIN hunt_revisions r USING(account_id) WHERE account_id='H250'").get();account.cash=30;
+  const held={id:9102,kind:'equity',account_id:'H250',symbol:'OLD',opened_at:new Date(Date.now()-3600000).toISOString(),entry_price:4,quantity:1,remaining_qty:1,entry_notional:4,stop_price:3.8,target_price:12,highest_price:4.1,lowest_price:3.9,entry_score:20,entry_day_change_pct:2,opened_phase:'regular',features:'{}',status:'open',version:'leader-hunt-v8.1-leader250-capacity',locked_realized_pnl:0,take200_done:0};
+  const strong=candidate({symbol:'RAIN',price:1.105,bid:1.10,ask:1.11,spreadPct:.9,dayChangePct:65,score:80,catalystScore:22,volumeAccel:1,dayVolume:9000000,previousDayVolume:100000,minuteVolume:100000,consecutiveHits:4,discoverySource:'top_gainer'});
+  const oldSnap=snapshot(3.5,3.51,10); // 5% participation = 0.5 share
+  const plan=new LeaderPlan(account,[held],[],[],[],new Date(),'regular',null,[strong,candidate({symbol:'OLD',score:20})]);
+  plan.manage({OLD:oldSnap},{});
+  assert.equal(plan.positions[0].remaining_qty,.5);
+  assert.equal(plan.intents.length,1);
+  assert.ok(plan.equityAvailable('OLD',oldSnap)<1e-9);
+  plan.enterEquities([strong],{OLD:oldSnap,RAIN:snapshot(1.10,1.11,100000)},c=>({score:c.score}));
+  assert.equal(plan.rotations,0);
+  assert.equal(plan.trades.length,0);
+  assert.equal(plan.newPositions.length,0);
+  db.close();
+},'2026-09-18T15:00:00Z'));
+
+test('durable rotation cooldown and current-strength hurdle prevent five-minute churn',()=>clocked(async()=>{
+  const {env,db}=await setup();
+  const account=db.prepare("SELECT a.*,r.revision FROM hunt_accounts a JOIN hunt_revisions r USING(account_id) WHERE account_id='H250'").get();account.cash=30;
+  const held={id:9103,kind:'equity',account_id:'H250',symbol:'RAIN',opened_at:new Date(Date.now()-5*60000).toISOString(),entry_price:1.11,quantity:9,remaining_qty:9,entry_notional:9.99,stop_price:1.0545,target_price:3.33,highest_price:1.12,lowest_price:1.08,entry_score:75,entry_day_change_pct:40,opened_phase:'regular',features:'{}',status:'open',version:CAPACITY_VERSION,locked_realized_pnl:0,take200_done:0};
+  const state={account_id:'H250',session_date:'2026-09-18',rotations:1,last_rotation_at:new Date(Date.now()-5*60000).toISOString(),last_victim_symbol:'OLD',last_replacement_symbol:'RAIN',version:CAPACITY_VERSION};
+  const weaker=candidate({symbol:'NEXT',price:1.2,bid:1.19,ask:1.20,spreadPct:.8,dayChangePct:50,score:55,catalystScore:22,volumeAccel:1,dayVolume:9000000,previousDayVolume:100000,minuteVolume:100000,consecutiveHits:4,discoverySource:'top_gainer'});
+  const plan=new LeaderPlan(account,[held],[],[],[],new Date(),'regular',state,[candidate({symbol:'RAIN',score:75}),weaker]);
+  plan.enterEquities([weaker],{RAIN:snapshot(1.08,1.09,100000),NEXT:snapshot(1.19,1.20,100000)},c=>({score:c.score}));
+  assert.equal(plan.rotations,0);
+  assert.equal(plan.trades.length,0);
+  assert.equal(plan.newPositions.length,0);
+  assert.equal(plan.rotationState.rotations,1);
+  await env.MEDS_DB.batch(accountingStatements(env.MEDS_DB,plan));
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM leader_rotation_state').get().n,0,'unchanged rotation state should not write');
+  db.close();
+},'2026-09-18T15:00:00Z'));
+
 test('set-based position management matches v8 cash, quantities, lifecycle and realized accounting',()=>clocked(async()=>{
   const a=await setup(),b=await setup();mixedBook(a.db);mixedBook(b.db);
   const stocks=Object.fromEntries(Array.from({length:16},(_,i)=>['HELD'+i,snapshot(4,4.01,i===1?.02:100000)]));
