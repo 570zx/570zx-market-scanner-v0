@@ -5,7 +5,7 @@ import {markState,LEASE_MS} from './autonomous.ts';
 import {cycleBucket,sessionDate,moverMiss} from './research-audit.ts';
 
 export const CAPACITY_ENGINE='meds-v8.1-leader250-capacity';
-export const CAPACITY_VERSION='leader-hunt-v8.3-capital-rotation';
+export const CAPACITY_VERSION='leader-hunt-v8.4-rotation-hardening';
 export const ACTIVE_ACCOUNT='H250';
 export const ACTIVE_LEADER_RISK_POLICY=Object.freeze({
   starting_equity:250,
@@ -20,6 +20,10 @@ export const ACTIVE_LEADER_RISK_POLICY=Object.freeze({
   reentry_cooldown_minutes:15,
   max_quote_age_seconds:90,
   max_rotations_per_cycle:1,
+  max_rotations_per_session:2,
+  rotation_cooldown_minutes:30,
+  minimum_rotation_victim_age_minutes:15,
+  minimum_rotation_score_improvement:20,
   live_execution:false,
 });
 export const CAPACITY_SCHEMA=[
@@ -29,6 +33,8 @@ export const CAPACITY_SCHEMA=[
   `INSERT OR IGNORE INTO hunt_revisions VALUES('${ACTIVE_ACCOUNT}',0)`,
   `CREATE TABLE IF NOT EXISTS leader_cycle_audit(bucket TEXT PRIMARY KEY,created_at TEXT NOT NULL,version TEXT NOT NULL,payload TEXT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS leader_research_shards(session_date TEXT NOT NULL,shard INTEGER NOT NULL,version TEXT NOT NULL,data TEXT NOT NULL,PRIMARY KEY(session_date,shard,version))`,
+  `CREATE TABLE IF NOT EXISTS leader_rotation_state(account_id TEXT NOT NULL,session_date TEXT NOT NULL,rotations INTEGER NOT NULL DEFAULT 0,last_rotation_at TEXT,last_victim_symbol TEXT,last_replacement_symbol TEXT,version TEXT NOT NULL,PRIMARY KEY(account_id,session_date))`,
+  `UPDATE leader_runtime_config SET version='${CAPACITY_VERSION}' WHERE id=1 AND account_id='${ACTIVE_ACCOUNT}' AND normal_enabled=0`,
   `CREATE INDEX IF NOT EXISTS idx_hunt_account_event_position ON hunt_account_events(account_id,position_id,event_type)`,
   `DROP INDEX IF EXISTS idx_hunt_account_event_time`,
   `DROP TRIGGER IF EXISTS hunt_account_events_once_v8`,
@@ -37,7 +43,7 @@ export const CAPACITY_SCHEMA=[
   `DROP INDEX IF EXISTS idx_hunt_option_event_time`,
   `DROP TRIGGER IF EXISTS hunt_account_option_events_once_v8`,
   `CREATE TRIGGER hunt_account_option_events_once_v8 BEFORE INSERT ON hunt_account_option_events WHEN EXISTS(SELECT 1 FROM hunt_account_option_events WHERE account_id=NEW.account_id AND position_id=NEW.position_id AND event_type=NEW.event_type) BEGIN SELECT RAISE(ABORT,'Leader lifecycle event already applied'); END`,
-  `UPDATE paper_meta SET version=11 WHERE id=1`,
+  `UPDATE paper_meta SET version=12 WHERE id=1`,
 ];
 export async function ensureCapacitySchema(db:D1Database){await db.batch(CAPACITY_SCHEMA.map(s=>db.prepare(s)));}
 export type Row=Record<string,any>;
