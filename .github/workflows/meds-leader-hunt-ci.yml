@@ -34,5 +34,7 @@ jobs:
           cache-dependency-path: meds-scout/package-lock.json
       - run: npm ci
       - run: npm test
+        env:
+          MEDS_REAL_D1: "true"
       - run: npm run check
       - run: npx wrangler deploy --dry-run --outdir /tmp/meds-wrangler
