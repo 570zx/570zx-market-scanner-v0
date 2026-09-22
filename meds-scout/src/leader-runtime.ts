@@ -105,8 +105,9 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
       ss.push(ingest(env.MEDS_DB,'symbol_state',selected.map(c=>({symbol:c.symbol,last_price:c.price,last_bid:c.bid,last_ask:c.ask,day_volume:c.dayVolume,previous_day_volume:c.previousDayVolume,last_minute_volume:c.minuteVolume,score:c.score,status:'WATCH',consecutive_hits:c.consecutiveHits,last_seen_at:stamp})),cols,upsert(cols,['symbol'])));
     }
     const board=discovery.gainers.slice(0,50).map((g:any,i:number)=>({bucket,session_date:date,created_at:stamp,phase:marketPhase,rank:i+1,symbol:g.symbol,price:g.price??null,change:g.change??null,percent_change:g.percent_change??g.percentChange??null,raw_json:JSON.stringify(g),version:CAPACITY_VERSION}));
+    let audits:Row[]=[];
     if(board.length){
-      const audits=board.slice(0,20).map((g:any)=>{
+      audits=board.slice(0,20).map((g:any)=>{
         const f=shardMap.get(shardFor(g.symbol))?.[g.symbol],entry=f?.entry,reject=f?.early_rejection??f?.first_rejection,reasons=reject?.reasons??[];
         const summary={symbol:g.symbol,rank:g.rank,board_at:stamp,board_phase:marketPhase,current_gain_pct:g.percent_change,current_price:g.price,instrument_type:f?.instrument_type??'unknown',first_provider_at:f?.first_provider_at??null,
           provider_time_basis:'first MEDS poll that observed provider appearance; upstream first publication time unavailable',first_seen_at:f?.first_seen_at??null,first_seen_gain_pct:f?.first_change??null,first_seen_price:f?.first_price??null,first_seen_source:f?.source??null,
@@ -117,9 +118,8 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
           rejection_by_account:plan.decisions.filter(r=>r.symbol===g.symbol&&r.outcome==='REJECTED').map(r=>({account:ACTIVE_ACCOUNT,lane:r.lane,reasons:r.reasons})),version:CAPACITY_VERSION};
         return {bucket,symbol:g.symbol,session_date:date,phase:marketPhase,rank:g.rank,summary:JSON.stringify(summary),version:CAPACITY_VERSION};
       });
-      ss.push(ingest(env.MEDS_DB,'mover_audits',audits,['bucket','symbol','session_date','phase','rank','summary','version'],'ON CONFLICT DO NOTHING'));
     }
-    ss.push(ingest(env.MEDS_DB,'leader_cycle_audit',[{bucket,created_at:stamp,version:CAPACITY_VERSION,payload:JSON.stringify({phase:marketPhase,research,decisions:plan.decisions,board,shortlist:selected.map(c=>c.symbol)})}],['bucket','created_at','version','payload'],'ON CONFLICT(bucket) DO NOTHING'));
+    ss.push(ingest(env.MEDS_DB,'leader_cycle_audit',[{bucket,created_at:stamp,version:CAPACITY_VERSION,payload:JSON.stringify({session_date:date,phase:marketPhase,research,decisions:plan.decisions,board,movers:audits.map(a=>JSON.parse(a.summary)),shortlist:selected.map(c=>c.symbol)})}],['bucket','created_at','version','payload'],'ON CONFLICT(bucket) DO NOTHING'));
     const quoteRows:Row[]=[];
     const wanted=new Map([...equities,...options,...plan.newPositions].map(p=>[p.kind+':'+p.symbol,p]));
     for(const p of wanted.values()){

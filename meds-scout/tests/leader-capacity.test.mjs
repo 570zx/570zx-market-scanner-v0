@@ -100,6 +100,8 @@ test('unaffordable whole-contract options are explained while liquid controls re
 
 function mixedBook(db){
   seed(db,16,'equity',5);seed(db,16,'option',.02);
+  // Prior realized gains exercise the milestone statement without changing $250 starting capital.
+  db.exec("UPDATE hunt_accounts SET cash=cash+350,realized_pnl=350,current_equity=600,max_equity=600 WHERE account_id='H250'");
   db.exec("UPDATE hunt_account_positions SET entry_price=1,entry_notional=.25,stop_price=.95,target_price=3,highest_price=1,lowest_price=1 WHERE account_id='H250' AND symbol NOT IN ('HELD0','HELD1'); UPDATE hunt_accounts SET cash=cash+14 WHERE account_id='H250'");
 }
 test('maximum mixed path: both entry assets, both exits, events and partial intents',t=>clocked(async()=>{

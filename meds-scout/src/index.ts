@@ -2494,7 +2494,7 @@ async function publicStatus(env: Env): Promise<Response> {
       usage:cycleUsage,single_scheduler:'Cloudflare cron',cadence_minutes:plannedCadence(phase(now)),
       configured_enabled:env.SCOUT_ENABLED==='true',runtime_paused:!!state?.paused,live_execution:false};
     body.valuations=detailed;
-    body.quote_health=quoteIssues.results??[];
+    body.quote_health=env.LEADER_ONLY==='true'?detailed.flatMap(v=>v.marks.filter((m:any)=>m.state!=='FRESH')):quoteIssues.results??[];
     body.decisions_latest=(rejected.results??[]).map(r=>({...r,reasons:JSON.parse(r.reasons)}));
     const leader=body.leader_hunt as any;
     if(leader){
@@ -2549,7 +2549,17 @@ function publicPage(url: URL) {
 
 
 async function publicGainerAudit(url:URL,env:Env):Promise<Response>{
-  const auditVersion=env.LEADER_ONLY==='true'?CAPACITY_VERSION:HUNT_VERSION;
+  if(env.LEADER_ONLY==='true'&&url.searchParams.get('version')!=='legacy'){
+    const {limit,offset}=publicPage(url),date=url.searchParams.get('date'),requestedPhase=url.searchParams.get('phase');
+    const filters=['version=?'],args:any[]=[CAPACITY_VERSION];
+    if(date){filters.push("json_extract(payload,'$.session_date')=?");args.push(date);}
+    if(requestedPhase){filters.push("json_extract(payload,'$.phase')=?");args.push(requestedPhase);}
+    const latest=await env.MEDS_DB.prepare(`SELECT bucket,created_at,json_extract(payload,'$.session_date') session_date,json_extract(payload,'$.phase') phase,json_extract(payload,'$.movers') movers FROM leader_cycle_audit WHERE ${filters.join(' AND ')} ORDER BY bucket DESC LIMIT 1`).bind(...args).first<any>();
+    const rows=latest?JSON.parse(latest.movers??'[]').slice(offset,offset+limit):[],top10=rows.filter((r:any)=>r.rank<=10);
+    return Response.json({ok:true,read_only:true,version:CAPACITY_VERSION,session_date:latest?.session_date??null,board_at:latest?.bucket??null,board_phase:latest?.phase??null,rows,count:rows.length,state:latest?'RECORDED':'NO_CURRENT_VERSION_AUDIT',summary:{board_size:rows.length,top10_count:top10.length,top10_caught_before_10:top10.filter((r:any)=>r.caught_before_10).length,caught_before_5:rows.filter((r:any)=>r.caught_before_5).length,caught_before_10:rows.filter((r:any)=>r.caught_before_10).length,caught_before_20:rows.filter((r:any)=>r.caught_before_20).length}},{headers:{'cache-control':'no-store'}});
+  }
+
+  const auditVersion=HUNT_VERSION;
   const page=publicPage(url);
   // D1 caps bound variables per statement. The audit uses each symbol twice
   // in UNION queries, so keep the page below that ceiling instead of turning
@@ -2572,7 +2582,7 @@ async function publicGainerAudit(url:URL,env:Env):Promise<Response>{
       {headers:{'cache-control':'no-store','x-content-type-options':'nosniff'}});
   }
 
-  if(env.LEADER_ONLY==='true')return Response.json({ok:true,read_only:true,version:auditVersion,rows:[],count:0,state:'NO_CURRENT_VERSION_AUDIT'});
+
   try{
     const latest=requestedDate
       ? await env.MEDS_DB.prepare(`SELECT bucket,session_date,created_at,phase FROM hunt_gainer_board
