@@ -5,7 +5,7 @@ import {markState,LEASE_MS} from './autonomous.ts';
 import {cycleBucket,sessionDate,moverMiss} from './research-audit.ts';
 
 export const CAPACITY_ENGINE='meds-v8.1-leader250-capacity';
-export const CAPACITY_VERSION='leader-hunt-v8.2-continuation-runner';
+export const CAPACITY_VERSION='leader-hunt-v8.3-capital-rotation';
 export const ACTIVE_ACCOUNT='H250';
 export const CAPACITY_SCHEMA=[
   `CREATE TABLE IF NOT EXISTS leader_runtime_config(id INTEGER PRIMARY KEY CHECK(id=1),account_id TEXT NOT NULL,version TEXT NOT NULL,normal_enabled INTEGER NOT NULL CHECK(normal_enabled=0))`,
@@ -53,7 +53,7 @@ const rungPolicy=[['LADDER_25',.25,.025],['LADDER_50',.5,.025],['LADDER_100',1,.
 export class LeaderPlan {
   account:Row;positions:Row[];events:Row[]=[];trades:Row[]=[];newPositions:Row[]=[];decisions:Row[]=[];intents:Row[]=[];
   touched:Row[]=[];cooldown:Set<string>;priorEvents:Row[];priorIntents:Row[];now:Date;phase:string;
-  cashCredit=0;cashDebit=0;pnlDelta=0;executionDeadline=Infinity;
+  cashCredit=0;cashDebit=0;pnlDelta=0;executionDeadline=Infinity;rotations=0;
   constructor(account:Row,positions:Row[],events:Row[],intents:Row[],cooldown:string[],now:Date,phase:string){
     this.account={...account};this.positions=positions.map(p=>({...p}));this.priorEvents=events;this.priorIntents=intents;this.cooldown=new Set(cooldown);this.now=now;this.phase=phase;
   }
@@ -61,7 +61,7 @@ export class LeaderPlan {
   usedQuote(q:any){this.executionDeadline=Math.min(this.executionDeadline,Date.parse(q.t)+90_000);}
   get cash(){return Number(this.account.cash)+this.cashCredit-this.cashDebit;}
   get open(){return [...this.positions,...this.newPositions].filter(p=>p.status==='open');}
-  reason(symbol:string){if(this.open.some(p=>(p.underlying??p.symbol)===symbol))return 'DUPLICATE_POSITION';if(this.cooldown.has(symbol))return 'REENTRY_COOLDOWN';if(this.open.length>=32)return 'OPEN_POSITION_CAP';if(this.cash<=30)return 'CAPITAL_RESERVE_BLOCK';return null;}
+  reason(symbol:string){if(this.open.some(p=>(p.underlying??p.symbol)===symbol))return 'DUPLICATE_POSITION';if(this.cooldown.has(symbol))return 'REENTRY_COOLDOWN';if(this.open.length>=32)return 'OPEN_POSITION_CAP';if(this.cash-30<=.01)return 'CAPITAL_RESERVE_BLOCK';return null;}
   decision(c:Row,lane:string,stage:string,reasons:string[],features:Row={},entered=false){this.decisions.push({bucket:cycleBucket(this.now),created_at:this.now.toISOString(),symbol:c.symbol,lane,account_id:ACTIVE_ACCOUNT,stage,outcome:entered?'ENTERED':reasons.length?'REJECTED':'ELIGIBLE',reasons,features:{...features,price:c.price,day_change_pct:c.dayChangePct,cash:this.cash},version:CAPACITY_VERSION});}
   event(p:Row,type:string,fill:number,qty:number,pnl:number,details:Row){this.events.push({kind:p.kind,account_id:ACTIVE_ACCOUNT,position_id:p.id,underlying:p.underlying,symbol:p.symbol,created_at:this.now.toISOString(),event_type:type,price:fill,quantity:qty,realized_pnl:pnl,details:JSON.stringify(details),version:p.version});}
   sell(p:Row,qty:number,fill:number,type:string|null,details:Row={}){
@@ -119,21 +119,48 @@ export class LeaderPlan {
       if(qty===remaining){this.close(p,px,reason,p.take200_done?remaining:0);p.locked_realized_pnl-=finalPnl;}
     }
   }
+  rotateCapital(c:Row,stocks:Record<string,any>){
+    if(this.rotations>=1||candidateLane(c as any)!=='MOMENTUM_CONTINUATION')return null;
+    const relative=c.previousDayVolume>0?c.dayVolume/c.previousDayVolume:0;
+    const elite=c.score>=55&&c.consecutiveHits>=2&&relative>=2&&c.spreadPct<=2.5&&(c.catalystScore>0||c.volumeAccel>=.2);
+    if(!elite)return null;
+    const choices=this.positions.filter(p=>p.kind==='equity'&&p.status==='open'&&!p.take200_done&&!this.priorIntents.some(i=>i.kind==='equity'&&i.position_id===p.id)).map(p=>{
+      const snap=stocks[p.symbol],q=snap?.latestQuote;
+      if(!this.fresh(q))return null;
+      p.remaining_qty=Number(p.remaining_qty??p.quantity);p.locked_realized_pnl=Number(p.locked_realized_pnl??0);
+      const available=equityExitCapacity(snap,Date.now());
+      if(!(p.remaining_qty>0)||available+1e-9<p.remaining_qty)return null;
+      const ret=q.bp/p.entry_price-1,score=Number(p.entry_score??0);
+      if(ret>.03)return null;
+      if(!(c.score-score>=20||ret<0))return null;
+      return {p,snap,q,ret,score};
+    }).filter(Boolean) as {p:Row;snap:any;q:any;ret:number;score:number}[];
+    choices.sort((a,b)=>a.ret-b.ret||a.score-b.score||Date.parse(a.p.opened_at)-Date.parse(b.p.opened_at));
+    const x=choices[0];if(!x)return null;
+    const qty=x.p.remaining_qty,fill=x.q.bp*(1-Math.min(.01,Math.max(.0002,.0002+qty/Math.max(1,x.snap.minuteBar?.v??1)*.025)));
+    this.usedQuote(x.q);const finalPnl=this.sell(x.p,qty,fill,'ROTATION_EXIT',{replacement_symbol:c.symbol,replacement_score:c.score,replacement_day_change_pct:c.dayChangePct,observed_bid:x.q.bp});
+    this.close(x.p,fill,'rotation_for_stronger_continuation');x.p.locked_realized_pnl-=finalPnl;this.rotations++;
+    return x.p.symbol;
+  }
   enterEquities(candidates:Row[],stocks:Record<string,any>,features:(c:any)=>Row){
     let signals=0;
     for(const c of candidates){
       const lane=candidateLane(c as any),q=stocks[c.symbol]?.latestQuote;
       const reasons=runnerReasons(c as any);if(reasons.length){this.decision(c,lane,'ENTRY',reasons,features(c));continue;}
       if(!this.fresh(q)){this.decision(c,lane,'ENTRY',['EXECUTION_QUOTE_STALE'],features(c));continue;}
-      const reason=this.reason(c.symbol)??(signals>=6?'SIGNAL_CYCLE_CAP':null);
-      if(reason){this.decision(c,lane,'ENTRY',[reason],features(c));continue;}
-      const budget=Math.min(10,this.cash-30),liquidity=Math.max(0,c.minuteVolume??0);
+      let reason=this.reason(c.symbol)??(signals>=6?'SIGNAL_CYCLE_CAP':null),rotatedOut:null|string=null;
+      if(reason==='CAPITAL_RESERVE_BLOCK'&&signals<6){
+        rotatedOut=this.rotateCapital(c,stocks);
+        if(rotatedOut)reason=this.reason(c.symbol);
+      }
+      if(reason){this.decision(c,lane,'ENTRY',[reason],{...features(c),rotation_attempted:reason==='CAPITAL_RESERVE_BLOCK',rotated_out:rotatedOut});continue;}
+      const budget=Math.min(10,Math.max(0,this.cash-30)),liquidity=Math.max(0,c.minuteVolume??0);
       let qty=Math.min(budget/q.ap,liquidity*.05);
       const fill=(n:number)=>q.ap*(1+Math.min(.01,.0002+n/Math.max(1,liquidity)*.025));
       if(qty*fill(qty)>budget)qty=budget/fill(qty);
       const px=fill(qty),cost=qty*px;
       if(!(cost>.01)||!(qty>0)){this.decision(c,lane,'ENTRY',[liquidity?'POSITION_SIZE_ZERO':'MINUTE_LIQUIDITY_LIMIT'],features(c));continue;}
-      const f={...features(c),asset_type:'equity',max_hold_minutes:720,quantity:qty,target_notional:budget,actual_notional:cost,minute_participation:qty/liquidity,fractional_paper:true,entry_slippage_pct:px/q.ap-1};
+      const f={...features(c),asset_type:'equity',max_hold_minutes:720,quantity:qty,target_notional:budget,actual_notional:cost,minute_participation:qty/liquidity,fractional_paper:true,entry_slippage_pct:px/q.ap-1,rotated_out:rotatedOut};
       this.addPosition(c,'equity',c.symbol,qty,px,cost,f);this.usedQuote(q);signals++;
       this.decision(c,lane,'ENTRY',[],f,true);
     }
