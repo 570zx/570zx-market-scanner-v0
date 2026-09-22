@@ -1,0 +1,309 @@
+{
+  "method": "Actual local workerd/D1 metadata from GitHub Actions, with 5,000 historical account events; fixture provider data; all cycle statements counted, including controls and final metrics update. Setup and post-run verification reads excluded.",
+  "commit": "afb8b3e90f5150da66c09a9abb8c18bd92b70608",
+  "ci_job": 106691448151,
+  "production_cpu_measured": false,
+  "scenarios": [
+    {
+      "scenario": "DB",
+      "ok": true,
+      "version": "meds-v8.1-leader250-capacity",
+      "runtime": "leader_only",
+      "active_account": "H250",
+      "normal_paper_executed": false,
+      "scanned": 292,
+      "research_shortlist": 24,
+      "research_execution_fresh": 24,
+      "hunt": {
+        "version": "leader-hunt-v8.1-leader250-capacity",
+        "account_entries": 9,
+        "exits": 17,
+        "open": 24,
+        "tracked": 24
+      },
+      "usage": {
+        "requests": 16,
+        "request_limit": 36,
+        "budget_exhausted": false,
+        "cache_hits": 0,
+        "retries": 0,
+        "provider_latency_ms": 0,
+        "failures": []
+      },
+      "valuation_state": "VALUED",
+      "database": {
+        "calls": 13,
+        "statements": 34,
+        "rows_read": 1270,
+        "rows_written": 500,
+        "row_metrics_available": true,
+        "by_query": {
+          "state": 1,
+          "lease_claim": 1,
+          "active_account": 1,
+          "equity_inventory": 1,
+          "option_inventory": 1,
+          "lifecycle": 1,
+          "pending_exits": 1,
+          "cooldowns": 1,
+          "symbol_state": 1,
+          "retained_marks": 1,
+          "research_state": 1,
+          "atomic_cycle": 22,
+          "metrics": 1
+        }
+      },
+      "capacity_limit": 40,
+      "audit_bytes": 297155
+    },
+    {
+      "scenario": "EQUITY",
+      "ok": true,
+      "version": "meds-v8.1-leader250-capacity",
+      "runtime": "leader_only",
+      "active_account": "H250",
+      "normal_paper_executed": false,
+      "scanned": 292,
+      "research_shortlist": 24,
+      "research_execution_fresh": 24,
+      "hunt": {
+        "version": "leader-hunt-v8.1-leader250-capacity",
+        "account_entries": 0,
+        "exits": 0,
+        "open": 32,
+        "tracked": 24
+      },
+      "usage": {
+        "requests": 12,
+        "request_limit": 36,
+        "budget_exhausted": false,
+        "cache_hits": 0,
+        "retries": 0,
+        "provider_latency_ms": 0,
+        "failures": []
+      },
+      "valuation_state": "VALUED",
+      "database": {
+        "calls": 13,
+        "statements": 25,
+        "rows_read": 1639,
+        "rows_written": 536,
+        "row_metrics_available": true,
+        "by_query": {
+          "state": 1,
+          "lease_claim": 1,
+          "active_account": 1,
+          "equity_inventory": 1,
+          "option_inventory": 1,
+          "lifecycle": 1,
+          "pending_exits": 1,
+          "cooldowns": 1,
+          "symbol_state": 1,
+          "retained_marks": 1,
+          "research_state": 1,
+          "atomic_cycle": 13,
+          "metrics": 1
+        }
+      },
+      "capacity_limit": 40,
+      "audit_bytes": 299017
+    },
+    {
+      "scenario": "ENTRY",
+      "ok": true,
+      "version": "meds-v8.1-leader250-capacity",
+      "runtime": "leader_only",
+      "active_account": "H250",
+      "normal_paper_executed": false,
+      "scanned": 260,
+      "research_shortlist": 24,
+      "research_execution_fresh": 24,
+      "hunt": {
+        "version": "leader-hunt-v8.1-leader250-capacity",
+        "account_entries": 6,
+        "exits": 0,
+        "open": 6,
+        "tracked": 24
+      },
+      "usage": {
+        "requests": 19,
+        "request_limit": 36,
+        "budget_exhausted": false,
+        "cache_hits": 0,
+        "retries": 0,
+        "provider_latency_ms": 0,
+        "failures": []
+      },
+      "valuation_state": "VALUED",
+      "database": {
+        "calls": 13,
+        "statements": 24,
+        "rows_read": 109,
+        "rows_written": 150,
+        "row_metrics_available": true,
+        "by_query": {
+          "state": 1,
+          "lease_claim": 1,
+          "active_account": 1,
+          "equity_inventory": 1,
+          "option_inventory": 1,
+          "lifecycle": 1,
+          "pending_exits": 1,
+          "cooldowns": 1,
+          "symbol_state": 1,
+          "retained_marks": 1,
+          "research_state": 1,
+          "atomic_cycle": 12,
+          "metrics": 1
+        }
+      },
+      "capacity_limit": 40,
+      "audit_bytes": 279194
+    },
+    {
+      "scenario": "FAILURE",
+      "ok": true,
+      "version": "meds-v8.1-leader250-capacity",
+      "runtime": "leader_only",
+      "active_account": "H250",
+      "normal_paper_executed": false,
+      "scanned": 32,
+      "research_shortlist": 0,
+      "research_execution_fresh": 0,
+      "hunt": {
+        "version": "leader-hunt-v8.1-leader250-capacity",
+        "account_entries": 0,
+        "exits": 0,
+        "open": 32,
+        "tracked": 0
+      },
+      "usage": {
+        "requests": 8,
+        "request_limit": 36,
+        "budget_exhausted": false,
+        "cache_hits": 0,
+        "retries": 2,
+        "provider_latency_ms": 0,
+        "failures": [
+          {
+            "endpoint": "/v1beta1/screener/stocks/most-actives",
+            "status": 503,
+            "reason": "DATA_PROVIDER_HTTP_503"
+          },
+          {
+            "endpoint": "/v1beta1/screener/stocks/most-actives",
+            "status": 503,
+            "reason": "DATA_PROVIDER_HTTP_503"
+          },
+          {
+            "endpoint": "/v1beta1/screener/stocks/movers",
+            "status": 503,
+            "reason": "DATA_PROVIDER_HTTP_503"
+          },
+          {
+            "endpoint": "/v1beta1/news",
+            "status": 503,
+            "reason": "DATA_PROVIDER_HTTP_503"
+          },
+          {
+            "endpoint": "/v2/stocks/snapshots",
+            "status": 503,
+            "reason": "DATA_PROVIDER_HTTP_503"
+          },
+          {
+            "endpoint": "/v2/stocks/quotes/latest",
+            "status": 503,
+            "reason": "DATA_PROVIDER_HTTP_503"
+          },
+          {
+            "endpoint": "/v1beta1/options/snapshots",
+            "status": 503,
+            "reason": "DATA_PROVIDER_HTTP_503"
+          },
+          {
+            "endpoint": "/v1beta1/options/snapshots",
+            "status": 503,
+            "reason": "DATA_PROVIDER_HTTP_503"
+          }
+        ]
+      },
+      "valuation_state": "PORTFOLIO_PARTIALLY_VALUED",
+      "database": {
+        "calls": 13,
+        "statements": 20,
+        "rows_read": 168,
+        "rows_written": 43,
+        "row_metrics_available": true,
+        "by_query": {
+          "state": 1,
+          "lease_claim": 1,
+          "active_account": 1,
+          "equity_inventory": 1,
+          "option_inventory": 1,
+          "lifecycle": 1,
+          "pending_exits": 1,
+          "cooldowns": 1,
+          "symbol_state": 1,
+          "retained_marks": 1,
+          "research_state": 1,
+          "atomic_cycle": 8,
+          "metrics": 1
+        }
+      },
+      "capacity_limit": 40,
+      "audit_bytes": 8365
+    },
+    {
+      "scenario": "OPTIONS",
+      "ok": true,
+      "version": "meds-v8.1-leader250-capacity",
+      "runtime": "leader_only",
+      "active_account": "H250",
+      "normal_paper_executed": false,
+      "scanned": 260,
+      "research_shortlist": 24,
+      "research_execution_fresh": 24,
+      "hunt": {
+        "version": "leader-hunt-v8.1-leader250-capacity",
+        "account_entries": 0,
+        "exits": 0,
+        "open": 0,
+        "tracked": 24
+      },
+      "usage": {
+        "requests": 19,
+        "request_limit": 36,
+        "budget_exhausted": false,
+        "cache_hits": 0,
+        "retries": 0,
+        "provider_latency_ms": 0,
+        "failures": []
+      },
+      "valuation_state": "VALUED",
+      "database": {
+        "calls": 13,
+        "statements": 21,
+        "rows_read": 65,
+        "rows_written": 117,
+        "row_metrics_available": true,
+        "by_query": {
+          "state": 1,
+          "lease_claim": 1,
+          "active_account": 1,
+          "equity_inventory": 1,
+          "option_inventory": 1,
+          "lifecycle": 1,
+          "pending_exits": 1,
+          "cooldowns": 1,
+          "symbol_state": 1,
+          "retained_marks": 1,
+          "research_state": 1,
+          "atomic_cycle": 9,
+          "metrics": 1
+        }
+      },
+      "capacity_limit": 40,
+      "audit_bytes": 272447
+    }
+  ]
+}

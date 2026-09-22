@@ -48,6 +48,6 @@ export function orderedRunnerCandidates<T extends ResearchCandidate>(candidates:
 
 export function preservedMaxHold(version:string,asset:'equity'|'option',features:string){
   try{const n=Number(JSON.parse(features).max_hold_minutes);if(Number.isFinite(n)&&n>0)return n;}catch{}
-  if(/^leader-hunt-v[78]-/.test(version)) return asset==='option'?1440:720;
+  if(/^leader-hunt-v[78](?:\.1)?-/.test(version)) return asset==='option'?1440:720;
   return 120;
 }

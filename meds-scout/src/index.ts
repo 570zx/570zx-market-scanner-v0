@@ -1,3 +1,5 @@
+import {runLeaderCycle} from './leader-runtime.ts';
+import {CAPACITY_ENGINE,CAPACITY_VERSION,ACTIVE_ACCOUNT} from './leader-capacity.ts';
 import {equityExitCapacity,partialLeaderExit} from './position-liquidity.ts';
 import {persistResearch,auditMovers,recordDecision,decisionStatement,performanceReport} from './research-audit.ts';
 import {ENGINE_VERSION, LEADER_VERSION, SCHEMA_VERSION, LEASE_MS, ensureAutonomousSchema, fencedDatabase, markState, saveValuation, healthState, plannedCadence, type MarkState} from './autonomous.ts';
@@ -6,6 +8,7 @@ import {runnerReasons, executionReasons, optionDirection, candidateLane, ordered
 import {SIM_VERSION, EXEC_VERSION, LIMITS, validQuote, equityExit, optionQuote, riskCapacity, type Exposure} from './paper-accounting.ts';
 
 interface Env {
+  LEADER_ONLY?: string;
   DATA?: MarketDataCycle;
   ENGINE_CADENCE?: string;
   ADMIN_TOKEN?: string;
@@ -149,7 +152,7 @@ type DiscoveryResult={
   warnings:string[];
 };
 
-async function discoverSymbols(env: Env): Promise<DiscoveryResult> {
+async function discoverSymbols(env: Env, recentSymbols?:string[]): Promise<DiscoveryResult> {
   // Discovery must not depend on a symbol already being a large mover.
   // Use several independent early-warning surfaces and keep provider failures
   // isolated so one screener cannot kill the entire scan.
@@ -196,7 +199,7 @@ async function discoverSymbols(env: Env): Promise<DiscoveryResult> {
   for (const [i,x] of byTrades.entries()) add(x.symbol,'most_active_trades',i+1);
   for (const [i,x] of losers.entries()) add(x.symbol,'top_loser',i+1);
 
-  const recent = await env.MEDS_DB.prepare(
+  const recent = recentSymbols ? {results:recentSymbols.map(symbol=>({symbol}))} : await env.MEDS_DB.prepare(
     `SELECT symbol FROM symbol_state WHERE last_seen_at >= strftime('%Y-%m-%dT%H:%M:%fZ','now','-90 minutes') ORDER BY score DESC LIMIT 80`
   ).all<{symbol:string}>();
   for (const r of recent.results ?? []) add(r.symbol,'recent',null);
@@ -2051,6 +2054,7 @@ async function scanTick(env: Env) {
 }
 
 async function openShadowPosition(env: Env, req: Request) {
+  if(env.LEADER_ONLY==='true')return Response.json({error:'normal shadow positions are historical/inactive'},{status:409});
   const body: any = await req.json();
   const symbol = String(body.symbol ?? "").toUpperCase();
   const entry = Number(body.entry_price);
@@ -2067,6 +2071,10 @@ async function openShadowPosition(env: Env, req: Request) {
 }
 
 async function runTick(env: Env, source: string) {
+  if(env.LEADER_ONLY==='true')return runLeaderCycle(env,source,{phase,active:inScanWindow,feed:stockFeed,discover:discoverSymbols,snapshots:fetchSnapshots,news:fetchNewsForSymbols,score:scoreCandidate,catalyst:heuristicCatalyst,select:selectLeaderResearch,features:huntFeatures,chain:optionChain});
+  return runTickLegacy(env,source);
+}
+async function runTickLegacy(env: Env, source: string) {
   if(env.TRADING_MODE!=='shadow') throw new Error('Only shadow mode is supported; no brokerage execution exists');
   const state=await env.MEDS_DB.prepare('SELECT * FROM service_state WHERE id=1').first<any>();
   if(env.SCOUT_ENABLED!=='true'||state?.paused) return {ok:true,skipped:'disabled'};
@@ -2458,7 +2466,7 @@ async function publicStatus(env: Env): Promise<Response> {
       prospective_metrics:epochs.results??[],rejected_entries_24h:rejections.results??[]};
     const valuationRows=valuations.results??[];
     const snapshots=(await env.MEDS_DB.prepare('SELECT * FROM portfolio_valuation_state').all<any>()).results??[];
-    const detailed=snapshots.map(v=>{
+    const detailed=snapshots.filter(v=>env.LEADER_ONLY!=='true'||v.account_id===ACTIVE_ACCOUNT).map(v=>{
       const marks:MarkState[]=JSON.parse(v.marks);
       const marksNow=marks.map(m=>({...m,age_seconds:m.quote_at?secondsSince(m.quote_at):null,
         state:m.state==='FRESH'&&((secondsSince(m.quote_at)??Infinity)>90||(m.asset==='option'&&phase(now)!=='regular'))?'MARK_STALE':m.state}));
@@ -2469,25 +2477,24 @@ async function publicStatus(env: Env): Promise<Response> {
     });
     const cycle=await env.MEDS_DB.prepare('SELECT * FROM engine_cycles ORDER BY started_at DESC LIMIT 1').first<any>();
     const cycleUsage=cycle?JSON.parse(cycle.metrics):null;
-    const expectedValuations=ledgers.length+Number((body.leader_hunt as any)?.accounts?.length??0);
+    const expectedValuations=env.LEADER_ONLY==='true'?1:ledgers.length+Number((body.leader_hunt as any)?.accounts?.length??0);
     const valuationsPending=detailed.length<expectedValuations;
     const degraded=valuationsPending||detailed.some(v=>!v.complete)||!!cycleUsage?.budget_exhausted||!!cycleUsage?.failures?.length;
     const currentState=healthState(scannerEnabled,activeSession,state?.last_success_at??null,state?.last_error??null,degraded,
       env.ENGINE_CADENCE==='session'?plannedCadence(phase(now)):5);
     const quoteIssues=await env.MEDS_DB.prepare("SELECT * FROM quote_health WHERE state!='FRESH' ORDER BY last_attempt_at DESC LIMIT 100").all<any>();
-    const rejected=await env.MEDS_DB.prepare(`SELECT lane,stage,outcome,reasons,COUNT(*) AS count FROM candidate_decisions WHERE bucket=? AND version=? GROUP BY lane,stage,outcome,reasons`)
-      .bind(cycle?.bucket??'',HUNT_VERSION).all<any>();
+    const rejected=env.LEADER_ONLY==='true' ? await env.MEDS_DB.prepare(`SELECT json_extract(j.value,'$.lane') lane,json_extract(j.value,'$.stage') stage,json_extract(j.value,'$.outcome') outcome,json_extract(j.value,'$.reasons') reasons,COUNT(*) count FROM leader_cycle_audit a,json_each(a.payload,'$.decisions') j WHERE a.bucket=? GROUP BY lane,stage,outcome,reasons`).bind(cycle?.bucket??'').all<any>() : await env.MEDS_DB.prepare(`SELECT lane,stage,outcome,reasons,COUNT(*) AS count FROM candidate_decisions WHERE bucket=? AND version=? GROUP BY lane,stage,outcome,reasons`).bind(cycle?.bucket??'',HUNT_VERSION).all<any>();
     body.health=currentState;
     body.ok=!['ENGINE_CRITICAL','ENGINE_STALE'].includes(currentState);
     Object.assign(scanner,{state:currentState,healthy:body.ok});
     Object.assign(paper,{state:currentState==='PAUSED'?'PAUSED':currentState==='MARKET_CLOSED'?'MARKET_CLOSED':paper.paper_error?'ENGINE_CRITICAL':degraded?'DEGRADED':'HEALTHY',
       healthy:!paper.paper_error||!scannerEnabled,valuation_state:valuationsPending?'NOT_YET_VALUED':detailed.some(v=>!v.complete)?'PORTFOLIO_PARTIALLY_VALUED':'VALUED'});
     if(scannerEnabled&&paper.paper_error){body.ok=false;body.health='ENGINE_CRITICAL';}
-    body.engine={version:ENGINE_VERSION,last_management_at:cycle?.management_at??null,latest_cycle:cycle,
+    body.engine={version:env.LEADER_ONLY==='true'?CAPACITY_ENGINE:ENGINE_VERSION,runtime:env.LEADER_ONLY==='true'?'leader_only':'legacy',active_account:env.LEADER_ONLY==='true'?ACTIVE_ACCOUNT:null,normal_paper_executed:env.LEADER_ONLY!=='true',last_management_at:cycle?.management_at??null,latest_cycle:cycle,
       usage:cycleUsage,single_scheduler:'Cloudflare cron',cadence_minutes:plannedCadence(phase(now)),
       configured_enabled:env.SCOUT_ENABLED==='true',runtime_paused:!!state?.paused,live_execution:false};
     body.valuations=detailed;
-    body.quote_health=quoteIssues.results??[];
+    body.quote_health=env.LEADER_ONLY==='true'?detailed.flatMap(v=>v.marks.filter((m:any)=>m.state!=='FRESH')):quoteIssues.results??[];
     body.decisions_latest=(rejected.results??[]).map(r=>({...r,reasons:JSON.parse(r.reasons)}));
     const leader=body.leader_hunt as any;
     if(leader){
@@ -2500,6 +2507,28 @@ async function publicStatus(env: Env): Promise<Response> {
           last_complete_equity:account.current_equity,reporting_equity:v?.reporting_value??null,valuation_at:v?.created_at??null,
           spendable_cash:Math.max(0,account.cash-account.starting_equity*HUNT_CAPITAL_RESERVE_PCT)};
       });
+      if(env.LEADER_ONLY==='true'){
+        leader.version=CAPACITY_VERSION;
+        const cycleResearch=await env.MEDS_DB.prepare(`SELECT MAX(created_at) latest,SUM(json_array_length(payload,'$.shortlist')) observations FROM leader_cycle_audit WHERE version=? AND created_at>=?`).bind(CAPACITY_VERSION,new Date(now.getTime()-86400000).toISOString()).first<any>();
+        leader.latest_observation_at=cycleResearch?.latest??null;leader.observations_24h=Number(cycleResearch?.observations??0);
+        leader.observation_age_seconds=secondsSince(cycleResearch?.latest??null);
+        leader.healthy=!scannerEnabled||!['ENGINE_CRITICAL','ENGINE_STALE'].includes(currentState);leader.warning=leader.healthy?null:state?.last_error??currentState;
+
+        leader.historical_accounts=leader.accounts.filter((a:any)=>a.account_id!==ACTIVE_ACCOUNT).map((a:any)=>({...a,active:false,runtime_state:'HISTORICAL_INACTIVE'}));
+        leader.accounts=leader.accounts.filter((a:any)=>a.account_id===ACTIVE_ACCOUNT).map((a:any)=>({...a,active:true}));
+        leader.historical_open_positions=leader.historical_accounts.reduce((n:number,a:any)=>n+Number(a.open_positions??0),0);
+        leader.all_accounts_session_breakdown=leader.session_breakdown;leader.session_breakdown=[];
+        leader.all_accounts_asset_breakdown=leader.asset_breakdown;leader.asset_breakdown=[];
+        const active=leader.accounts[0];
+        leader.equity_open_positions=Number(active?.equity_open_positions??0);leader.option_open_positions=Number(active?.option_open_positions??0);
+        leader.trades_24h=Number(active?.trades_24h??0);leader.winners_24h=Number(active?.winners_24h??0);
+        leader.win_rate_24h=leader.trades_24h?leader.winners_24h/leader.trades_24h:null;
+        leader.avg_return_pct_24h=null;leader.best_return_pct_24h=null;leader.worst_return_pct_24h=null;
+        leader.latest_trade_at=null;
+        leader.open_positions=leader.accounts.reduce((n:number,a:any)=>n+Number(a.open_positions??0),0);
+        leader.compounding_scoreboard=leader.compounding_scoreboard.filter((a:any)=>a.account_id===ACTIVE_ACCOUNT);
+        Object.assign(paper,{enabled:false,state:'HISTORICAL_INACTIVE',healthy:true,runtime_participation:false});
+      }
     }
   } catch(error) {
     body.health='ENGINE_CRITICAL';body.ok=false;
@@ -2520,6 +2549,17 @@ function publicPage(url: URL) {
 
 
 async function publicGainerAudit(url:URL,env:Env):Promise<Response>{
+  if(env.LEADER_ONLY==='true'&&url.searchParams.get('version')!=='legacy'){
+    const {limit,offset}=publicPage(url),date=url.searchParams.get('date'),requestedPhase=url.searchParams.get('phase');
+    const filters=['version=?'],args:any[]=[CAPACITY_VERSION];
+    if(date){filters.push("json_extract(payload,'$.session_date')=?");args.push(date);}
+    if(requestedPhase){filters.push("json_extract(payload,'$.phase')=?");args.push(requestedPhase);}
+    const latest=await env.MEDS_DB.prepare(`SELECT bucket,created_at,json_extract(payload,'$.session_date') session_date,json_extract(payload,'$.phase') phase,json_extract(payload,'$.movers') movers FROM leader_cycle_audit WHERE ${filters.join(' AND ')} ORDER BY bucket DESC LIMIT 1`).bind(...args).first<any>();
+    const rows=latest?JSON.parse(latest.movers??'[]').slice(offset,offset+limit):[],top10=rows.filter((r:any)=>r.rank<=10);
+    return Response.json({ok:true,read_only:true,version:CAPACITY_VERSION,session_date:latest?.session_date??null,board_at:latest?.bucket??null,board_phase:latest?.phase??null,rows,count:rows.length,state:latest?'RECORDED':'NO_CURRENT_VERSION_AUDIT',summary:{board_size:rows.length,top10_count:top10.length,top10_caught_before_10:top10.filter((r:any)=>r.caught_before_10).length,caught_before_5:rows.filter((r:any)=>r.caught_before_5).length,caught_before_10:rows.filter((r:any)=>r.caught_before_10).length,caught_before_20:rows.filter((r:any)=>r.caught_before_20).length}},{headers:{'cache-control':'no-store'}});
+  }
+
+  const auditVersion=HUNT_VERSION;
   const page=publicPage(url);
   // D1 caps bound variables per statement. The audit uses each symbol twice
   // in UNION queries, so keep the page below that ceiling instead of turning
@@ -2527,20 +2567,21 @@ async function publicGainerAudit(url:URL,env:Env):Promise<Response>{
   const limit=Math.min(page.limit,40),offset=page.offset;
   const requestedDate=url.searchParams.get('date');
   const requestedPhase=url.searchParams.get('phase');
-  const filters=['version=?'],params:any[]=[HUNT_VERSION];
+  const filters=['version=?'],params:any[]=[auditVersion];
   if(requestedDate){filters.push('session_date=?');params.push(requestedDate);}
   if(requestedPhase){filters.push('phase=?');params.push(requestedPhase);}
   const latestAudit=await env.MEDS_DB.prepare(`SELECT bucket,session_date,phase FROM mover_audits WHERE ${filters.join(' AND ')} ORDER BY bucket DESC LIMIT 1`).bind(...params).first<any>();
   if(latestAudit){
     const records=(await env.MEDS_DB.prepare('SELECT summary FROM mover_audits WHERE bucket=? AND version=? ORDER BY rank LIMIT ? OFFSET ?')
-      .bind(latestAudit.bucket,HUNT_VERSION,limit,offset).all<any>()).results??[];
+      .bind(latestAudit.bucket,auditVersion,limit,offset).all<any>()).results??[];
     const rows=records.map(r=>JSON.parse(r.summary)),top10=rows.filter(r=>r.rank<=10);
-    return Response.json({ok:true,read_only:true,version:HUNT_VERSION,session_date:latestAudit.session_date,board_at:latestAudit.bucket,
+    return Response.json({ok:true,read_only:true,version:auditVersion,session_date:latestAudit.session_date,board_at:latestAudit.bucket,
       board_phase:latestAudit.phase,count:rows.length,rows,summary:{board_size:rows.length,top10_count:top10.length,
       top10_caught_before_10:top10.filter(r=>r.caught_before_10).length,caught_before_5:rows.filter(r=>r.caught_before_5).length,
       caught_before_10:rows.filter(r=>r.caught_before_10).length,caught_before_20:rows.filter(r=>r.caught_before_20).length}},
       {headers:{'cache-control':'no-store','x-content-type-options':'nosniff'}});
   }
+
 
   try{
     const latest=requestedDate
@@ -2712,7 +2753,9 @@ async function publicPaperRows(pathname: string, url: URL, env: Env): Promise<Re
       ORDER BY starting_equity ASC,opened_at DESC,id DESC LIMIT ? OFFSET ?`,
   };
   try {
-    const rows = await env.MEDS_DB.prepare(queries[pathname]).bind(limit, offset).all<any>();
+    const query=pathname==='/status/hunt/positions'&&env.LEADER_ONLY==='true'&&url.searchParams.get('historical')!=='true'
+      ? queries[pathname].replaceAll("WHERE p.status='open'", "WHERE p.status='open' AND p.account_id='H250'") : queries[pathname];
+    const rows = await env.MEDS_DB.prepare(query).bind(limit, offset).all<any>();
     if(pathname==='/status/hunt/positions') rows.results=(rows.results??[]).map(r=>{
       const fresh=(secondsSince(r.mark_at)??Infinity)<=90&&(r.asset_type!=='option'||phase()==='regular');
       return {...r,quote_state:fresh?'FRESH':r.mark_at?'MARK_STALE':'EXECUTION_UNAVAILABLE',execution_eligible:fresh,
@@ -2739,12 +2782,24 @@ export default {
       const enabled=env.SCOUT_ENABLED==='true'&&!state?.paused;
       const health=env.TRADING_MODE!=='shadow'?'ENGINE_CRITICAL':healthState(enabled,inScanWindow(),state?.last_success_at??null,state?.last_error??null,false,
         env.ENGINE_CADENCE==='session'?plannedCadence(phase()):5);
-      return Response.json({ok:!['ENGINE_CRITICAL','ENGINE_STALE'].includes(health),health,version:ENGINE_VERSION,leader_version:HUNT_VERSION,
+      return Response.json({ok:!['ENGINE_CRITICAL','ENGINE_STALE'].includes(health),health,version:env.LEADER_ONLY==='true'?CAPACITY_ENGINE:ENGINE_VERSION,leader_version:env.LEADER_ONLY==='true'?CAPACITY_VERSION:HUNT_VERSION,
         mode:'shadow',live_execution:false,enabled,time:new Date().toISOString(),market:easternParts(),feed:stockFeed(),...state});
     }
     if (url.pathname === "/status" && req.method === "GET") return publicStatus(env);
-    if(url.pathname==='/status/hunt/performance'&&req.method==='GET') return Response.json(await performanceReport(env.MEDS_DB,url),{headers:{'cache-control':'no-store'}});
+    if(url.pathname==='/status/hunt/performance'&&req.method==='GET') return Response.json(await performanceReport(env.MEDS_DB,url,env.LEADER_ONLY==='true'?CAPACITY_VERSION:undefined),{headers:{'cache-control':'no-store'}});
+    if(url.pathname==='/status/hunt/research'&&req.method==='GET'){
+      const {limit,offset}=publicPage(url),symbol=url.searchParams.get('symbol')?.toUpperCase();
+      if(!symbol)return Response.json({error:'symbol required'},{status:400});
+      const rows=await env.MEDS_DB.prepare(`SELECT a.bucket,a.created_at,j.value evidence FROM leader_cycle_audit a,json_each(a.payload,'$.research') j WHERE a.version=? AND json_extract(j.value,'$.symbol')=? ORDER BY a.bucket DESC LIMIT ? OFFSET ?`).bind(CAPACITY_VERSION,symbol,limit,offset).all<any>();
+      const states=await env.MEDS_DB.prepare(`SELECT s.session_date,j.value evidence FROM leader_research_shards s,json_each(s.data) j WHERE s.version=? AND j.key=? ORDER BY s.session_date DESC LIMIT ?`).bind(CAPACITY_VERSION,symbol,limit).all<any>();
+      return Response.json({ok:true,read_only:true,version:CAPACITY_VERSION,rows:(rows.results??[]).map(r=>({...JSON.parse(r.evidence),bucket:r.bucket,created_at:r.created_at})),outcomes:(states.results??[]).map(r=>{const f=JSON.parse(r.evidence);return {...f,session_date:r.session_date,sampled_mfe_pct:f.first_price>0?(f.high/f.first_price-1)*100:null,sampled_mae_pct:f.first_price>0?(f.low/f.first_price-1)*100:null};})});
+    }
     if(url.pathname==='/status/hunt/decisions'&&req.method==='GET'){
+      if(env.LEADER_ONLY==='true'&&url.searchParams.get('version')!=='legacy'){
+        const {limit,offset}=publicPage(url),symbol=url.searchParams.get('symbol')?.toUpperCase();
+        const rows=await env.MEDS_DB.prepare(`SELECT json_extract(j.value,'$.symbol') AS symbol,a.created_at,a.bucket,j.value AS evidence FROM leader_cycle_audit a,json_each(a.payload,'$.decisions') j WHERE a.version=? ${symbol?"AND json_extract(j.value,'$.symbol')=?":''} ORDER BY a.bucket DESC LIMIT ? OFFSET ?`).bind(CAPACITY_VERSION,...(symbol?[symbol]:[]),limit,offset).all<any>();
+        return Response.json({ok:true,read_only:true,version:CAPACITY_VERSION,rows:(rows.results??[]).map(r=>JSON.parse(r.evidence))});
+      }
       const {limit,offset}=publicPage(url),symbol=url.searchParams.get('symbol');
       const rows=await env.MEDS_DB.prepare(`SELECT * FROM candidate_decisions ${symbol?'WHERE symbol=?':''} ORDER BY created_at DESC LIMIT ? OFFSET ?`)
         .bind(...(symbol?[symbol.toUpperCase()]:[]),limit,offset).all<any>();
