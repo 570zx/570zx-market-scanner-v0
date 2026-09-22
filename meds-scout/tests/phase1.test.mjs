@@ -266,7 +266,7 @@ test('leader hunt options share account cash, use whole contracts and follow +20
 });
 
 
-test('top-gainer audit records broad discovery and explains late discovery',async()=>{
+test('top-gainer audit records broad discovery and reports the actual continuation rejection',async()=>{
  const NativeDate=Date,oldFetch=globalThis.fetch;const clock=NativeDate.parse('2026-09-18T15:00:00Z');
  globalThis.Date=class extends NativeDate {constructor(...a){super(...(a.length?a:[clock]));}static now(){return clock;}};
  const {env,db}=await setup();
@@ -297,7 +297,7 @@ test('top-gainer audit records broad discovery and explains late discovery',asyn
    assert.equal(res.status,200);
    const body=await res.json();
    assert.equal(body.rows[0].symbol,'MOON');
-   assert.equal(body.rows[0].miss_reason,'DISCOVERED_AFTER_THRESHOLD');
+   assert.equal(body.rows[0].miss_reason,'CONTINUATION_SIGNAL_WEAK');
    assert.equal(body.rows[0].caught_before_10,false);
  }finally{globalThis.Date=NativeDate;globalThis.fetch=oldFetch;db.close();}
 });
