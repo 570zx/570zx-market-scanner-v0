@@ -270,6 +270,8 @@ export function accountingStatements(db:D1Database,plan:LeaderPlan){
   for(const kind of ['equity','option'] as const){const rows=plan.newPositions.filter(p=>p.kind===kind);if(rows.length)ss.push(ingest(db,TABLES[kind],rows,[...positionColumns,...(kind==='option'?['underlying','current_mark','current_mark_at','data_quality']:[])]));}
   if(plan.cashDebit)ss.push(db.prepare('UPDATE hunt_accounts SET cash=cash-? WHERE account_id=?').bind(plan.cashDebit,ACTIVE_ACCOUNT));
   if(plan.intents.length)ss.push(ingest(db,'hunt_exit_intents',plan.intents,['kind','position_id','reason','requested_at'],'ON CONFLICT(kind,position_id) DO NOTHING'));
+  if(plan.rotationStateChanged)ss.push(ingest(db,'leader_rotation_state',[plan.rotationState],['account_id','session_date','rotations','last_rotation_at','last_victim_symbol','last_replacement_symbol','version'],
+    'ON CONFLICT(account_id,session_date) DO UPDATE SET rotations=excluded.rotations,last_rotation_at=excluded.last_rotation_at,last_victim_symbol=excluded.last_victim_symbol,last_replacement_symbol=excluded.last_replacement_symbol,version=excluded.version'));
   return ss;
 }
 
