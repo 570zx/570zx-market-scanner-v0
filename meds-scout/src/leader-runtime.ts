@@ -151,7 +151,7 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
       env.MEDS_DB.prepare(`INSERT INTO engine_cycles(bucket,started_at,completed_at,management_at,state,metrics,version) VALUES(?,?,?,?,'COMPLETE',?,?)`).bind(engineBucket,startedAt,completedAt,managementAt,JSON.stringify(metrics),CAPACITY_ENGINE),
       env.MEDS_DB.prepare('UPDATE service_state SET last_success_at=?,last_result=?,last_error=NULL,lock_owner=NULL,lock_until=NULL WHERE id=1 AND lock_owner=?').bind(completedAt,JSON.stringify(result),owner),
     ]);
-    const measured={...data.metrics(),database:{...db.usage,statements:db.usage.statements+1,rows_note:'actual D1 metadata through the accounting transaction; excludes this final metrics UPDATE'},statement_limit:40};
+    const measured={...data.metrics(),wall_time_ms:wallTimeMs,database:{...db.usage,statements:db.usage.statements+1,rows_note:'actual D1 metadata through the accounting transaction; excludes this final metrics UPDATE'},statement_limit:40};
     try { await db.run('UPDATE engine_cycles SET metrics=? WHERE bucket=? AND version=?',[JSON.stringify(measured),engineBucket,CAPACITY_ENGINE],'metrics'); }
     catch { return {...result,database:db.usage,capacity_limit:40,metrics_warning:'Accounting and audit committed; final D1 row-metric enrichment unavailable'}; }
     return {...result,database:db.usage,capacity_limit:40};
