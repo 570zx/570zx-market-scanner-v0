@@ -2,7 +2,7 @@ import {MarketDataCycle,mandatoryUniverse} from './market-data.ts';
 import {validQuote} from './paper-accounting.ts';
 import {runnerReasons,executionReasons,candidateLane,optionDirection} from './leader-policy.ts';
 import {LEASE_MS,plannedCadence} from './autonomous.ts';
-import {cycleBucket,sessionDate,moverMiss} from './research-audit.ts';
+import {cycleBucket,cadenceBucket,sessionDate,moverMiss} from './research-audit.ts';
 import {ACTIVE_ACCOUNT,CAPACITY_ENGINE,CAPACITY_VERSION,CycleDB,LeaderPlan,ingest,accountingStatements,valuation,type Row} from './leader-capacity.ts';
 
 type Dependencies={phase:(now?:Date)=>string;active:(now?:Date)=>boolean;feed:(now?:Date)=>string;
@@ -16,12 +16,12 @@ const upsert=(columns:string[],keys:string[])=>'ON CONFLICT('+keys.join(',')+') 
 export async function runLeaderCycle(env:any,source:string,d:Dependencies){
   if(env.TRADING_MODE!=='shadow')throw Error('Only shadow mode is supported; no brokerage execution exists');
   const db=new CycleDB(env.MEDS_DB),now=new Date(),bucket=cycleBucket(now),date=sessionDate(now),marketPhase=d.phase(now);
-  const state=(await db.all(`SELECT s.*,m.version AS schema_version,(SELECT completed_at FROM engine_cycles WHERE bucket=?) AS completed_at FROM service_state s JOIN paper_meta m ON m.id=s.id WHERE s.id=1`,[bucket],'state'))[0];
+  const cadence=env.ENGINE_CADENCE==='session'?plannedCadence(marketPhase):5,engineBucket=cadenceBucket(now,cadence||5),startedAt=now.toISOString();
+  const state=(await db.all(`SELECT s.*,m.version AS schema_version,(SELECT completed_at FROM engine_cycles WHERE bucket=?) AS completed_at FROM service_state s JOIN paper_meta m ON m.id=s.id WHERE s.id=1`,[engineBucket],'state'))[0];
   if(env.SCOUT_ENABLED!=='true'||state?.paused)return {ok:true,skipped:'disabled',version:CAPACITY_ENGINE};
   if(!d.active(now))return {ok:true,skipped:'outside scan window'};
   if(state?.schema_version!==11)return {ok:false,error:'DEPLOYMENT_MIGRATION_REQUIRED: expected schema 11'};
   if(state.completed_at)return {ok:true,skipped:'cycle already complete'};
-  if(env.ENGINE_CADENCE==='session'&&state.last_success_at&&now.getTime()-Date.parse(state.last_success_at)<plannedCadence(marketPhase)*60_000-1000)return {ok:true,skipped:'session cadence'};
   const owner=crypto.randomUUID();
   const claim=await db.run(`UPDATE service_state SET lock_owner=?,lock_until=?,last_tick_at=?,last_source=?,tick_count=tick_count+1 WHERE id=1 AND paused=0 AND (lock_until IS NULL OR lock_until<=?)`,[owner,now.getTime()+LEASE_MS,now.toISOString(),source,now.getTime()],'lease_claim');
   if(!claim.meta.changes)return {ok:true,skipped:'scan already running'};
@@ -80,7 +80,7 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
     for(const c of selected){const h=d.catalyst(news,c.symbol);c.catalystScore=h.score;c.catalystSummary=h.summary;d.score(c,marketPhase==='regular');}
     selected=d.select(selected,discovery);
     const features=(c:any)=>d.features(c,marketPhase),plan=new LeaderPlan(accounts[0],[...equities,...options],events,intents,cooldowns.map(c=>c.symbol),now,marketPhase);
-    plan.manage(stocks,optionMarks);plan.enterEquities(selected,stocks,features);
+    plan.manage(stocks,optionMarks);const managementAt=new Date().toISOString();plan.enterEquities(selected,stocks,features);
     await plan.enterOptions(selected,stocks,optionMarks,(c,dir)=>d.chain(runEnv,c,dir),features);
     if(Date.now()>plan.executionDeadline)throw Error('EXECUTION_QUOTES_EXPIRED_BEFORE_COMMIT');
     const ss=accountingStatements(env.MEDS_DB,plan),stamp=now.toISOString(),selectedSet=new Set(selected.map(c=>c.symbol)),rowMap=new Map(rows.map(c=>[c.symbol,c]));
@@ -144,14 +144,15 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
     // form ONE transaction. No intermediate fills survive an audit failure.
     const projected=db.usage.statements+ss.length+4;
     if(projected>40)throw Error('STATEMENT_BUDGET_EXCEEDED: '+projected);
-    const metrics={...data.metrics(),database:{...db.usage,statements:projected,rows_note:'includes metadata from precommit reads; commit row counts returned in invocation result'},statement_limit:40};
+    const completedAt=new Date().toISOString(),wallTimeMs=Math.max(0,Date.now()-now.getTime());
+    const metrics={...data.metrics(),wall_time_ms:wallTimeMs,database:{...db.usage,statements:projected,rows_note:'includes metadata from precommit reads; commit row counts returned in invocation result'},statement_limit:40};
     await db.batch([
       env.MEDS_DB.prepare('INSERT OR REPLACE INTO engine_write_guard VALUES(1,?,?)').bind(owner,Date.now()),...ss,
-      env.MEDS_DB.prepare(`INSERT INTO engine_cycles(bucket,started_at,completed_at,management_at,state,metrics,version) VALUES(?,?,?,?,'COMPLETE',?,?)`).bind(bucket,stamp,stamp,stamp,JSON.stringify(metrics),CAPACITY_ENGINE),
-      env.MEDS_DB.prepare('UPDATE service_state SET last_success_at=?,last_result=?,last_error=NULL,lock_owner=NULL,lock_until=NULL WHERE id=1 AND lock_owner=?').bind(stamp,JSON.stringify(result),owner),
+      env.MEDS_DB.prepare(`INSERT INTO engine_cycles(bucket,started_at,completed_at,management_at,state,metrics,version) VALUES(?,?,?,?,'COMPLETE',?,?)`).bind(engineBucket,startedAt,completedAt,managementAt,JSON.stringify(metrics),CAPACITY_ENGINE),
+      env.MEDS_DB.prepare('UPDATE service_state SET last_success_at=?,last_result=?,last_error=NULL,lock_owner=NULL,lock_until=NULL WHERE id=1 AND lock_owner=?').bind(completedAt,JSON.stringify(result),owner),
     ]);
     const measured={...data.metrics(),database:{...db.usage,statements:db.usage.statements+1,rows_note:'actual D1 metadata through the accounting transaction; excludes this final metrics UPDATE'},statement_limit:40};
-    try { await db.run('UPDATE engine_cycles SET metrics=? WHERE bucket=? AND version=?',[JSON.stringify(measured),bucket,CAPACITY_ENGINE],'metrics'); }
+    try { await db.run('UPDATE engine_cycles SET metrics=? WHERE bucket=? AND version=?',[JSON.stringify(measured),engineBucket,CAPACITY_ENGINE],'metrics'); }
     catch { return {...result,database:db.usage,capacity_limit:40,metrics_warning:'Accounting and audit committed; final D1 row-metric enrichment unavailable'}; }
     return {...result,database:db.usage,capacity_limit:40};
   }catch(error){
