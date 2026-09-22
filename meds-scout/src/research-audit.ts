@@ -2,6 +2,7 @@ import {LEADER_VERSION} from './autonomous.ts';
 import {candidateLane,runnerReasons,executionReasons,optionDirection,type ResearchCandidate} from './leader-policy.ts';
 
 export const cycleBucket=(now=new Date())=>new Date(Math.floor(now.getTime()/300_000)*300_000).toISOString();
+export const cadenceBucket=(now=new Date(),minutes=5)=>{const ms=Math.max(1,minutes)*60_000;return new Date(Math.floor(now.getTime()/ms)*ms).toISOString();};
 export const sessionDate=(now=new Date())=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);
 export function decisionStatement(db:D1Database,c:ResearchCandidate,lane:string,stage:string,reasons:string[],features:unknown,account='',now=new Date(),outcome?:string){
   return db.prepare(`INSERT INTO candidate_decisions VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(bucket,symbol,lane,account_id,stage,version) DO UPDATE SET
