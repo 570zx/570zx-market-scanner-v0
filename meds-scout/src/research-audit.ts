@@ -49,7 +49,9 @@ export async function persistResearch(db:D1Database,symbols:string[],rows:Resear
 export function moverMiss(first:any,entry:any,reasons:string[]){
   if(entry) return Number(entry.entry_day_change_pct)<=10?'ENTERED_BEFORE_10':'ENTERED_AFTER_10';
   if(!first?.first_seen_at) return 'NOT_IN_DISCOVERY_UNIVERSE';
-  if(first.first_change!=null&&Number(first.first_change)>10) return 'DISCOVERED_AFTER_THRESHOLD';
+  // v8.2+ continuation policy deliberately allows first discovery above +10%.
+  // Report the actual rejection/availability reason instead of the obsolete
+  // DISCOVERED_AFTER_THRESHOLD label from the early-runner-only policy.
   if(reasons.length) return reasons[0];
   if(!first.shortlisted_at) return 'NOT_SHORTLISTED';
   return 'NO_ENTRY_DECISION_RECORDED';

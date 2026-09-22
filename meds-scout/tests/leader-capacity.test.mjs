@@ -200,6 +200,28 @@ test('real D1 metadata: maximum mixed full cycle',{skip:process.env.MEDS_REAL_D1
   },'2026-09-18T15:00:00Z');}}finally{await mf.dispose();}
 });
 
+test('elite continuation runner can rotate one weak holding when only reserve cash remains',()=>clocked(async()=>{
+  const {env,db}=await setup();
+  const account=db.prepare("SELECT a.*,r.revision FROM hunt_accounts a JOIN hunt_revisions r USING(account_id) WHERE account_id='H250'").get();
+  account.cash=30;
+  const held={id:9001,kind:'equity',account_id:'H250',symbol:'OLD',opened_at:new Date(Date.now()-3600000).toISOString(),entry_price:4,quantity:2.5,remaining_qty:2.5,entry_notional:10,stop_price:3.8,target_price:12,highest_price:4.1,lowest_price:3.9,entry_score:30,entry_day_change_pct:2,opened_phase:'regular',features:'{}',status:'open',version:'leader-hunt-v8.1-leader250-capacity',locked_realized_pnl:0,take200_done:0};
+  const plan=new LeaderPlan(account,[held],[],[],[],new Date(),'regular');
+  const strong=candidate({symbol:'RAIN',price:1.105,bid:1.10,ask:1.11,spreadPct:.9,dayChangePct:65,score:80,catalystScore:22,catalystSummary:'fresh catalyst',volumeAccel:1,dayVolume:9000000,previousDayVolume:100000,minuteVolume:100000,consecutiveHits:4,discoverySource:'top_gainer'});
+  const stocks={OLD:snapshot(3.96,3.97,100000),RAIN:snapshot(1.10,1.11,100000)};
+  plan.enterEquities([strong],stocks,c=>({score:c.score,day_change_pct:c.dayChangePct}));
+  assert.equal(plan.rotations,1);
+  assert.equal(plan.trades.length,1);
+  assert.equal(plan.trades[0].exit_reason,'rotation_for_stronger_continuation');
+  assert.equal(plan.trades[0].symbol,'OLD');
+  assert.equal(plan.newPositions.length,1);
+  assert.equal(plan.newPositions[0].symbol,'RAIN');
+  assert.equal(plan.newPositions[0].version,CAPACITY_VERSION);
+  assert.equal(plan.decisions.at(-1).outcome,'ENTERED');
+  assert.equal(plan.decisions.at(-1).features.rotated_out,'OLD');
+  assert.ok(plan.cash>=30-1e-8,'rotation must preserve protected reserve');
+  db.close();
+},'2026-09-18T15:00:00Z'));
+
 test('set-based position management matches v8 cash, quantities, lifecycle and realized accounting',()=>clocked(async()=>{
   const a=await setup(),b=await setup();mixedBook(a.db);mixedBook(b.db);
   const stocks=Object.fromEntries(Array.from({length:16},(_,i)=>['HELD'+i,snapshot(4,4.01,i===1?.02:100000)]));

@@ -112,7 +112,9 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
     let audits:Row[]=[];
     if(board.length){
       audits=board.slice(0,20).map((g:any)=>{
-        const f=shardMap.get(shardFor(g.symbol))?.[g.symbol],entry=f?.entry,reject=f?.early_rejection??f?.first_rejection,reasons=reject?.reasons??[];
+        const f=shardMap.get(shardFor(g.symbol))?.[g.symbol],entry=f?.entry;
+        const currentReject=plan.decisions.find(r=>r.symbol===g.symbol&&r.outcome==='REJECTED'&&r.stage==='ENTRY');
+        const reject=currentReject?{at:stamp,reasons:currentReject.reasons}:f?.early_rejection??f?.first_rejection,reasons=reject?.reasons??[];
         const summary={symbol:g.symbol,rank:g.rank,board_at:stamp,board_phase:marketPhase,current_gain_pct:g.percent_change,current_price:g.price,instrument_type:f?.instrument_type??'unknown',first_provider_at:f?.first_provider_at??null,
           provider_time_basis:'first MEDS poll that observed provider appearance; upstream first publication time unavailable',first_seen_at:f?.first_seen_at??null,first_seen_gain_pct:f?.first_change??null,first_seen_price:f?.first_price??null,first_seen_source:f?.source??null,
           first_shortlisted_at:f?.shortlisted_at??null,first_eligible_at:f?.runner_at??null,execution_eligible_at:f?.executable_at??null,first_entry_at:entry?.opened_at??null,entry_price:entry?.entry_price??null,entry_gain_pct:entry?.entry_day_change_pct??null,entry_asset:entry?.asset_type??null,

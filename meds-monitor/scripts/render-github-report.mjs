@@ -34,6 +34,7 @@ ${errors.length?'**Retrieval errors:** '+errors.map(cell).join('; '):''}
 
 - Deployment gate enabled: ${cell(engine.configured_enabled)}; runtime paused: ${cell(engine.runtime_paused)}.
 - Planned active-session interval: ${cell(engine.cadence_minutes)} minutes; configured scheduler: ${cell(engine.single_scheduler)}.
+- Last scheduler/tick heartbeat: ${cell(status.scanner?.last_tick_at)}; source: ${cell(status.scanner?.last_source)}.
 - Latest cycle provider requests: ${cell(engine.usage?.requests)} / ${cell(engine.usage?.request_limit)}; cache hits: ${cell(engine.usage?.cache_hits)}; bounded retries: ${cell(engine.usage?.retries)}.
 - Latest measured database calls: ${cell(engine.usage?.database?.calls)}; SQL statements: ${cell(engine.usage?.database?.statements)}; reported rows written: ${cell(engine.usage?.database?.rows_written)}. Deployment plan limits must be checked before restarting.
 - Provider warnings: ${cell((engine.usage?.failures??[]).map(f=>f.endpoint+': '+f.reason).join('; '))}.
