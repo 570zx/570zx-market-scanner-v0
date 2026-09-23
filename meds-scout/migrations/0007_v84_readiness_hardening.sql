@@ -10,12 +10,13 @@ CREATE TABLE IF NOT EXISTS leader_daily_risk(
 
 CREATE TABLE IF NOT EXISTS leader_execution_guard(
   id INTEGER PRIMARY KEY CHECK(id=1),
-  deadline_ms REAL NOT NULL
+  deadline_ms REAL NOT NULL,
+  checked_at_ms REAL NOT NULL
 );
 
 CREATE TRIGGER IF NOT EXISTS leader_execution_deadline_v84
 BEFORE INSERT ON leader_execution_guard
-WHEN (julianday('now')-2440587.5)*86400000.0 > NEW.deadline_ms
+WHEN NEW.checked_at_ms > NEW.deadline_ms
 BEGIN
   SELECT RAISE(ABORT,'execution quote expired at commit');
 END;
