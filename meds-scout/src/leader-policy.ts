@@ -43,6 +43,7 @@ export function runnerReasons(c:ResearchCandidate):string[]{
 }
 
 export function executionReasons(c:ResearchCandidate){
+  if(c.executionAuthority===false) return ['EXECUTION_QUOTE_NOT_AUTHORITATIVE'];
   if(c.executionFresh===true) return [];
   return [Number.isFinite(c.quoteAgeMs)?'EXECUTION_QUOTE_STALE':'EXECUTION_QUOTE_MISSING'];
 }
