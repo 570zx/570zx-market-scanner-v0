@@ -34,8 +34,8 @@ export const CAPACITY_SCHEMA=[
   `CREATE TABLE IF NOT EXISTS leader_cycle_audit(bucket TEXT PRIMARY KEY,created_at TEXT NOT NULL,version TEXT NOT NULL,payload TEXT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS leader_research_shards(session_date TEXT NOT NULL,shard INTEGER NOT NULL,version TEXT NOT NULL,data TEXT NOT NULL,PRIMARY KEY(session_date,shard,version))`,
   `CREATE TABLE IF NOT EXISTS leader_daily_risk(session_date TEXT NOT NULL,account_id TEXT NOT NULL,rotations INTEGER NOT NULL DEFAULT 0,last_rotation_at TEXT,PRIMARY KEY(session_date,account_id))`,
-  `CREATE TABLE IF NOT EXISTS leader_execution_guard(id INTEGER PRIMARY KEY CHECK(id=1),deadline_ms REAL NOT NULL)`,
-  `CREATE TRIGGER IF NOT EXISTS leader_execution_deadline_v84 BEFORE INSERT ON leader_execution_guard WHEN (julianday('now')-2440587.5)*86400000.0 > NEW.deadline_ms BEGIN SELECT RAISE(ABORT,'execution quote expired at commit'); END`,
+  `CREATE TABLE IF NOT EXISTS leader_execution_guard(id INTEGER PRIMARY KEY CHECK(id=1),deadline_ms REAL NOT NULL,checked_at_ms REAL NOT NULL)`,
+  `CREATE TRIGGER IF NOT EXISTS leader_execution_deadline_v84 BEFORE INSERT ON leader_execution_guard WHEN NEW.checked_at_ms > NEW.deadline_ms BEGIN SELECT RAISE(ABORT,'execution quote expired at commit'); END`,
   `CREATE INDEX IF NOT EXISTS idx_hunt_account_event_position ON hunt_account_events(account_id,position_id,event_type)`,
   `DROP INDEX IF EXISTS idx_hunt_account_event_time`,
   `DROP TRIGGER IF EXISTS hunt_account_events_once_v8`,
@@ -283,7 +283,6 @@ const tradeColumns='account_id,symbol,opened_at,closed_at,entry_price,exit_price
 const eventColumns='account_id,position_id,symbol,created_at,event_type,price,quantity,realized_pnl,details,version'.split(',');
 export function accountingStatements(db:D1Database,plan:LeaderPlan){
   const ss:D1PreparedStatement[]=[];
-  if(Number.isFinite(plan.executionDeadline))ss.push(db.prepare('INSERT OR REPLACE INTO leader_execution_guard VALUES(1,?)').bind(plan.executionDeadline));
   ss.push(db.prepare('INSERT OR REPLACE INTO hunt_risk_guards VALUES(?,?)').bind(ACTIVE_ACCOUNT,plan.account.revision));
   if(plan.rotationRiskDirty)ss.push(db.prepare(`INSERT INTO leader_daily_risk(session_date,account_id,rotations,last_rotation_at) VALUES(?,?,?,?) ON CONFLICT(session_date,account_id) DO UPDATE SET rotations=excluded.rotations,last_rotation_at=excluded.last_rotation_at`).bind(sessionDate(plan.now),ACTIVE_ACCOUNT,plan.rotationCountToday,plan.lastRotationAt));
   // Credit exits before inserting entries; reserve and cap triggers see the post-exit account.
