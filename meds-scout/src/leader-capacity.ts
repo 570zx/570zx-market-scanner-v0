@@ -208,7 +208,8 @@ export class LeaderPlan {
     for(const c of candidates){
       const lane=candidateLane(c as any),q=stocks[c.symbol]?.latestQuote;
       const reasons=runnerReasons(c as any);if(reasons.length){this.decision(c,lane,'ENTRY',reasons,features(c));continue;}
-      if(!this.fresh(q)){this.decision(c,lane,'ENTRY',['EXECUTION_QUOTE_STALE'],features(c));continue;}
+      if(c.executionAuthority===false){this.decision(c,lane,'ENTRY',['EXECUTION_QUOTE_NOT_AUTHORITATIVE'],features(c));continue;}
+      if(c.executionFresh!==true||!this.fresh(q)){this.decision(c,lane,'ENTRY',['EXECUTION_QUOTE_STALE'],features(c));continue;}
       const executionLiquidity=Math.max(0,Number(stocks[c.symbol]?.minuteBar?.v??c.minuteVolume??0));
       if(!(executionLiquidity>0)){this.decision(c,lane,'ENTRY',['MINUTE_LIQUIDITY_LIMIT'],features(c));continue;}
       const frictionBudget=ACTIVE_LEADER_RISK_POLICY.target_entry_notional;
