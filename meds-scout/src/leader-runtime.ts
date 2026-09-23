@@ -44,11 +44,22 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
     if(accounts.length!==1||accounts[0].starting_equity!==250)throw Error('ACTIVE_ACCOUNT_CONFIGURATION_INVALID_OR_VERSION_MISMATCH');
     if(equities.length+options.length>32)throw Error('ACTIVE_ACCOUNT_POSITION_CAP_INVALID');
     const discovery=await d.discover(runEnv,prior.slice().sort((a,b)=>b.score-a.score).slice(0,80).map(p=>p.symbol));
+    const executionFeed=d.feed(now),equityExecutionAuthoritative=marketPhase==='regular'&&executionFeed==='iex';
     const held=[...new Set([...equities.map(p=>p.symbol),...options.map(p=>p.underlying)])];
     const symbols=mandatoryUniverse(held,discovery.symbols,prior.map(p=>p.symbol),320);
     const stocks=await d.snapshots(runEnv,symbols),optionMarks:Row={};
     const missing=held.filter(s=>!validQuote(stocks[s]?.latestQuote));
-    if(missing.length){data.retries++;try{const r=await data.json('/v2/stocks/quotes/latest?'+new URLSearchParams({symbols:missing.join(','),feed:d.feed(now)}),0);for(const s of missing)if(validQuote(r.quotes?.[s]))stocks[s]={...stocks[s],latestQuote:r.quotes[s]};}catch{}}
+    if(missing.length){data.retries++;try{const r=await data.json('/v2/stocks/quotes/latest?'+new URLSearchParams({symbols:missing.join(','),feed:executionFeed}),0);for(const s of missing)if(validQuote(r.quotes?.[s]))stocks[s]={...stocks[s],latestQuote:r.quotes[s]};}catch{}}
+    const quarantinedHeld=new Set<string>();
+    const retainedByKey=new Map(retained.map(r=>[r.asset+':'+r.symbol,r]));
+    for(const p of equities){
+      const q=stocks[p.symbol]?.latestQuote;if(!validQuote(q))continue;
+      const old=retainedByKey.get('equity:'+p.symbol),reference=Number(old?.bid??p.entry_price);
+      if(reference>0){
+        const ratio=Number(q.bp)/reference;
+        if(ratio>5||ratio<.2){quarantinedHeld.add(p.symbol);stocks[p.symbol]={...stocks[p.symbol],latestQuote:undefined};}
+      }
+    }
     if(options.length){
       const path='/v1beta1/options/snapshots?'+new URLSearchParams({symbols:options.map(p=>p.symbol).join(','),feed:'indicative'});
       try{Object.assign(optionMarks,(await data.json(path)).snapshots??{});}catch{}
@@ -67,8 +78,10 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
       const c={symbol,price,bid:shaped?q.bp:price,ask:shaped?q.ap:price,spreadPct:shaped?(q.ap-q.bp)/price*100:99,
         dayChangePct:prevClose>0?(price/prevClose-1)*100:0,dayVolume:s?.dailyBar?.v??0,previousDayVolume:s?.prevDailyBar?.v??0,
         minuteVolume:minute,volumeAccel:previous>0?(minute-previous)/previous:0,consecutiveHits:(p&&Date.now()-Date.parse(p.last_seen_at)<(plannedCadence(marketPhase)+2)*60000?p.consecutive_hits:0)+1,
-        catalystScore:0,catalystSummary:'',score:0,reasons:[],executionFresh:validQuote(q),quoteAgeMs:Number.isFinite(t)?Date.now()-t:Infinity,
-        discoverySource:info?.source,discoveryRank:info?.rank??null,dataWarnings:prevClose>0?[]:['REFERENCE_PRICE_UNAVAILABLE']};
+        catalystScore:0,catalystSummary:'',score:0,reasons:[],executionAuthority:equityExecutionAuthoritative,executionFeed,
+        executionFresh:equityExecutionAuthoritative&&validQuote(q),quoteAgeMs:Number.isFinite(t)?Date.now()-t:Infinity,
+        discoverySource:info?.source,discoveryRank:info?.rank??null,
+        dataWarnings:[...(prevClose>0?[]:['REFERENCE_PRICE_UNAVAILABLE']),...(quarantinedHeld.has(symbol)?['UNVERIFIED_HELD_PRICE_DISCONTINUITY']:[])]};
       d.score(c,marketPhase==='regular');rows.push(c);
     }
     // Never hard-cap positive day change before policy evaluation. A name first
@@ -80,8 +93,17 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
     for(const c of selected){const h=d.catalyst(news,c.symbol);c.catalystScore=h.score;c.catalystSummary=h.summary;d.score(c,marketPhase==='regular');}
     selected=d.select(selected,discovery);
     const features=(c:any)=>d.features(c,marketPhase),strengthBySymbol=new Map(prior.map(p=>[p.symbol,Number(p.score??0)])),plan=new LeaderPlan(accounts[0],[...equities,...options],events,intents,cooldowns.map(c=>c.symbol),now,marketPhase,strengthBySymbol);
-    plan.manage(stocks,optionMarks);const managementAt=new Date().toISOString();plan.enterEquities(selected,stocks,features);
-    await plan.enterOptions(selected,stocks,optionMarks,(c,dir)=>d.chain(runEnv,c,dir),features);
+    plan.manage(stocks,optionMarks);const managementAt=new Date().toISOString();
+    const preEntryValuation=valuation(plan,stocks,optionMarks,retained);
+    if(preEntryValuation.complete){
+      plan.enterEquities(selected,stocks,features);
+      await plan.enterOptions(selected,stocks,optionMarks,(c,dir)=>d.chain(runEnv,c,dir),features);
+    }else{
+      for(const c of selected){
+        if(!runnerReasons(c as any).length&&c.executionFresh===true)
+          plan.decision(c,candidateLane(c as any),'ENTRY_RISK_GATE',['PORTFOLIO_VALUATION_INCOMPLETE'],features(c));
+      }
+    }
     if(Date.now()>plan.executionDeadline)throw Error('EXECUTION_QUOTES_EXPIRED_BEFORE_COMMIT');
     const ss=accountingStatements(env.MEDS_DB,plan),stamp=now.toISOString(),selectedSet=new Set(selected.map(c=>c.symbol)),rowMap=new Map(rows.map(c=>[c.symbol,c]));
     const shardMap=new Map<number,Row>(shards.map(s=>[s.shard,JSON.parse(s.data)])),changed=new Set<number>();
