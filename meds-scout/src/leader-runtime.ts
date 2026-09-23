@@ -31,7 +31,7 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
     // Reads are independent of the number of historical accounts or held symbols.
     // No normal ledger/position/decision query exists in this runtime.
     const [accounts,equities,options,events,intents,cooldowns,prior,retained,shards]=await Promise.all([
-      db.all(`SELECT a.*,r.revision,c.version AS runtime_config_version FROM hunt_accounts a JOIN hunt_revisions r USING(account_id) JOIN leader_runtime_config c USING(account_id) WHERE c.id=1 AND a.account_id=? AND c.version=?`,[ACTIVE_ACCOUNT,CAPACITY_VERSION],'active_account'),
+      db.all(`SELECT a.*,r.revision,c.version AS runtime_config_version,COALESCE(d.rotations,0) AS rotations_today,d.last_rotation_at FROM hunt_accounts a JOIN hunt_revisions r USING(account_id) JOIN leader_runtime_config c USING(account_id) LEFT JOIN leader_daily_risk d ON d.account_id=a.account_id AND d.session_date=? WHERE c.id=1 AND a.account_id=? AND c.version=?`,[date,ACTIVE_ACCOUNT,CAPACITY_VERSION],'active_account'),
       db.all(`SELECT *, 'equity' AS kind FROM hunt_account_positions WHERE account_id=? AND status='open' ORDER BY id`,[ACTIVE_ACCOUNT],'equity_inventory'),
       db.all(`SELECT *, 'option' AS kind FROM hunt_account_option_positions WHERE account_id=? AND status='open' ORDER BY id`,[ACTIVE_ACCOUNT],'option_inventory'),
       db.all(`SELECT 'equity' AS kind,position_id,event_type FROM hunt_account_events WHERE account_id=? AND position_id IN (SELECT id FROM hunt_account_positions WHERE account_id=? AND status='open') UNION ALL SELECT 'option',position_id,event_type FROM hunt_account_option_events WHERE account_id=? AND position_id IN (SELECT id FROM hunt_account_option_positions WHERE account_id=? AND status='open')`,[ACTIVE_ACCOUNT,ACTIVE_ACCOUNT,ACTIVE_ACCOUNT,ACTIVE_ACCOUNT],'lifecycle'),
@@ -79,7 +79,7 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
     let news:any[]=[];try{news=await d.news(runEnv,selected.map(c=>c.symbol));}catch{}
     for(const c of selected){const h=d.catalyst(news,c.symbol);c.catalystScore=h.score;c.catalystSummary=h.summary;d.score(c,marketPhase==='regular');}
     selected=d.select(selected,discovery);
-    const features=(c:any)=>d.features(c,marketPhase),plan=new LeaderPlan(accounts[0],[...equities,...options],events,intents,cooldowns.map(c=>c.symbol),now,marketPhase);
+    const features=(c:any)=>d.features(c,marketPhase),strengthBySymbol=new Map(prior.map(p=>[p.symbol,Number(p.score??0)])),plan=new LeaderPlan(accounts[0],[...equities,...options],events,intents,cooldowns.map(c=>c.symbol),now,marketPhase,strengthBySymbol);
     plan.manage(stocks,optionMarks);const managementAt=new Date().toISOString();plan.enterEquities(selected,stocks,features);
     await plan.enterOptions(selected,stocks,optionMarks,(c,dir)=>d.chain(runEnv,c,dir),features);
     if(Date.now()>plan.executionDeadline)throw Error('EXECUTION_QUOTES_EXPIRED_BEFORE_COMMIT');
