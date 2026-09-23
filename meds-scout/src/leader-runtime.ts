@@ -164,12 +164,13 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
       hunt:{version:CAPACITY_VERSION,account_entries:plan.newPositions.length,exits:plan.trades.length,open:plan.open.length,tracked:selected.length},usage:data.metrics(),valuation_state:v.complete?'VALUED':'PORTFOLIO_PARTIALLY_VALUED'};
     // Fence, every accounting/telemetry set, cycle completion and lock release
     // form ONE transaction. No intermediate fills survive an audit failure.
-    const projected=db.usage.statements+ss.length+4;
+    const executionGuard=Number.isFinite(plan.executionDeadline)?[env.MEDS_DB.prepare('INSERT OR REPLACE INTO leader_execution_guard VALUES(1,?,?)').bind(plan.executionDeadline,Date.now())]:[];
+    const projected=db.usage.statements+ss.length+executionGuard.length+4;
     if(projected>40)throw Error('STATEMENT_BUDGET_EXCEEDED: '+projected);
     const completedAt=new Date().toISOString(),wallTimeMs=Math.max(0,Date.now()-now.getTime());
     const metrics={...data.metrics(),wall_time_ms:wallTimeMs,database:{...db.usage,statements:projected,rows_note:'includes metadata from precommit reads; commit row counts returned in invocation result'},statement_limit:40};
     await db.batch([
-      env.MEDS_DB.prepare('INSERT OR REPLACE INTO engine_write_guard VALUES(1,?,?)').bind(owner,Date.now()),...ss,
+      env.MEDS_DB.prepare('INSERT OR REPLACE INTO engine_write_guard VALUES(1,?,?)').bind(owner,Date.now()),...executionGuard,...ss,
       env.MEDS_DB.prepare(`INSERT INTO engine_cycles(bucket,started_at,completed_at,management_at,state,metrics,version) VALUES(?,?,?,?,'COMPLETE',?,?)`).bind(engineBucket,startedAt,completedAt,managementAt,JSON.stringify(metrics),CAPACITY_ENGINE),
       env.MEDS_DB.prepare('UPDATE service_state SET last_success_at=?,last_result=?,last_error=NULL,lock_owner=NULL,lock_until=NULL WHERE id=1 AND lock_owner=?').bind(completedAt,JSON.stringify(result),owner),
     ]);
