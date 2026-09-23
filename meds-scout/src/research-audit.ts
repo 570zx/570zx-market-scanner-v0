@@ -116,8 +116,8 @@ export const STRATEGY_VERSION_ORDER=[
 export async function performanceReport(db:D1Database,url:URL,currentVersion=LEADER_VERSION){
   const requested=url.searchParams.get('version')??currentVersion;
   const idx=STRATEGY_VERSION_ORDER.indexOf(currentVersion as any);
-  const previous=idx>0?STRATEGY_VERSION_ORDER[idx-1]:null;
-  const version=requested==='previous'?(previous??currentVersion):requested;
+  const previous=idx>0?STRATEGY_VERSION_ORDER[idx-1]:'leader-hunt-v7-asymmetric-runner';
+  const version=requested==='previous'?previous:requested;
   const params:unknown[]=[],clauses:string[]=[];
   if(version!=='all'){clauses.push('version=?');params.push(version);}
   if(url.searchParams.get('window')==='24h'){clauses.push('closed_at>=?');params.push(new Date(Date.now()-86400000).toISOString());}
