@@ -192,6 +192,21 @@ test('Leader-only status ignores frozen normal-paper staleness and reports the a
   db.close();
 },'2026-09-18T15:00:00Z'));
 
+test('runtime config version mismatch fails closed and schema alignment repairs only config',()=>clocked(async()=>{
+  const {env,db}=await setup();
+  const cash=db.prepare("SELECT cash FROM hunt_accounts WHERE account_id='H250'").get().cash;
+  db.prepare("UPDATE leader_runtime_config SET version='stale-version' WHERE id=1").run();
+  const blocked=await runTick(env,'version-mismatch');
+  assert.equal(blocked.ok,false);
+  assert.match(blocked.error,/CONFIGURATION_INVALID_OR_VERSION_MISMATCH/);
+  assert.equal(db.prepare("SELECT cash FROM hunt_accounts WHERE account_id='H250'").get().cash,cash);
+  await ensureCapacitySchema(env.MEDS_DB);
+  const cfg=db.prepare('SELECT account_id,version,normal_enabled FROM leader_runtime_config WHERE id=1').get();
+  assert.deepEqual(cfg,{account_id:'H250',version:CAPACITY_VERSION,normal_enabled:0});
+  assert.equal(db.prepare("SELECT cash FROM hunt_accounts WHERE account_id='H250'").get().cash,cash);
+  db.close();
+},'2026-09-18T15:00:00Z'));
+
 test('research firsts and excursions survive later cycles; migration never resets capital',()=>clocked(async advance=>{
   const {env,db}=await setup();provider();assert.equal((await runTick(env,'first')).ok,true);
   const cash=db.prepare("SELECT cash FROM hunt_accounts WHERE account_id='H250'").get().cash;await ensureCapacitySchema(env.MEDS_DB);assert.equal(db.prepare("SELECT cash FROM hunt_accounts WHERE account_id='H250'").get().cash,cash);
