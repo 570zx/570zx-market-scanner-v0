@@ -31,7 +31,7 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
     // Reads are independent of the number of historical accounts or held symbols.
     // No normal ledger/position/decision query exists in this runtime.
     const [accounts,equities,options,events,intents,cooldowns,prior,retained,shards]=await Promise.all([
-      db.all(`SELECT a.*,r.revision FROM hunt_accounts a JOIN hunt_revisions r USING(account_id) JOIN leader_runtime_config c USING(account_id) WHERE c.id=1 AND a.account_id=?`,[ACTIVE_ACCOUNT],'active_account'),
+      db.all(`SELECT a.*,r.revision,c.version AS runtime_config_version FROM hunt_accounts a JOIN hunt_revisions r USING(account_id) JOIN leader_runtime_config c USING(account_id) WHERE c.id=1 AND a.account_id=? AND c.version=?`,[ACTIVE_ACCOUNT,CAPACITY_VERSION],'active_account'),
       db.all(`SELECT *, 'equity' AS kind FROM hunt_account_positions WHERE account_id=? AND status='open' ORDER BY id`,[ACTIVE_ACCOUNT],'equity_inventory'),
       db.all(`SELECT *, 'option' AS kind FROM hunt_account_option_positions WHERE account_id=? AND status='open' ORDER BY id`,[ACTIVE_ACCOUNT],'option_inventory'),
       db.all(`SELECT 'equity' AS kind,position_id,event_type FROM hunt_account_events WHERE account_id=? AND position_id IN (SELECT id FROM hunt_account_positions WHERE account_id=? AND status='open') UNION ALL SELECT 'option',position_id,event_type FROM hunt_account_option_events WHERE account_id=? AND position_id IN (SELECT id FROM hunt_account_option_positions WHERE account_id=? AND status='open')`,[ACTIVE_ACCOUNT,ACTIVE_ACCOUNT,ACTIVE_ACCOUNT,ACTIVE_ACCOUNT],'lifecycle'),
@@ -41,7 +41,7 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
       db.all(`SELECT * FROM quote_cache WHERE (asset='equity' AND symbol IN (SELECT symbol FROM hunt_account_positions WHERE account_id=? AND status='open')) OR (asset='option' AND symbol IN (SELECT symbol FROM hunt_account_option_positions WHERE account_id=? AND status='open'))`,[ACTIVE_ACCOUNT,ACTIVE_ACCOUNT],'retained_marks'),
       db.all(`SELECT shard,data FROM leader_research_shards WHERE session_date=? AND version=?`,[date,CAPACITY_VERSION],'research_state'),
     ]);
-    if(accounts.length!==1||accounts[0].starting_equity!==250)throw Error('ACTIVE_ACCOUNT_CONFIGURATION_INVALID');
+    if(accounts.length!==1||accounts[0].starting_equity!==250)throw Error('ACTIVE_ACCOUNT_CONFIGURATION_INVALID_OR_VERSION_MISMATCH');
     if(equities.length+options.length>32)throw Error('ACTIVE_ACCOUNT_POSITION_CAP_INVALID');
     const discovery=await d.discover(runEnv,prior.slice().sort((a,b)=>b.score-a.score).slice(0,80).map(p=>p.symbol));
     const held=[...new Set([...equities.map(p=>p.symbol),...options.map(p=>p.underlying)])];

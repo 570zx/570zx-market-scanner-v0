@@ -24,7 +24,7 @@ export const ACTIVE_LEADER_RISK_POLICY=Object.freeze({
 });
 export const CAPACITY_SCHEMA=[
   `CREATE TABLE IF NOT EXISTS leader_runtime_config(id INTEGER PRIMARY KEY CHECK(id=1),account_id TEXT NOT NULL,version TEXT NOT NULL,normal_enabled INTEGER NOT NULL CHECK(normal_enabled=0))`,
-  `INSERT OR IGNORE INTO leader_runtime_config VALUES(1,'${ACTIVE_ACCOUNT}','${CAPACITY_VERSION}',0)`,
+  `INSERT INTO leader_runtime_config VALUES(1,'${ACTIVE_ACCOUNT}','${CAPACITY_VERSION}',0) ON CONFLICT(id) DO UPDATE SET account_id=excluded.account_id,version=excluded.version,normal_enabled=0`,
   `INSERT OR IGNORE INTO hunt_accounts(account_id,label,starting_equity,cash,current_equity,realized_pnl,max_equity,max_drawdown_pct,updated_at) VALUES('${ACTIVE_ACCOUNT}','$250',250,250,250,0,250,0,strftime('%Y-%m-%dT%H:%M:%fZ','now'))`,
   `INSERT OR IGNORE INTO hunt_revisions VALUES('${ACTIVE_ACCOUNT}',0)`,
   `CREATE TABLE IF NOT EXISTS leader_cycle_audit(bucket TEXT PRIMARY KEY,created_at TEXT NOT NULL,version TEXT NOT NULL,payload TEXT NOT NULL)`,

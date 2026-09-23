@@ -107,10 +107,19 @@ function distribution(rows:any[]){
     runner_average_return:rows.some(r=>String(r.exit_reason).startsWith('runner_'))?distributionWithoutRecursion(rows.filter(r=>String(r.exit_reason).startsWith('runner_'))):null};
 }
 function distributionWithoutRecursion(rows:any[]){return rows.reduce((n,r)=>n+Number(r.return_pct),0)/rows.length;}
+export const STRATEGY_VERSION_ORDER=[
+  'leader-hunt-v7-asymmetric-runner',
+  'leader-hunt-v8.1-leader250-capacity',
+  'leader-hunt-v8.2-continuation-runner',
+  'leader-hunt-v8.3-capital-rotation',
+] as const;
 export async function performanceReport(db:D1Database,url:URL,currentVersion=LEADER_VERSION){
-  const version=url.searchParams.get('version')??currentVersion;
+  const requested=url.searchParams.get('version')??currentVersion;
+  const idx=STRATEGY_VERSION_ORDER.indexOf(currentVersion as any);
+  const previous=idx>0?STRATEGY_VERSION_ORDER[idx-1]:'leader-hunt-v7-asymmetric-runner';
+  const version=requested==='previous'?previous:requested;
   const params:unknown[]=[],clauses:string[]=[];
-  if(version!=='all'){clauses.push('version=?');params.push(version==='previous'?'leader-hunt-v7-asymmetric-runner':version);}
+  if(version!=='all'){clauses.push('version=?');params.push(version);}
   if(url.searchParams.get('window')==='24h'){clauses.push('closed_at>=?');params.push(new Date(Date.now()-86400000).toISOString());}
   const where=clauses.length?'WHERE '+clauses.join(' AND '):'';
   const rows=(await db.prepare(`SELECT * FROM (SELECT 'equity' AS asset_type,* FROM hunt_account_trades ${where})`).bind(...params).all<any>()).results??[];
@@ -129,7 +138,7 @@ export async function performanceReport(db:D1Database,url:URL,currentVersion=LEA
     (SELECT version,event_type,created_at FROM hunt_account_events UNION ALL SELECT version,event_type,created_at FROM hunt_account_option_events)
     ${where.replaceAll('closed_at','created_at')} GROUP BY version,event_type`).bind(...params).all<any>()).results??[];
   const count=(event:string)=>events.filter(e=>e.event_type===event).reduce((n,e)=>n+Number(e.count),0);
-  return {ok:true,read_only:true,version,window:url.searchParams.get('window')??'all-time',current_version:currentVersion,
+  return {ok:true,read_only:true,version,requested_version:requested,previous_version:previous,window:url.searchParams.get('window')??'all-time',current_version:currentVersion,
     sample_unit:'account trades; capital tiers are correlated simulations, not independent signals',summary:{...distribution(rows),ladder_25_hits:count('LADDER_25'),ladder_50_hits:count('LADDER_50'),ladder_100_hits:count('LADDER_100'),take200_events:count('TAKE_200')},
     lifecycle_events:events,group:dimension,groups:[...groups].map(([key,r])=>({key,...distribution(r)}))};
 }
