@@ -216,7 +216,7 @@ export class LeaderPlan {
       if(qty*fill(qty)>budget)qty=budget/fill(qty);
       const px=fill(qty),cost=qty*px;
       if(!(cost>.01)||!(qty>0)){this.decision(c,lane,'ENTRY',[liquidity?'POSITION_SIZE_ZERO':'MINUTE_LIQUIDITY_LIMIT'],features(c));continue;}
-      const f={...features(c),asset_type:'equity',max_hold_minutes:720,quantity:qty,target_notional:budget,actual_notional:cost,minute_participation:qty/liquidity,fractional_paper:true,entry_slippage_pct:px/q.ap-1,rotated_out:rotatedOut};
+      const f={...features(c),asset_type:'equity',max_hold_minutes:720,quantity:qty,target_notional:budget,actual_notional:cost,minute_participation:qty/liquidity,fractional_paper:true,entry_slippage_pct:px/q.ap-1,rotated_out:null};
       this.addPosition(c,'equity',c.symbol,qty,px,cost,f);this.usedQuote(q);signals++;
       this.decision(c,lane,'ENTRY',[],f,true);
     }
