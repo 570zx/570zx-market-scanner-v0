@@ -202,7 +202,7 @@ test('runtime config version mismatch fails closed and schema alignment repairs 
   assert.equal(db.prepare("SELECT cash FROM hunt_accounts WHERE account_id='H250'").get().cash,cash);
   await ensureCapacitySchema(env.MEDS_DB);
   const cfg=db.prepare('SELECT account_id,version,normal_enabled FROM leader_runtime_config WHERE id=1').get();
-  assert.deepEqual(cfg,{account_id:'H250',version:CAPACITY_VERSION,normal_enabled:0});
+  assert.equal(cfg.account_id,'H250');assert.equal(cfg.version,CAPACITY_VERSION);assert.equal(cfg.normal_enabled,0);
   assert.equal(db.prepare("SELECT cash FROM hunt_accounts WHERE account_id='H250'").get().cash,cash);
   db.close();
 },'2026-09-18T15:00:00Z'));
