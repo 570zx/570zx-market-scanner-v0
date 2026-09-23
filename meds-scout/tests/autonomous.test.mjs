@@ -226,6 +226,9 @@ test('performance default isolates current version, reports empty distribution h
   const {env,db}=await setup();
   const r=await performanceReport(env.MEDS_DB,new URL('https://test/status/hunt/performance'));
   assert.equal(r.version,HUNT_VERSION);assert.equal(r.summary.trades,0);assert.equal(r.summary.median_return,null);
+  const previous=await performanceReport(env.MEDS_DB,new URL('https://test/status/hunt/performance?version=previous'),'leader-hunt-v8.3-capital-rotation');
+  assert.equal(previous.version,'leader-hunt-v8.2-continuation-runner');
+  assert.equal(previous.requested_version,'previous');
   assert.match(r.sample_unit,/correlated/);db.close();
 }));
 
