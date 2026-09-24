@@ -35,7 +35,7 @@ test('production broker config cannot represent live execution',async()=>{
   assert.throws(()=>d.db.prepare("UPDATE broker_runtime_config SET mode='LIVE' WHERE id=1").run(),/CHECK constraint/);
   assert.throws(()=>d.db.prepare("UPDATE broker_runtime_config SET live_execution=1 WHERE id=1").run(),/CHECK constraint/);
   const row=d.db.prepare('SELECT mode,live_execution FROM broker_runtime_config WHERE id=1').get();
-  assert.deepEqual(row,{mode:'DISABLED',live_execution:0});
+  assert.equal(row.mode,'DISABLED');assert.equal(row.live_execution,0);
   d.db.close();
 });
 
