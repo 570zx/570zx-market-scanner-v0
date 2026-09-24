@@ -5,7 +5,7 @@ import {markState,LEASE_MS} from './autonomous.ts';
 import {cycleBucket,sessionDate,moverMiss} from './research-audit.ts';
 
 export const CAPACITY_ENGINE='meds-v8.1-leader250-capacity';
-export const CAPACITY_VERSION='leader-hunt-v8.4-rotation-hardening';
+export const CAPACITY_VERSION='leader-hunt-v8.5-account-risk-governor';
 export const ACTIVE_ACCOUNT='H250';
 export const ACTIVE_LEADER_RISK_POLICY=Object.freeze({
   starting_equity:250,
@@ -24,6 +24,10 @@ export const ACTIVE_LEADER_RISK_POLICY=Object.freeze({
   rotation_account_cooldown_minutes:30,
   rotation_min_victim_age_minutes:15,
   rotation_min_score_improvement:15,
+  max_session_realized_loss_pct:0.04,
+  max_session_drawdown_pct:0.06,
+  max_entries_per_session:20,
+  max_entry_notional_multiple_per_session:0.8,
   live_execution:false,
 });
 export const CAPACITY_SCHEMA=[
@@ -39,7 +43,7 @@ export const CAPACITY_SCHEMA=[
   `INSERT OR IGNORE INTO leader_maintenance_state(id,last_maintenance_date) VALUES(1,NULL)`,
   `CREATE TABLE IF NOT EXISTS leader_control_state(id INTEGER PRIMARY KEY CHECK(id=1),reduce_only INTEGER NOT NULL DEFAULT 0)`,
   `INSERT OR IGNORE INTO leader_control_state(id,reduce_only) VALUES(1,0)`,
-  `CREATE TABLE IF NOT EXISTS leader_daily_risk(session_date TEXT NOT NULL,account_id TEXT NOT NULL,rotations INTEGER NOT NULL DEFAULT 0,last_rotation_at TEXT,PRIMARY KEY(session_date,account_id))`,
+  `CREATE TABLE IF NOT EXISTS leader_daily_risk(session_date TEXT NOT NULL,account_id TEXT NOT NULL,rotations INTEGER NOT NULL DEFAULT 0,last_rotation_at TEXT,session_start_equity REAL,session_start_realized_pnl REAL,realized_pnl REAL NOT NULL DEFAULT 0,max_drawdown_pct REAL NOT NULL DEFAULT 0,entries INTEGER NOT NULL DEFAULT 0,entry_notional REAL NOT NULL DEFAULT 0,risk_state TEXT NOT NULL DEFAULT 'NORMAL',breach_reason TEXT,updated_at TEXT,PRIMARY KEY(session_date,account_id))`,
   `CREATE TABLE IF NOT EXISTS leader_execution_guard(id INTEGER PRIMARY KEY CHECK(id=1),deadline_ms REAL NOT NULL,checked_at_ms REAL NOT NULL)`,
   `CREATE TRIGGER IF NOT EXISTS leader_execution_deadline_v84 BEFORE INSERT ON leader_execution_guard WHEN NEW.checked_at_ms > NEW.deadline_ms BEGIN SELECT RAISE(ABORT,'execution quote expired at commit'); END`,
   `CREATE INDEX IF NOT EXISTS idx_hunt_account_event_position ON hunt_account_events(account_id,position_id,event_type)`,
@@ -50,7 +54,7 @@ export const CAPACITY_SCHEMA=[
   `DROP INDEX IF EXISTS idx_hunt_option_event_time`,
   `DROP TRIGGER IF EXISTS hunt_account_option_events_once_v8`,
   `CREATE TRIGGER hunt_account_option_events_once_v8 BEFORE INSERT ON hunt_account_option_events WHEN EXISTS(SELECT 1 FROM hunt_account_option_events WHERE account_id=NEW.account_id AND position_id=NEW.position_id AND event_type=NEW.event_type) BEGIN SELECT RAISE(ABORT,'Leader lifecycle event already applied'); END`,
-  `UPDATE paper_meta SET version=12 WHERE id=1`,
+  `UPDATE paper_meta SET version=13 WHERE id=1`,
 ];
 export async function ensureCapacitySchema(db:D1Database){await db.batch(CAPACITY_SCHEMA.map(s=>db.prepare(s)));}
 export type Row=Record<string,any>;
