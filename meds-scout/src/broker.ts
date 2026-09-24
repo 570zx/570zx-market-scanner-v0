@@ -132,6 +132,10 @@ export const BROKER_SCHEMA=[
     broker_order_id TEXT,last_error TEXT,revision INTEGER NOT NULL DEFAULT 0,
     CHECK((quantity IS NULL) <> (notional IS NULL)))`,
   `CREATE INDEX IF NOT EXISTS idx_broker_intent_state ON broker_order_intents(state,updated_at)`,
+  `CREATE TABLE IF NOT EXISTS broker_transition_guard(id INTEGER PRIMARY KEY CHECK(id=1),client_order_id TEXT NOT NULL,expected_state TEXT NOT NULL,checked_at TEXT NOT NULL)`,
+  `CREATE TRIGGER IF NOT EXISTS broker_transition_state_guard BEFORE INSERT ON broker_transition_guard
+    WHEN NOT EXISTS(SELECT 1 FROM broker_order_intents WHERE client_order_id=NEW.client_order_id AND state=NEW.expected_state)
+    BEGIN SELECT RAISE(ABORT,'broker intent state conflict'); END`,
   `CREATE TABLE IF NOT EXISTS broker_order_events(
     event_key TEXT PRIMARY KEY,intent_id TEXT NOT NULL,created_at TEXT NOT NULL,event_type TEXT NOT NULL,payload TEXT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS broker_orders(
@@ -167,8 +171,12 @@ export async function createOrderIntent(db:D1Database,draft:IntentDraft,now=new 
   const clientOrderId=await deterministicClientOrderId(draft),stamp=now.toISOString();
   const quantity=draft.quantity==null?null:canonicalDecimal(draft.quantity),notional=draft.notional==null?null:canonicalDecimal(draft.notional);
   const limitPrice=draft.limitPrice==null?null:canonicalDecimal(draft.limitPrice);
-  await db.prepare(`INSERT OR IGNORE INTO broker_order_intents(intent_id,client_order_id,created_at,updated_at,account_id,strategy_version,cycle_bucket,symbol,asset_type,side,order_type,time_in_force,quantity,notional,limit_price,purpose,state)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(clientOrderId,clientOrderId,stamp,stamp,draft.accountId,draft.strategyVersion,draft.cycleBucket,draft.symbol,draft.assetType,draft.side,draft.orderType,draft.timeInForce,quantity,notional,limitPrice,draft.purpose,'INTENDED').run();
+  await db.batch([
+    db.prepare(`INSERT OR IGNORE INTO broker_order_intents(intent_id,client_order_id,created_at,updated_at,account_id,strategy_version,cycle_bucket,symbol,asset_type,side,order_type,time_in_force,quantity,notional,limit_price,purpose,state)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(clientOrderId,clientOrderId,stamp,stamp,draft.accountId,draft.strategyVersion,draft.cycleBucket,draft.symbol,draft.assetType,draft.side,draft.orderType,draft.timeInForce,quantity,notional,limitPrice,draft.purpose,'INTENDED'),
+    db.prepare('INSERT OR IGNORE INTO broker_order_events(event_key,intent_id,created_at,event_type,payload) VALUES(?,?,?,?,?)')
+      .bind(clientOrderId+':INTENDED',clientOrderId,stamp,'INTENDED',JSON.stringify({draft:{...draft,quantity,notional,limitPrice}})),
+  ]);
   return db.prepare('SELECT * FROM broker_order_intents WHERE client_order_id=?').bind(clientOrderId).first<any>();
 }
 
@@ -179,9 +187,19 @@ const ALLOWED:Record<IntentState,IntentState[]>={
 };
 export async function transitionIntent(db:D1Database,clientOrderId:string,from:IntentState,to:IntentState,patch:{brokerOrderId?:string|null;error?:string|null}={},now=new Date()){
   if(!ALLOWED[from].includes(to))throw new Error('INVALID_INTENT_TRANSITION');
-  const r=await db.prepare(`UPDATE broker_order_intents SET state=?,broker_order_id=COALESCE(?,broker_order_id),last_error=?,updated_at=?,revision=revision+1
-    WHERE client_order_id=? AND state=?`).bind(to,patch.brokerOrderId??null,patch.error??null,now.toISOString(),clientOrderId,from).run();
-  if(Number(r.meta?.changes??0)!==1)throw new Error('INTENT_STATE_CONFLICT');
+  const stamp=now.toISOString(),eventKey=clientOrderId+':'+from+'>'+to+':'+stamp;
+  try{
+    await db.batch([
+      db.prepare('INSERT OR REPLACE INTO broker_transition_guard(id,client_order_id,expected_state,checked_at) VALUES(1,?,?,?)').bind(clientOrderId,from,stamp),
+      db.prepare(`UPDATE broker_order_intents SET state=?,broker_order_id=COALESCE(?,broker_order_id),last_error=?,updated_at=?,revision=revision+1
+        WHERE client_order_id=? AND state=?`).bind(to,patch.brokerOrderId??null,patch.error??null,stamp,clientOrderId,from),
+      db.prepare('INSERT INTO broker_order_events(event_key,intent_id,created_at,event_type,payload) VALUES(?,?,?,?,?)')
+        .bind(eventKey,clientOrderId,stamp,'STATE_TRANSITION',JSON.stringify({from,to,...patch})),
+    ]);
+  }catch(error){
+    if(String(error).includes('broker intent state conflict'))throw new Error('INTENT_STATE_CONFLICT');
+    throw error;
+  }
 }
 
 export async function recordBrokerOrder(db:D1Database,o:BrokerOrder){
@@ -221,4 +239,8 @@ export function reconcileBrokerState(expected:ReconciliationExpected,observed:Re
   for(const id of new Set([...expectedOrders,...observedOrders]))if(expectedOrders.has(id)!==observedOrders.has(id))mismatches.push('ORDER_MISMATCH:'+id);
   return {state:mismatches.length?'MISMATCH':'MATCH',cashMatch:!mismatches.includes('CASH_MISMATCH'),
     positionsMatch:!mismatches.some(x=>x.startsWith('POSITION_MISMATCH:')),ordersMatch:!mismatches.some(x=>x.startsWith('ORDER_MISMATCH:')),mismatches};
+}
+export async function recordReconciliation(db:D1Database,result:ReturnType<typeof reconcileBrokerState>,now=new Date()){
+  await db.prepare('INSERT INTO broker_reconciliations(created_at,state,cash_match,positions_match,orders_match,mismatches) VALUES(?,?,?,?,?,?)')
+    .bind(now.toISOString(),result.state,result.cashMatch?1:0,result.positionsMatch?1:0,result.ordersMatch?1:0,JSON.stringify(result.mismatches)).run();
 }
