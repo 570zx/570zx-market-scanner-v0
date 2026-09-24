@@ -11,7 +11,7 @@ export type BrokerSide='BUY'|'SELL';
 export type BrokerAssetType='equity'|'option';
 export type SessionPhase='regular'|'premarket'|'postmarket'|'overnight'|'closed';
 
-const DECIMAL=/^-?(?:0|[1-9]\d*)(?:\.\d{1,8})?$/;
+const DECIMAL=/^-?(?:(?:0|[1-9]\d*)(?:\.\d{1,8})?|\.\d{1,8})$/;
 export function canonicalDecimal(value:string|number|bigint,scale=8):string{
   const raw=typeof value==='string'?value:typeof value==='bigint'?value.toString():String(value);
   if(!DECIMAL.test(raw))throw new Error('INVALID_DECIMAL');
