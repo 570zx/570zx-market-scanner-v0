@@ -1,0 +1,83 @@
+name: MEDS Runtime Watchdog
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: meds-runtime-watchdog
+  cancel-in-progress: true
+
+jobs:
+  watchdog:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check production health
+        id: health
+        shell: bash
+        env:
+          MEDS_HEALTH_URL: https://meds-scout-agent.sucharda-dodge.workers.dev/health
+        run: |
+          set -euo pipefail
+          body="$(curl --fail --silent --show-error --max-time 15 "$MEDS_HEALTH_URL")"
+          printf '%s
+' "$body" > /tmp/meds-health.json
+          node <<'NODE'
+          const fs=require('fs');
+          const j=JSON.parse(fs.readFileSync('/tmp/meds-health.json','utf8'));
+          const bad=['ENGINE_STALE','ENGINE_CRITICAL'].includes(j.health);
+          console.log(JSON.stringify({health:j.health,time:j.time,last_tick_at:j.last_tick_at,last_success_at:j.last_success_at,last_error:j.last_error,reduce_only:j.reduce_only,risk_mode:j.risk_mode}));
+          if(bad) process.exit(2);
+          NODE
+
+      - name: Update watchdog alert
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          marker='<!-- meds-runtime-watchdog -->'
+          health="$(cat /tmp/meds-health.json 2>/dev/null || printf '{"health":"UNREACHABLE"}')"
+          body="$marker
+          **MEDS WATCHDOG ALERT**
+          
+          Production health check failed at $(date -u +'%Y-%m-%dT%H:%M:%SZ').
+          
+          \`\`\`json
+          $health
+          \`\`\`"
+          id="$(gh api "repos/$GITHUB_REPOSITORY/issues/1/comments?per_page=100" --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | tail -n 1)"
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -f body="$body" >/dev/null
+          else
+            gh api -X POST "repos/$GITHUB_REPOSITORY/issues/1/comments" -f body="$body" >/dev/null
+          fi
+
+      - name: Mark watchdog recovered
+        if: success()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          marker='<!-- meds-runtime-watchdog -->'
+          id="$(gh api "repos/$GITHUB_REPOSITORY/issues/1/comments?per_page=100" --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | tail -n 1)"
+          [ -z "$id" ] && exit 0
+          old="$(gh api "repos/$GITHUB_REPOSITORY/issues/comments/$id" --jq .body)"
+          printf '%s' "$old" | grep -q 'WATCHDOG ALERT' || exit 0
+          health="$(cat /tmp/meds-health.json)"
+          body="$marker
+          **MEDS WATCHDOG RECOVERED**
+          
+          Production health check recovered at $(date -u +'%Y-%m-%dT%H:%M:%SZ').
+          
+          \`\`\`json
+          $health
+          \`\`\`"
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -f body="$body" >/dev/null
