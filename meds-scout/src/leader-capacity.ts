@@ -33,6 +33,12 @@ export const CAPACITY_SCHEMA=[
   `INSERT OR IGNORE INTO hunt_revisions VALUES('${ACTIVE_ACCOUNT}',0)`,
   `CREATE TABLE IF NOT EXISTS leader_cycle_audit(bucket TEXT PRIMARY KEY,created_at TEXT NOT NULL,version TEXT NOT NULL,payload TEXT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS leader_research_shards(session_date TEXT NOT NULL,shard INTEGER NOT NULL,version TEXT NOT NULL,data TEXT NOT NULL,PRIMARY KEY(session_date,shard,version))`,
+  `CREATE TABLE IF NOT EXISTS leader_research_archive(session_date TEXT NOT NULL,symbol TEXT NOT NULL,version TEXT NOT NULL,evidence TEXT NOT NULL,PRIMARY KEY(session_date,symbol,version))`,
+  `CREATE TABLE IF NOT EXISTS leader_session_summary(session_date TEXT NOT NULL,version TEXT NOT NULL,cycles INTEGER NOT NULL,audit_bytes INTEGER NOT NULL,compacted_at TEXT NOT NULL,PRIMARY KEY(session_date,version))`,
+  `CREATE TABLE IF NOT EXISTS leader_maintenance_state(id INTEGER PRIMARY KEY CHECK(id=1),last_maintenance_date TEXT)`,
+  `INSERT OR IGNORE INTO leader_maintenance_state(id,last_maintenance_date) VALUES(1,NULL)`,
+  `CREATE TABLE IF NOT EXISTS leader_control_state(id INTEGER PRIMARY KEY CHECK(id=1),reduce_only INTEGER NOT NULL DEFAULT 0)`,
+  `INSERT OR IGNORE INTO leader_control_state(id,reduce_only) VALUES(1,0)`,
   `CREATE TABLE IF NOT EXISTS leader_daily_risk(session_date TEXT NOT NULL,account_id TEXT NOT NULL,rotations INTEGER NOT NULL DEFAULT 0,last_rotation_at TEXT,PRIMARY KEY(session_date,account_id))`,
   `CREATE TABLE IF NOT EXISTS leader_execution_guard(id INTEGER PRIMARY KEY CHECK(id=1),deadline_ms REAL NOT NULL,checked_at_ms REAL NOT NULL)`,
   `CREATE TRIGGER IF NOT EXISTS leader_execution_deadline_v84 BEFORE INSERT ON leader_execution_guard WHEN NEW.checked_at_ms > NEW.deadline_ms BEGIN SELECT RAISE(ABORT,'execution quote expired at commit'); END`,
@@ -44,7 +50,7 @@ export const CAPACITY_SCHEMA=[
   `DROP INDEX IF EXISTS idx_hunt_option_event_time`,
   `DROP TRIGGER IF EXISTS hunt_account_option_events_once_v8`,
   `CREATE TRIGGER hunt_account_option_events_once_v8 BEFORE INSERT ON hunt_account_option_events WHEN EXISTS(SELECT 1 FROM hunt_account_option_events WHERE account_id=NEW.account_id AND position_id=NEW.position_id AND event_type=NEW.event_type) BEGIN SELECT RAISE(ABORT,'Leader lifecycle event already applied'); END`,
-  `UPDATE paper_meta SET version=11 WHERE id=1`,
+  `UPDATE paper_meta SET version=12 WHERE id=1`,
 ];
 export async function ensureCapacitySchema(db:D1Database){await db.batch(CAPACITY_SCHEMA.map(s=>db.prepare(s)));}
 export type Row=Record<string,any>;

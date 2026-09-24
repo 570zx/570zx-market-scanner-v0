@@ -216,6 +216,41 @@ test('research firsts and excursions survive later cycles; migration never reset
   const res=await (await worker.fetch(new Request('https://test/status/hunt/research?symbol=TEST0'),env)).json();assert.equal(res.ok,true);assert.equal(res.rows.length,2);db.close();
 },'2026-09-18T15:00:00Z'));
 
+test('manual pause is reduce-only: exits continue while new risk is blocked',()=>clocked(async()=>{
+  const {env,db}=await setup();seed(db,1,'equity',4);provider({price:2});
+  const pause=await worker.fetch(new Request('https://test/control/pause',{method:'POST',headers:{authorization:'Bearer test'}}),env);
+  const p=await pause.json();assert.equal(p.reduce_only,true);assert.equal(p.paused,false);
+  assert.equal(db.prepare('SELECT paused FROM service_state WHERE id=1').get().paused,0);
+  const r=await runTick(env,'reduce-only');assert.equal(r.ok,true,JSON.stringify(r));
+  assert.ok(r.hunt.exits>=1,'reduce-only must continue risk-reducing exits');
+  assert.equal(r.hunt.account_entries,0,'reduce-only must block new risk');
+  const audit=JSON.parse(db.prepare('SELECT payload FROM leader_cycle_audit ORDER BY bucket DESC LIMIT 1').get().payload);
+  assert.ok(audit.decisions.some(d=>d.stage==='ENTRY_RISK_GATE'&&d.reasons.includes('MANUAL_REDUCE_ONLY')));
+  const health=await (await worker.fetch(new Request('https://test/health'),env)).json();
+  assert.equal(health.reduce_only,true);assert.equal(health.risk_mode,'REDUCE_ONLY');
+  const resume=await worker.fetch(new Request('https://test/control/resume',{method:'POST',headers:{authorization:'Bearer test'}}),env);
+  assert.equal((await resume.json()).reduce_only,false);
+  db.close();
+},'2026-09-18T15:00:00Z'));
+
+test('daily maintenance compacts old raw audits while preserving symbol evidence',()=>clocked(async()=>{
+  const {env,db}=await setup();
+  const evidence={symbol:'OLD',first_seen_at:'2026-09-10T14:00:00.000Z',first_price:1,first_change:12,source:'top_gainer',high:3,low:.8,first_rejection:{at:'2026-09-10T14:00:00.000Z',reasons:['SPREAD_TOO_WIDE']}};
+  db.prepare('INSERT INTO leader_research_shards(session_date,shard,version,data) VALUES(?,?,?,?)').run('2026-09-10',0,CAPACITY_VERSION,JSON.stringify({OLD:evidence}));
+  db.prepare('INSERT INTO leader_cycle_audit(bucket,created_at,version,payload) VALUES(?,?,?,?)').run('2026-09-10T14:00:00.000Z','2026-09-10T14:00:00.000Z',CAPACITY_VERSION,JSON.stringify({session_date:'2026-09-10',research:[evidence],decisions:[],board:[],movers:[],shortlist:['OLD']}));
+  db.prepare('UPDATE leader_maintenance_state SET last_maintenance_date=NULL WHERE id=1').run();
+  provider();const r=await runTick(env,'maintenance');assert.equal(r.ok,true,JSON.stringify(r));assert.ok(r.database.statements<=40);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM leader_research_shards WHERE session_date='2026-09-10'").get().n,0);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM leader_cycle_audit WHERE substr(created_at,1,10)='2026-09-10'").get().n,0);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM leader_research_archive WHERE session_date='2026-09-10' AND symbol='OLD'").get().n,1);
+  const summary=db.prepare("SELECT cycles,audit_bytes FROM leader_session_summary WHERE session_date='2026-09-10' AND version=?").get(CAPACITY_VERSION);
+  assert.equal(summary.cycles,1);assert.ok(summary.audit_bytes>0);
+  const res=await (await worker.fetch(new Request('https://test/status/hunt/research?symbol=OLD'),env)).json();
+  const old=res.outcomes.find(x=>x.session_date==='2026-09-10');assert.ok(old);assert.equal(old.first_price,1);assert.equal(old.sampled_mfe_pct,200);
+  assert.equal(db.prepare('SELECT last_maintenance_date FROM leader_maintenance_state WHERE id=1').get().last_maintenance_date,'2026-09-18');
+  db.close();
+},'2026-09-18T15:00:00Z'));
+
 // CI requires real D1 metadata; SQLite mock zeros are not a row-capacity result.
 test('real D1 metadata: maximum mixed full cycle',{skip:process.env.MEDS_REAL_D1!=='true',timeout:90000},async t=>{
   const {Miniflare,convertV4MiniflareOptions}=await import('miniflare');

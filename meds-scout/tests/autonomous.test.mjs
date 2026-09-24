@@ -260,6 +260,21 @@ test('data budget and per-cycle memoization bound duplicate provider requests',(
   await assert.rejects(data.json('/third'),/BUDGET/);assert.equal(calls,2);assert.equal(data.cacheHits,1);
 }));
 
+test('market-data cycle never exceeds five concurrent outbound requests',async()=>{
+  const data=new MarketDataCycle({ALPACA_API_KEY:'test',ALPACA_API_SECRET:'test'},36,5);
+  let active=0,peak=0,release;
+  const gate=new Promise(r=>{release=r;});
+  const old=globalThis.fetch;
+  globalThis.fetch=async()=>{active++;peak=Math.max(peak,active);await gate;active--;return Response.json({ok:true});};
+  try{
+    const requests=Array.from({length:12},(_,i)=>data.json('/concurrency-'+i,0));
+    await new Promise(r=>setTimeout(r,10));
+    assert.equal(peak,5);assert.equal(data.peakConcurrent,5);
+    release();await Promise.all(requests);
+    assert.equal(data.metrics().max_concurrent,5);
+  }finally{globalThis.fetch=old;}
+});
+
 test('combined equity/option account cap blocks entry with an exact reason and database invariant',()=>clocked(async()=>{
   const {env,db}=await setup(),stamp=new Date().toISOString();
   const equity=db.prepare(`INSERT INTO hunt_account_positions(account_id,symbol,opened_at,entry_price,quantity,entry_notional,stop_price,target_price,highest_price,lowest_price,entry_score,entry_day_change_pct,opened_phase,features,version,remaining_qty)
