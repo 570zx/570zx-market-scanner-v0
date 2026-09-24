@@ -31,7 +31,7 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
     // Reads are independent of the number of historical accounts or held symbols.
     // No normal ledger/position/decision query exists in this runtime.
     const [accounts,equities,options,events,intents,cooldowns,prior,retained,shards]=await Promise.all([
-      db.all(`SELECT a.*,r.revision,c.version AS runtime_config_version FROM hunt_accounts a JOIN hunt_revisions r USING(account_id) JOIN leader_runtime_config c USING(account_id) WHERE c.id=1 AND a.account_id=? AND c.version=?`,[ACTIVE_ACCOUNT,CAPACITY_VERSION],'active_account'),
+      db.all(`SELECT a.*,r.revision,c.version AS runtime_config_version,COALESCE(d.rotations,0) AS rotations_today,d.last_rotation_at FROM hunt_accounts a JOIN hunt_revisions r USING(account_id) JOIN leader_runtime_config c USING(account_id) LEFT JOIN leader_daily_risk d ON d.account_id=a.account_id AND d.session_date=? WHERE c.id=1 AND a.account_id=? AND c.version=?`,[date,ACTIVE_ACCOUNT,CAPACITY_VERSION],'active_account'),
       db.all(`SELECT *, 'equity' AS kind FROM hunt_account_positions WHERE account_id=? AND status='open' ORDER BY id`,[ACTIVE_ACCOUNT],'equity_inventory'),
       db.all(`SELECT *, 'option' AS kind FROM hunt_account_option_positions WHERE account_id=? AND status='open' ORDER BY id`,[ACTIVE_ACCOUNT],'option_inventory'),
       db.all(`SELECT 'equity' AS kind,position_id,event_type FROM hunt_account_events WHERE account_id=? AND position_id IN (SELECT id FROM hunt_account_positions WHERE account_id=? AND status='open') UNION ALL SELECT 'option',position_id,event_type FROM hunt_account_option_events WHERE account_id=? AND position_id IN (SELECT id FROM hunt_account_option_positions WHERE account_id=? AND status='open')`,[ACTIVE_ACCOUNT,ACTIVE_ACCOUNT,ACTIVE_ACCOUNT,ACTIVE_ACCOUNT],'lifecycle'),
@@ -44,11 +44,22 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
     if(accounts.length!==1||accounts[0].starting_equity!==250)throw Error('ACTIVE_ACCOUNT_CONFIGURATION_INVALID_OR_VERSION_MISMATCH');
     if(equities.length+options.length>32)throw Error('ACTIVE_ACCOUNT_POSITION_CAP_INVALID');
     const discovery=await d.discover(runEnv,prior.slice().sort((a,b)=>b.score-a.score).slice(0,80).map(p=>p.symbol));
+    const executionFeed=d.feed(now),equityExecutionAuthoritative=marketPhase==='regular'&&executionFeed==='iex';
     const held=[...new Set([...equities.map(p=>p.symbol),...options.map(p=>p.underlying)])];
     const symbols=mandatoryUniverse(held,discovery.symbols,prior.map(p=>p.symbol),320);
     const stocks=await d.snapshots(runEnv,symbols),optionMarks:Row={};
     const missing=held.filter(s=>!validQuote(stocks[s]?.latestQuote));
-    if(missing.length){data.retries++;try{const r=await data.json('/v2/stocks/quotes/latest?'+new URLSearchParams({symbols:missing.join(','),feed:d.feed(now)}),0);for(const s of missing)if(validQuote(r.quotes?.[s]))stocks[s]={...stocks[s],latestQuote:r.quotes[s]};}catch{}}
+    if(missing.length){data.retries++;try{const r=await data.json('/v2/stocks/quotes/latest?'+new URLSearchParams({symbols:missing.join(','),feed:executionFeed}),0);for(const s of missing)if(validQuote(r.quotes?.[s]))stocks[s]={...stocks[s],latestQuote:r.quotes[s]};}catch{}}
+    const quarantinedHeld=new Set<string>();
+    const retainedByKey=new Map(retained.map(r=>[r.asset+':'+r.symbol,r]));
+    for(const p of equities){
+      const q=stocks[p.symbol]?.latestQuote;if(!validQuote(q))continue;
+      const old=retainedByKey.get('equity:'+p.symbol),reference=Number(old?.bid??p.entry_price);
+      if(reference>0){
+        const ratio=Number(q.bp)/reference;
+        if(ratio>5||ratio<.2){quarantinedHeld.add(p.symbol);stocks[p.symbol]={...stocks[p.symbol],latestQuote:undefined};}
+      }
+    }
     if(options.length){
       const path='/v1beta1/options/snapshots?'+new URLSearchParams({symbols:options.map(p=>p.symbol).join(','),feed:'indicative'});
       try{Object.assign(optionMarks,(await data.json(path)).snapshots??{});}catch{}
@@ -67,8 +78,10 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
       const c={symbol,price,bid:shaped?q.bp:price,ask:shaped?q.ap:price,spreadPct:shaped?(q.ap-q.bp)/price*100:99,
         dayChangePct:prevClose>0?(price/prevClose-1)*100:0,dayVolume:s?.dailyBar?.v??0,previousDayVolume:s?.prevDailyBar?.v??0,
         minuteVolume:minute,volumeAccel:previous>0?(minute-previous)/previous:0,consecutiveHits:(p&&Date.now()-Date.parse(p.last_seen_at)<(plannedCadence(marketPhase)+2)*60000?p.consecutive_hits:0)+1,
-        catalystScore:0,catalystSummary:'',score:0,reasons:[],executionFresh:validQuote(q),quoteAgeMs:Number.isFinite(t)?Date.now()-t:Infinity,
-        discoverySource:info?.source,discoveryRank:info?.rank??null,dataWarnings:prevClose>0?[]:['REFERENCE_PRICE_UNAVAILABLE']};
+        catalystScore:0,catalystSummary:'',score:0,reasons:[],executionAuthority:equityExecutionAuthoritative,executionFeed,
+        executionFresh:equityExecutionAuthoritative&&validQuote(q),quoteAgeMs:Number.isFinite(t)?Date.now()-t:Infinity,
+        discoverySource:info?.source,discoveryRank:info?.rank??null,
+        dataWarnings:[...(prevClose>0?[]:['REFERENCE_PRICE_UNAVAILABLE']),...(quarantinedHeld.has(symbol)?['UNVERIFIED_HELD_PRICE_DISCONTINUITY']:[])]};
       d.score(c,marketPhase==='regular');rows.push(c);
     }
     // Never hard-cap positive day change before policy evaluation. A name first
@@ -79,9 +92,20 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
     let news:any[]=[];try{news=await d.news(runEnv,selected.map(c=>c.symbol));}catch{}
     for(const c of selected){const h=d.catalyst(news,c.symbol);c.catalystScore=h.score;c.catalystSummary=h.summary;d.score(c,marketPhase==='regular');}
     selected=d.select(selected,discovery);
-    const features=(c:any)=>d.features(c,marketPhase),plan=new LeaderPlan(accounts[0],[...equities,...options],events,intents,cooldowns.map(c=>c.symbol),now,marketPhase);
-    plan.manage(stocks,optionMarks);const managementAt=new Date().toISOString();plan.enterEquities(selected,stocks,features);
-    await plan.enterOptions(selected,stocks,optionMarks,(c,dir)=>d.chain(runEnv,c,dir),features);
+    const features=(c:any)=>d.features(c,marketPhase),strengthBySymbol=new Map(prior.map(p=>[p.symbol,Number(p.score??0)])),plan=new LeaderPlan(accounts[0],[...equities,...options],events,intents,cooldowns.map(c=>c.symbol),now,marketPhase,strengthBySymbol);
+    plan.manage(stocks,optionMarks);const managementAt=new Date().toISOString();
+    const preEntryValuation=valuation(plan,stocks,optionMarks,retained);
+    const reduceOnly=plan.intents.length>0||intents.length>0;
+    if(preEntryValuation.complete&&!reduceOnly){
+      plan.enterEquities(selected,stocks,features);
+      await plan.enterOptions(selected,stocks,optionMarks,(c,dir)=>d.chain(runEnv,c,dir),features);
+    }else{
+      const gateReason=reduceOnly?'PENDING_EXIT_INTENT':'PORTFOLIO_VALUATION_INCOMPLETE';
+      for(const c of selected){
+        if(!runnerReasons(c as any).length&&c.executionFresh===true)
+          plan.decision(c,candidateLane(c as any),'ENTRY_RISK_GATE',[gateReason],features(c));
+      }
+    }
     if(Date.now()>plan.executionDeadline)throw Error('EXECUTION_QUOTES_EXPIRED_BEFORE_COMMIT');
     const ss=accountingStatements(env.MEDS_DB,plan),stamp=now.toISOString(),selectedSet=new Set(selected.map(c=>c.symbol)),rowMap=new Map(rows.map(c=>[c.symbol,c]));
     const shardMap=new Map<number,Row>(shards.map(s=>[s.shard,JSON.parse(s.data)])),changed=new Set<number>();
@@ -142,12 +166,13 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
       hunt:{version:CAPACITY_VERSION,account_entries:plan.newPositions.length,exits:plan.trades.length,open:plan.open.length,tracked:selected.length},usage:data.metrics(),valuation_state:v.complete?'VALUED':'PORTFOLIO_PARTIALLY_VALUED'};
     // Fence, every accounting/telemetry set, cycle completion and lock release
     // form ONE transaction. No intermediate fills survive an audit failure.
-    const projected=db.usage.statements+ss.length+4;
+    const executionGuard=Number.isFinite(plan.executionDeadline)?[env.MEDS_DB.prepare('INSERT OR REPLACE INTO leader_execution_guard VALUES(1,?,?)').bind(plan.executionDeadline,Date.now())]:[];
+    const projected=db.usage.statements+ss.length+executionGuard.length+4;
     if(projected>40)throw Error('STATEMENT_BUDGET_EXCEEDED: '+projected);
     const completedAt=new Date().toISOString(),wallTimeMs=Math.max(0,Date.now()-now.getTime());
     const metrics={...data.metrics(),wall_time_ms:wallTimeMs,database:{...db.usage,statements:projected,rows_note:'includes metadata from precommit reads; commit row counts returned in invocation result'},statement_limit:40};
     await db.batch([
-      env.MEDS_DB.prepare('INSERT OR REPLACE INTO engine_write_guard VALUES(1,?,?)').bind(owner,Date.now()),...ss,
+      env.MEDS_DB.prepare('INSERT OR REPLACE INTO engine_write_guard VALUES(1,?,?)').bind(owner,Date.now()),...executionGuard,...ss,
       env.MEDS_DB.prepare(`INSERT INTO engine_cycles(bucket,started_at,completed_at,management_at,state,metrics,version) VALUES(?,?,?,?,'COMPLETE',?,?)`).bind(engineBucket,startedAt,completedAt,managementAt,JSON.stringify(metrics),CAPACITY_ENGINE),
       env.MEDS_DB.prepare('UPDATE service_state SET last_success_at=?,last_result=?,last_error=NULL,lock_owner=NULL,lock_until=NULL WHERE id=1 AND lock_owner=?').bind(completedAt,JSON.stringify(result),owner),
     ]);

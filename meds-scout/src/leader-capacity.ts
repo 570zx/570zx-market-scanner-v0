@@ -5,7 +5,7 @@ import {markState,LEASE_MS} from './autonomous.ts';
 import {cycleBucket,sessionDate,moverMiss} from './research-audit.ts';
 
 export const CAPACITY_ENGINE='meds-v8.1-leader250-capacity';
-export const CAPACITY_VERSION='leader-hunt-v8.3-capital-rotation';
+export const CAPACITY_VERSION='leader-hunt-v8.4-rotation-hardening';
 export const ACTIVE_ACCOUNT='H250';
 export const ACTIVE_LEADER_RISK_POLICY=Object.freeze({
   starting_equity:250,
@@ -20,6 +20,10 @@ export const ACTIVE_LEADER_RISK_POLICY=Object.freeze({
   reentry_cooldown_minutes:15,
   max_quote_age_seconds:90,
   max_rotations_per_cycle:1,
+  max_rotations_per_session:2,
+  rotation_account_cooldown_minutes:30,
+  rotation_min_victim_age_minutes:15,
+  rotation_min_score_improvement:15,
   live_execution:false,
 });
 export const CAPACITY_SCHEMA=[
@@ -29,6 +33,9 @@ export const CAPACITY_SCHEMA=[
   `INSERT OR IGNORE INTO hunt_revisions VALUES('${ACTIVE_ACCOUNT}',0)`,
   `CREATE TABLE IF NOT EXISTS leader_cycle_audit(bucket TEXT PRIMARY KEY,created_at TEXT NOT NULL,version TEXT NOT NULL,payload TEXT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS leader_research_shards(session_date TEXT NOT NULL,shard INTEGER NOT NULL,version TEXT NOT NULL,data TEXT NOT NULL,PRIMARY KEY(session_date,shard,version))`,
+  `CREATE TABLE IF NOT EXISTS leader_daily_risk(session_date TEXT NOT NULL,account_id TEXT NOT NULL,rotations INTEGER NOT NULL DEFAULT 0,last_rotation_at TEXT,PRIMARY KEY(session_date,account_id))`,
+  `CREATE TABLE IF NOT EXISTS leader_execution_guard(id INTEGER PRIMARY KEY CHECK(id=1),deadline_ms REAL NOT NULL,checked_at_ms REAL NOT NULL)`,
+  `CREATE TRIGGER IF NOT EXISTS leader_execution_deadline_v84 BEFORE INSERT ON leader_execution_guard WHEN NEW.checked_at_ms > NEW.deadline_ms BEGIN SELECT RAISE(ABORT,'execution quote expired at commit'); END`,
   `CREATE INDEX IF NOT EXISTS idx_hunt_account_event_position ON hunt_account_events(account_id,position_id,event_type)`,
   `DROP INDEX IF EXISTS idx_hunt_account_event_time`,
   `DROP TRIGGER IF EXISTS hunt_account_events_once_v8`,
@@ -67,16 +74,27 @@ const TABLES={equity:'hunt_account_positions',option:'hunt_account_option_positi
 const rungPolicy=[['LADDER_25',.25,.025],['LADDER_50',.5,.025],['LADDER_100',1,.05]] as const;
 export class LeaderPlan {
   account:Row;positions:Row[];events:Row[]=[];trades:Row[]=[];newPositions:Row[]=[];decisions:Row[]=[];intents:Row[]=[];
-  touched:Row[]=[];cooldown:Set<string>;priorEvents:Row[];priorIntents:Row[];now:Date;phase:string;
+  touched:Row[]=[];cooldown:Set<string>;priorEvents:Row[];priorIntents:Row[];now:Date;phase:string;strengthBySymbol:Map<string,number>;
   cashCredit=0;cashDebit=0;pnlDelta=0;executionDeadline=Infinity;rotations=0;
-  constructor(account:Row,positions:Row[],events:Row[],intents:Row[],cooldown:string[],now:Date,phase:string){
-    this.account={...account};this.positions=positions.map(p=>({...p}));this.priorEvents=events;this.priorIntents=intents;this.cooldown=new Set(cooldown);this.now=now;this.phase=phase;
+  rotationCountToday=0;lastRotationAt:string|null=null;rotationRiskDirty=false;
+  private equityLiquidityRemaining=new Map<string,number>();
+  constructor(account:Row,positions:Row[],events:Row[],intents:Row[],cooldown:string[],now:Date,phase:string,strengthBySymbol:Map<string,number>=new Map()){
+    this.account={...account};this.positions=positions.map(p=>({...p}));this.priorEvents=events;this.priorIntents=intents;this.cooldown=new Set(cooldown);this.now=now;this.phase=phase;this.strengthBySymbol=strengthBySymbol;
+    this.rotationCountToday=Number(account.rotations_today??0);this.lastRotationAt=account.last_rotation_at??null;
   }
   fresh(q:any){return validQuote(q,Date.now());}
   usedQuote(q:any){this.executionDeadline=Math.min(this.executionDeadline,Date.parse(q.t)+90_000);}
+  equityAvailable(symbol:string,snapshot:any){
+    if(!this.equityLiquidityRemaining.has(symbol))this.equityLiquidityRemaining.set(symbol,equityExitCapacity(snapshot,Date.now()));
+    return Math.max(0,this.equityLiquidityRemaining.get(symbol)??0);
+  }
+  consumeEquityLiquidity(symbol:string,qty:number){
+    const remaining=this.equityLiquidityRemaining.get(symbol)??0;
+    this.equityLiquidityRemaining.set(symbol,Math.max(0,remaining-qty));
+  }
   get cash(){return Number(this.account.cash)+this.cashCredit-this.cashDebit;}
   get open(){return [...this.positions,...this.newPositions].filter(p=>p.status==='open');}
-  reason(symbol:string){if(this.open.some(p=>(p.underlying??p.symbol)===symbol))return 'DUPLICATE_POSITION';if(this.cooldown.has(symbol))return 'REENTRY_COOLDOWN';if(this.open.length>=32)return 'OPEN_POSITION_CAP';if(this.cash-30<=.01)return 'CAPITAL_RESERVE_BLOCK';return null;}
+  reason(symbol:string){if(this.priorIntents.length||this.intents.length)return 'PENDING_EXIT_INTENT';if(this.open.some(p=>(p.underlying??p.symbol)===symbol))return 'DUPLICATE_POSITION';if(this.cooldown.has(symbol))return 'REENTRY_COOLDOWN';if(this.open.length>=32)return 'OPEN_POSITION_CAP';if(this.cash-30<=.01)return 'CAPITAL_RESERVE_BLOCK';return null;}
   decision(c:Row,lane:string,stage:string,reasons:string[],features:Row={},entered=false){this.decisions.push({bucket:cycleBucket(this.now),created_at:this.now.toISOString(),symbol:c.symbol,lane,account_id:ACTIVE_ACCOUNT,stage,outcome:entered?'ENTERED':reasons.length?'REJECTED':'ELIGIBLE',reasons,features:{...features,price:c.price,day_change_pct:c.dayChangePct,cash:this.cash},version:CAPACITY_VERSION});}
   event(p:Row,type:string,fill:number,qty:number,pnl:number,details:Row){this.events.push({kind:p.kind,account_id:ACTIVE_ACCOUNT,position_id:p.id,underlying:p.underlying,symbol:p.symbol,created_at:this.now.toISOString(),event_type:type,price:fill,quantity:qty,realized_pnl:pnl,details:JSON.stringify(details),version:p.version});}
   sell(p:Row,qty:number,fill:number,type:string|null,details:Row={}){
@@ -101,19 +119,19 @@ export class LeaderPlan {
       if(option){p.current_mark=q.bp;p.current_mark_at=q.t;}
       this.touched.push(p);
       const pending=this.priorIntents.find(i=>i.kind===p.kind&&i.position_id===p.id);
-      let available=option?Math.max(0,Math.floor(q.bs??0)):equityExitCapacity(snap,Date.now());
+      let available=option?Math.max(0,Math.floor(q.bs??0)):this.equityAvailable(p.symbol,snap);
       const fill=(qty:number)=>q.bp*(1-(option?.005:Math.min(.01,Math.max(.0002,.0002+qty/Math.max(1,snap.minuteBar?.v??1)*.025))));
       if(!p.take200_done&&!pending){
         for(const [event,threshold,fraction] of rungPolicy){
           if(q.bp<p.entry_price*(1+threshold)||this.priorEvents.some(e=>e.kind===p.kind&&e.position_id===p.id&&e.event_type===event))continue;
           const qty=Math.min(p.remaining_qty,option?Math.floor(p.quantity*fraction):p.quantity*fraction);
           if(qty<=0||qty>available)continue;
-          this.usedQuote(q);available-=qty;this.sell(p,qty,fill(qty),event,{threshold_return_pct:threshold,fraction,observed_bid:q.bp});
+          this.usedQuote(q);available-=qty;if(!option)this.consumeEquityLiquidity(p.symbol,qty);this.sell(p,qty,fill(qty),event,{threshold_return_pct:threshold,fraction,observed_bid:q.bp});
         }
       }
       if(!p.take200_done&&!pending&&q.bp>=p.entry_price*3){
         const runner=Math.min(p.remaining_qty,option?Math.floor(p.quantity*.05):p.quantity*.05),qty=p.remaining_qty-runner;
-        if(qty>0&&qty<=available){this.usedQuote(q);const px=fill(qty);this.sell(p,qty,px,'TAKE_200',{remaining_qty:runner,observed_bid:q.bp});p.take200_done=1;p.take200_price=px;p.take200_at=this.now.toISOString();p.runner_high=runner?p.highest_price:null;if(!runner)this.close(p,px,'take_200');}
+        if(qty>0&&qty<=available){this.usedQuote(q);if(!option)this.consumeEquityLiquidity(p.symbol,qty);const px=fill(qty);this.sell(p,qty,px,'TAKE_200',{remaining_qty:runner,observed_bid:q.bp});p.take200_done=1;p.take200_price=px;p.take200_at=this.now.toISOString();p.runner_high=runner?p.highest_price:null;if(!runner)this.close(p,px,'take_200');}
         continue;
       }
       let reason=pending?.reason;
@@ -129,53 +147,94 @@ export class LeaderPlan {
       const qty=Math.min(p.remaining_qty,available),remaining=p.remaining_qty;
       if(qty<remaining)this.intents.push({kind:p.kind,position_id:p.id,reason,requested_at:this.now.toISOString()});
       if(!qty)continue;
-      this.usedQuote(q);const px=fill(qty);
+      this.usedQuote(q);if(!option)this.consumeEquityLiquidity(p.symbol,qty);const px=fill(qty);
       const finalPnl=this.sell(p,qty,px,qty<remaining?'PARTIAL_EXIT_'+this.now.toISOString():p.take200_done?'RUNNER_EXIT':null,{reason,liquidity_limited:qty<remaining});
       if(qty===remaining){this.close(p,px,reason,p.take200_done?remaining:0);p.locked_realized_pnl-=finalPnl;}
     }
   }
-  rotateCapital(c:Row,stocks:Record<string,any>){
-    if(this.rotations>=1||candidateLane(c as any)!=='MOMENTUM_CONTINUATION')return null;
+  rotateCapital(c:Row,stocks:Record<string,any>,baseFeatures:Row){
+    if(this.rotations>=ACTIVE_LEADER_RISK_POLICY.max_rotations_per_cycle||candidateLane(c as any)!=='MOMENTUM_CONTINUATION')return null;
+    if(this.rotationCountToday>=ACTIVE_LEADER_RISK_POLICY.max_rotations_per_session)return null;
+    if(this.lastRotationAt&&this.now.getTime()-Date.parse(this.lastRotationAt)<ACTIVE_LEADER_RISK_POLICY.rotation_account_cooldown_minutes*60_000)return null;
+    const candidateSnap=stocks[c.symbol],candidateQuote=candidateSnap?.latestQuote;
+    if(!this.fresh(candidateQuote))return null;
+    const currentMinuteVolume=Math.max(0,Number(candidateSnap?.minuteBar?.v??c.minuteVolume??0));
+    const minuteLiquidity=currentMinuteVolume*ACTIVE_LEADER_RISK_POLICY.max_minute_participation;
+    if(!(minuteLiquidity>0))return null;
     const relative=c.previousDayVolume>0?c.dayVolume/c.previousDayVolume:0;
     const elite=c.score>=55&&c.consecutiveHits>=2&&relative>=2&&c.spreadPct<=2.5&&(c.catalystScore>0||c.volumeAccel>=.2);
     if(!elite)return null;
-    const choices=this.positions.filter(p=>p.kind==='equity'&&p.status==='open'&&!p.take200_done&&!this.priorIntents.some(i=>i.kind==='equity'&&i.position_id===p.id)).map(p=>{
+    const choices=this.positions.filter(p=>{
+      if(p.kind!=='equity'||p.status!=='open'||p.take200_done)return false;
+      if(this.priorIntents.some(i=>i.kind==='equity'&&i.position_id===p.id)||this.intents.some(i=>i.kind==='equity'&&i.position_id===p.id))return false;
+      if(this.now.getTime()-Date.parse(p.opened_at)<ACTIVE_LEADER_RISK_POLICY.rotation_min_victim_age_minutes*60_000)return false;
+      return true;
+    }).map(p=>{
       const snap=stocks[p.symbol],q=snap?.latestQuote;
       if(!this.fresh(q))return null;
       p.remaining_qty=Number(p.remaining_qty??p.quantity);p.locked_realized_pnl=Number(p.locked_realized_pnl??0);
-      const available=equityExitCapacity(snap,Date.now());
+      const available=this.equityAvailable(p.symbol,snap);
       if(!(p.remaining_qty>0)||available+1e-9<p.remaining_qty)return null;
-      const ret=q.bp/p.entry_price-1,score=Number(p.entry_score??0);
+      const ret=q.bp/p.entry_price-1,currentScore=Math.max(Number(p.entry_score??0),Number(this.strengthBySymbol.get(p.symbol)??0));
       if(ret>.03)return null;
-      if(!(c.score-score>=20||ret<0))return null;
-      return {p,snap,q,ret,score};
-    }).filter(Boolean) as {p:Row;snap:any;q:any;ret:number;score:number}[];
-    choices.sort((a,b)=>a.ret-b.ret||a.score-b.score||Date.parse(a.p.opened_at)-Date.parse(b.p.opened_at));
+      if(c.score-currentScore<ACTIVE_LEADER_RISK_POLICY.rotation_min_score_improvement)return null;
+      return {p,snap,q,ret,currentScore};
+    }).filter(Boolean) as {p:Row;snap:any;q:any;ret:number;currentScore:number}[];
+    choices.sort((a,b)=>a.ret-b.ret||a.currentScore-b.currentScore||Date.parse(a.p.opened_at)-Date.parse(b.p.opened_at));
     const x=choices[0];if(!x)return null;
-    const qty=x.p.remaining_qty,fill=x.q.bp*(1-Math.min(.01,Math.max(.0002,.0002+qty/Math.max(1,x.snap.minuteBar?.v??1)*.025)));
-    this.usedQuote(x.q);const finalPnl=this.sell(x.p,qty,fill,'ROTATION_EXIT',{replacement_symbol:c.symbol,replacement_score:c.score,replacement_day_change_pct:c.dayChangePct,observed_bid:x.q.bp});
-    this.close(x.p,fill,'rotation_for_stronger_continuation');x.p.locked_realized_pnl-=finalPnl;this.rotations++;
-    return x.p.symbol;
+    const victimQty=x.p.remaining_qty,victimFill=x.q.bp*(1-Math.min(.01,Math.max(.0002,.0002+victimQty/Math.max(1,x.snap.minuteBar?.v??1)*.025)));
+    const expectedCash=this.cash+victimFill*victimQty;
+    const budget=Math.min(ACTIVE_LEADER_RISK_POLICY.target_entry_notional,Math.max(0,expectedCash-ACTIVE_LEADER_RISK_POLICY.protected_cash_reserve));
+    let replacementQty=Math.min(budget/candidateQuote.ap,minuteLiquidity);
+    const replacementFill=(n:number)=>candidateQuote.ap*(1+Math.min(.01,.0002+n/Math.max(1,currentMinuteVolume)*.025));
+    if(replacementQty*replacementFill(replacementQty)>budget)replacementQty=budget/replacementFill(replacementQty);
+    const replacementPx=replacementFill(replacementQty),replacementCost=replacementQty*replacementPx;
+    if(!(replacementCost>.01)||!(replacementQty>0))return null;
+    const replacementExit=candidateQuote.bp*(1-Math.min(.01,Math.max(.0002,.0002+replacementQty/Math.max(1,currentMinuteVolume)*.025)));
+    if(1-replacementExit/replacementPx>ACTIVE_LEADER_RISK_POLICY.equity_stop_loss_pct)return null;
+    // Both legs are fully preflighted before mutating the plan. In shadow mode
+    // they commit atomically; a future broker adapter must still treat them as
+    // sequential external effects and revalidate the replacement after the sell.
+    this.usedQuote(x.q);this.usedQuote(candidateQuote);this.consumeEquityLiquidity(x.p.symbol,victimQty);
+    const finalPnl=this.sell(x.p,victimQty,victimFill,'ROTATION_EXIT',{replacement_symbol:c.symbol,replacement_score:c.score,replacement_day_change_pct:c.dayChangePct,observed_bid:x.q.bp,management_policy_version:CAPACITY_VERSION});
+    this.close(x.p,victimFill,'rotation_for_stronger_continuation');x.p.locked_realized_pnl-=finalPnl;
+    const f={...baseFeatures,asset_type:'equity',max_hold_minutes:720,quantity:replacementQty,target_notional:budget,actual_notional:replacementCost,minute_participation:replacementQty/Math.max(1,currentMinuteVolume),fractional_paper:true,entry_slippage_pct:replacementPx/candidateQuote.ap-1,rotated_out:x.p.symbol};
+    this.addPosition(c,'equity',c.symbol,replacementQty,replacementPx,replacementCost,f);
+    this.rotations++;this.rotationCountToday++;this.lastRotationAt=this.now.toISOString();this.rotationRiskDirty=true;
+    return {rotatedOut:x.p.symbol,features:f};
   }
   enterEquities(candidates:Row[],stocks:Record<string,any>,features:(c:any)=>Row){
     let signals=0;
     for(const c of candidates){
       const lane=candidateLane(c as any),q=stocks[c.symbol]?.latestQuote;
       const reasons=runnerReasons(c as any);if(reasons.length){this.decision(c,lane,'ENTRY',reasons,features(c));continue;}
-      if(!this.fresh(q)){this.decision(c,lane,'ENTRY',['EXECUTION_QUOTE_STALE'],features(c));continue;}
-      let reason=this.reason(c.symbol)??(signals>=6?'SIGNAL_CYCLE_CAP':null),rotatedOut:null|string=null;
-      if(reason==='CAPITAL_RESERVE_BLOCK'&&signals<6){
-        rotatedOut=this.rotateCapital(c,stocks);
-        if(rotatedOut)reason=this.reason(c.symbol);
+      if(c.executionAuthority===false){this.decision(c,lane,'ENTRY',['EXECUTION_QUOTE_NOT_AUTHORITATIVE'],features(c));continue;}
+      if(c.executionFresh!==true||!this.fresh(q)){this.decision(c,lane,'ENTRY',['EXECUTION_QUOTE_STALE'],features(c));continue;}
+      const executionLiquidity=Math.max(0,Number(stocks[c.symbol]?.minuteBar?.v??c.minuteVolume??0));
+      if(!(executionLiquidity>0)){this.decision(c,lane,'ENTRY',['MINUTE_LIQUIDITY_LIMIT'],features(c));continue;}
+      const frictionBudget=ACTIVE_LEADER_RISK_POLICY.target_entry_notional;
+      let frictionQty=Math.min(frictionBudget/q.ap,executionLiquidity*ACTIVE_LEADER_RISK_POLICY.max_minute_participation);
+      const buyFill=(n:number)=>q.ap*(1+Math.min(.01,.0002+n/Math.max(1,executionLiquidity)*.025));
+      if(frictionQty*buyFill(frictionQty)>frictionBudget)frictionQty=frictionBudget/buyFill(frictionQty);
+      const frictionEntry=buyFill(frictionQty),frictionExit=q.bp*(1-Math.min(.01,Math.max(.0002,.0002+frictionQty/Math.max(1,executionLiquidity)*.025)));
+      const immediateLoss=frictionQty>0?1-frictionExit/frictionEntry:Infinity;
+      if(immediateLoss>ACTIVE_LEADER_RISK_POLICY.equity_stop_loss_pct){
+        this.decision(c,lane,'ENTRY',['IMMEDIATE_LIQUIDATION_RISK'],{...features(c),modeled_immediate_loss_pct:immediateLoss*100});
+        continue;
       }
-      if(reason){this.decision(c,lane,'ENTRY',[reason],{...features(c),rotation_attempted:reason==='CAPITAL_RESERVE_BLOCK',rotated_out:rotatedOut});continue;}
-      const budget=Math.min(10,Math.max(0,this.cash-30)),liquidity=Math.max(0,c.minuteVolume??0);
+      let reason=this.reason(c.symbol)??(signals>=ACTIVE_LEADER_RISK_POLICY.max_equity_entries_per_cycle?'SIGNAL_CYCLE_CAP':null);
+      if((reason==='CAPITAL_RESERVE_BLOCK'||reason==='OPEN_POSITION_CAP')&&signals<ACTIVE_LEADER_RISK_POLICY.max_equity_entries_per_cycle){
+        const rotated=this.rotateCapital(c,stocks,features(c));
+        if(rotated){signals++;this.decision(c,lane,'ENTRY',[],rotated.features,true);continue;}
+      }
+      if(reason){this.decision(c,lane,'ENTRY',[reason],{...features(c),rotation_attempted:reason==='CAPITAL_RESERVE_BLOCK'||reason==='OPEN_POSITION_CAP'});continue;}
+      const budget=Math.min(ACTIVE_LEADER_RISK_POLICY.target_entry_notional,Math.max(0,this.cash-ACTIVE_LEADER_RISK_POLICY.protected_cash_reserve)),liquidity=executionLiquidity;
       let qty=Math.min(budget/q.ap,liquidity*.05);
       const fill=(n:number)=>q.ap*(1+Math.min(.01,.0002+n/Math.max(1,liquidity)*.025));
       if(qty*fill(qty)>budget)qty=budget/fill(qty);
       const px=fill(qty),cost=qty*px;
       if(!(cost>.01)||!(qty>0)){this.decision(c,lane,'ENTRY',[liquidity?'POSITION_SIZE_ZERO':'MINUTE_LIQUIDITY_LIMIT'],features(c));continue;}
-      const f={...features(c),asset_type:'equity',max_hold_minutes:720,quantity:qty,target_notional:budget,actual_notional:cost,minute_participation:qty/liquidity,fractional_paper:true,entry_slippage_pct:px/q.ap-1,rotated_out:rotatedOut};
+      const f={...features(c),asset_type:'equity',max_hold_minutes:720,quantity:qty,target_notional:budget,actual_notional:cost,minute_participation:qty/liquidity,fractional_paper:true,entry_slippage_pct:px/q.ap-1,rotated_out:null};
       this.addPosition(c,'equity',c.symbol,qty,px,cost,f);this.usedQuote(q);signals++;
       this.decision(c,lane,'ENTRY',[],f,true);
     }
@@ -208,6 +267,8 @@ export class LeaderPlan {
         const delta=x.s.greeks?.delta;if(delta!=null&&(!Number.isFinite(delta)||Math.abs(delta)<.25||Math.abs(delta)>.75||(direction==='bull'?delta<=0:delta>=0))){failures.add('OPTION_DELTA_OUTSIDE_LANE');return false;}return true;
       }).sort((a,b)=>{const cost=(x:any)=>Math.abs(x.meta.strike/c.price-1)+(x.s.latestQuote.ap-x.s.latestQuote.bp)/x.s.latestQuote.ap;return cost(a)-cost(b)||a.meta.expiration.localeCompare(b.meta.expiration);});
       const x=usable[0];if(!x){reject(rows.length?[...failures]:['OPTION_CHAIN_UNAVAILABLE'],'OPTION_CHAIN');continue;}
+      marks[x.symbol]=x.s;
+      reject(['OPTION_EXECUTION_QUOTE_NOT_AUTHORITATIVE'],'ENTRY',{contract:x.symbol,feed:'indicative',research_usable:true});continue;
       const q=x.s.latestQuote,px=q.ap*1.005,budget=Math.min(10,this.cash-30),qty=Math.floor(Math.min(budget/(px*100),q.as));
       if(qty<1){reject(['OPTION_CONTRACT_TOO_EXPENSIVE'],'ENTRY',{premium:px,contract:x.symbol,target_notional:budget});continue;}
       const cost=qty*px*100,f={...features(c),asset_type:'option',max_hold_minutes:1440,option_type:x.meta.type,strike:x.meta.strike,expiration:x.meta.expiration,data_quality:'indicative',delta:x.s.greeks?.delta??null,quote_at:q.t,entry_slippage_pct:.005,target_notional:budget,actual_notional:cost,whole_contracts:true};
@@ -223,6 +284,7 @@ const eventColumns='account_id,position_id,symbol,created_at,event_type,price,qu
 export function accountingStatements(db:D1Database,plan:LeaderPlan){
   const ss:D1PreparedStatement[]=[];
   ss.push(db.prepare('INSERT OR REPLACE INTO hunt_risk_guards VALUES(?,?)').bind(ACTIVE_ACCOUNT,plan.account.revision));
+  if(plan.rotationRiskDirty)ss.push(db.prepare(`INSERT INTO leader_daily_risk(session_date,account_id,rotations,last_rotation_at) VALUES(?,?,?,?) ON CONFLICT(session_date,account_id) DO UPDATE SET rotations=excluded.rotations,last_rotation_at=excluded.last_rotation_at`).bind(sessionDate(plan.now),ACTIVE_ACCOUNT,plan.rotationCountToday,plan.lastRotationAt));
   // Credit exits before inserting entries; reserve and cap triggers see the post-exit account.
   if(plan.cashCredit)ss.push(db.prepare('UPDATE hunt_accounts SET cash=cash+?,realized_pnl=realized_pnl+? WHERE account_id=?').bind(plan.cashCredit,plan.pnlDelta,ACTIVE_ACCOUNT));
   for(const kind of ['equity','option'] as const){

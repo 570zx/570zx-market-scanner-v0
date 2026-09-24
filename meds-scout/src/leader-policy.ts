@@ -1,6 +1,6 @@
 export type ResearchCandidate={symbol:string;price:number;bid:number;ask:number;spreadPct:number;dayChangePct:number;score:number;
   catalystScore:number;volumeAccel:number;dayVolume:number;previousDayVolume:number;minuteVolume:number;consecutiveHits:number;
-  executionFresh?:boolean;quoteAgeMs?:number;discoverySource?:string;discoveryRank?:number|null;dataWarnings?:string[]};
+  executionFresh?:boolean;executionAuthority?:boolean;executionFeed?:string;quoteAgeMs?:number;discoverySource?:string;discoveryRank?:number|null;dataWarnings?:string[]};
 
 export function runnerReasons(c:ResearchCandidate):string[]{
   const reasons:string[]=[...(c.dataWarnings??[])];
@@ -43,6 +43,7 @@ export function runnerReasons(c:ResearchCandidate):string[]{
 }
 
 export function executionReasons(c:ResearchCandidate){
+  if(c.executionAuthority===false) return ['EXECUTION_QUOTE_NOT_AUTHORITATIVE'];
   if(c.executionFresh===true) return [];
   return [Number.isFinite(c.quoteAgeMs)?'EXECUTION_QUOTE_STALE':'EXECUTION_QUOTE_MISSING'];
 }
@@ -71,6 +72,6 @@ export function orderedRunnerCandidates<T extends ResearchCandidate>(candidates:
 
 export function preservedMaxHold(version:string,asset:'equity'|'option',features:string){
   try{const n=Number(JSON.parse(features).max_hold_minutes);if(Number.isFinite(n)&&n>0)return n;}catch{}
-  if(/^leader-hunt-v(?:7|8(?:\.(?:1|2|3))?)-/.test(version)) return asset==='option'?1440:720;
+  if(/^leader-hunt-v(?:7|8(?:\.(?:1|2|3|4))?)-/.test(version)) return asset==='option'?1440:720;
   return 120;
 }
