@@ -128,9 +128,9 @@ test('held provider failures preserve cash and positions, retain stale marks, an
   assert.ok(r.usage.retries>=2);t.diagnostic(JSON.stringify({scenario:'all providers fail, mixed holdings',...r.database,provider:r.usage.requests}));db.close();
 },'2026-09-18T15:00:00Z'));
 
-test('unaffordable whole-contract options are explained while liquid controls retain research evidence',t=>clocked(async()=>{
+test('indicative options remain research-only while liquid controls retain research evidence',t=>clocked(async()=>{
   const {env,db}=await setup();provider({price:100,optionBid:1,optionAsk:1.05});const r=await runTick(env,'options');assert.equal(r.ok,true,JSON.stringify(r));assert.equal(r.hunt.account_entries,0);
-  const audit=JSON.parse(db.prepare('SELECT payload FROM leader_cycle_audit').get().payload);assert.ok(audit.decisions.some(d=>d.reasons.includes('OPTION_CONTRACT_TOO_EXPENSIVE')));assert.equal(audit.research.length,260);
+  const audit=JSON.parse(db.prepare('SELECT payload FROM leader_cycle_audit').get().payload);assert.ok(audit.decisions.some(d=>d.reasons.includes('OPTION_EXECUTION_QUOTE_NOT_AUTHORITATIVE')));assert.equal(audit.research.length,260);
   t.diagnostic(JSON.stringify({scenario:'eight unaffordable chains',...r.database,provider:r.usage.requests}));db.close();
 },'2026-09-18T15:00:00Z'));
 
@@ -143,7 +143,7 @@ function mixedBook(db){
 test('maximum mixed path: both entry assets, both exits, events and partial intents',t=>clocked(async()=>{
   const {env,db}=await setup();mixedBook(db);provider({mixed:true});const r=await runTick(env,'worst');assert.equal(r.ok,true,JSON.stringify(r));assert.ok(r.database.statements<=40);
   for(const table of ['hunt_account_trades','hunt_account_option_trades','hunt_exit_intents'])assert.ok(db.prepare('SELECT COUNT(*) n FROM '+table).get().n,table);
-  assert.ok(db.prepare("SELECT COUNT(*) n FROM hunt_account_option_positions WHERE account_id='H250' AND symbol LIKE 'TEST%'").get().n);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM hunt_account_option_positions WHERE account_id='H250' AND symbol LIKE 'TEST%'").get().n,0);const audit=JSON.parse(db.prepare('SELECT payload FROM leader_cycle_audit ORDER BY bucket DESC LIMIT 1').get().payload);assert.ok(audit.decisions.some(d=>d.reasons.includes('OPTION_EXECUTION_QUOTE_NOT_AUTHORITATIVE')));
   assert.ok(db.prepare("SELECT cash FROM hunt_accounts WHERE account_id='H250'").get().cash>=30);
   t.diagnostic(JSON.stringify({scenario:'mixed maximum',...r.database,provider:r.usage.requests}));db.close();
 },'2026-09-18T15:00:00Z'));
@@ -351,11 +351,10 @@ test('unverified held 100x price discontinuity is quarantined instead of realize
   db.close();
 },'2026-09-18T15:00:00Z'));
 
-test('execution deadline guard aborts accounting after the quote expires',async()=>{
+test('execution deadline guard rejects an expired final-commit timestamp',async()=>{
   const {env,db}=await setup();
-  const account=db.prepare("SELECT a.*,r.revision FROM hunt_accounts a JOIN hunt_revisions r USING(account_id) WHERE account_id='H250'").get();
-  const plan=new LeaderPlan(account,[],[],[],[],new Date(),'regular');plan.executionDeadline=Date.now()-1000;
-  await assert.rejects(env.MEDS_DB.batch(accountingStatements(env.MEDS_DB,plan)),/execution quote expired at commit/);
+  await assert.rejects(env.MEDS_DB.prepare('INSERT OR REPLACE INTO leader_execution_guard VALUES(1,?,?)').bind(Date.now()-1000,Date.now()).run(),/execution quote expired at commit/);
+  await env.MEDS_DB.prepare('INSERT OR REPLACE INTO leader_execution_guard VALUES(1,?,?)').bind(Date.now()+10000,Date.now()).run();
   db.close();
 });
 
