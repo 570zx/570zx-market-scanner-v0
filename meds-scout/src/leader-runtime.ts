@@ -17,7 +17,7 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
   if(env.TRADING_MODE!=='shadow')throw Error('Only shadow mode is supported; no brokerage execution exists');
   const db=new CycleDB(env.MEDS_DB),now=new Date(),bucket=cycleBucket(now),date=sessionDate(now),marketPhase=d.phase(now);
   const cadence=env.ENGINE_CADENCE==='session'?plannedCadence(marketPhase):5,engineBucket=cadenceBucket(now,cadence||5),startedAt=now.toISOString();
-  const state=(await db.all(`SELECT s.*,m.version AS schema_version,(SELECT completed_at FROM engine_cycles WHERE bucket=?) AS completed_at FROM service_state s JOIN paper_meta m ON m.id=s.id WHERE s.id=1`,[engineBucket],'state'))[0];
+  const state=(await db.all(`SELECT s.*,m.version AS schema_version,(SELECT completed_at FROM engine_cycles WHERE bucket=?) AS completed_at,COALESCE((SELECT reduce_only FROM leader_control_state WHERE id=1),0) AS reduce_only,(SELECT last_maintenance_date FROM leader_maintenance_state WHERE id=1) AS last_maintenance_date FROM service_state s JOIN paper_meta m ON m.id=s.id WHERE s.id=1`,[engineBucket],'state'))[0];
   if(env.SCOUT_ENABLED!=='true'||state?.paused)return {ok:true,skipped:'disabled',version:CAPACITY_ENGINE};
   if(!d.active(now))return {ok:true,skipped:'outside scan window'};
   if(state?.schema_version!==11)return {ok:false,error:'DEPLOYMENT_MIGRATION_REQUIRED: expected schema 11'};
@@ -95,12 +95,12 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
     const features=(c:any)=>d.features(c,marketPhase),strengthBySymbol=new Map(prior.map(p=>[p.symbol,Number(p.score??0)])),plan=new LeaderPlan(accounts[0],[...equities,...options],events,intents,cooldowns.map(c=>c.symbol),now,marketPhase,strengthBySymbol);
     plan.manage(stocks,optionMarks);const managementAt=new Date().toISOString();
     const preEntryValuation=valuation(plan,stocks,optionMarks,retained);
-    const reduceOnly=plan.intents.length>0||intents.length>0;
+    const reduceOnly=!!state.reduce_only||plan.intents.length>0||intents.length>0;
     if(preEntryValuation.complete&&!reduceOnly){
       plan.enterEquities(selected,stocks,features);
       await plan.enterOptions(selected,stocks,optionMarks,(c,dir)=>d.chain(runEnv,c,dir),features);
     }else{
-      const gateReason=reduceOnly?'PENDING_EXIT_INTENT':'PORTFOLIO_VALUATION_INCOMPLETE';
+      const gateReason=state.reduce_only?'MANUAL_REDUCE_ONLY':reduceOnly?'PENDING_EXIT_INTENT':'PORTFOLIO_VALUATION_INCOMPLETE';
       for(const c of selected){
         if(!runnerReasons(c as any).length&&c.executionFresh===true)
           plan.decision(c,candidateLane(c as any),'ENTRY_RISK_GATE',[gateReason],features(c));
@@ -162,17 +162,33 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
     ss.push(env.MEDS_DB.prepare('UPDATE hunt_accounts SET current_equity=CASE WHEN ? THEN ? ELSE current_equity END,max_equity=?,max_drawdown_pct=?,updated_at=? WHERE account_id=?').bind(v.complete,v.live_equity,peak,dd,stamp,ACTIVE_ACCOUNT));
     const milestones=v.complete?[2,5,10,25,50,100].filter(m=>v.live_equity!/250>=m).map(multiple=>({account_id:ACTIVE_ACCOUNT,multiple,reached_at:stamp,equity:v.live_equity,max_drawdown_pct:dd,version:CAPACITY_VERSION})):[];
     if(milestones.length)ss.push(ingest(env.MEDS_DB,'hunt_account_milestones',milestones,['account_id','multiple','reached_at','equity','max_drawdown_pct','version'],'ON CONFLICT DO NOTHING'));
-    const result={ok:true,version:CAPACITY_ENGINE,runtime:'leader_only',active_account:ACTIVE_ACCOUNT,normal_paper_executed:false,scanned:symbols.length,research_shortlist:selected.length,research_execution_fresh:selected.filter(c=>c.executionFresh).length,
+    const result={ok:true,version:CAPACITY_ENGINE,runtime:'leader_only',active_account:ACTIVE_ACCOUNT,normal_paper_executed:false,reduce_only:!!state.reduce_only,scanned:symbols.length,research_shortlist:selected.length,research_execution_fresh:selected.filter(c=>c.executionFresh).length,
       hunt:{version:CAPACITY_VERSION,account_entries:plan.newPositions.length,exits:plan.trades.length,open:plan.open.length,tracked:selected.length},usage:data.metrics(),valuation_state:v.complete?'VALUED':'PORTFOLIO_PARTIALLY_VALUED'};
     // Fence, every accounting/telemetry set, cycle completion and lock release
     // form ONE transaction. No intermediate fills survive an audit failure.
     const executionGuard=Number.isFinite(plan.executionDeadline)?[env.MEDS_DB.prepare('INSERT OR REPLACE INTO leader_execution_guard VALUES(1,?,?)').bind(plan.executionDeadline,Date.now())]:[];
-    const projected=db.usage.statements+ss.length+executionGuard.length+4;
+    const maintenance:D1PreparedStatement[]=[];
+    if(state.last_maintenance_date!==date){
+      const cutoff=sessionDate(new Date(now.getTime()-3*86400000)),compactedAt=new Date().toISOString();
+      maintenance.push(
+        env.MEDS_DB.prepare(`INSERT INTO leader_research_archive(session_date,symbol,version,evidence)
+          SELECT s.session_date,j.key,s.version,j.value FROM leader_research_shards s,json_each(s.data) j WHERE s.session_date<?
+          ON CONFLICT(session_date,symbol,version) DO UPDATE SET evidence=excluded.evidence`).bind(cutoff),
+        env.MEDS_DB.prepare(`INSERT INTO leader_session_summary(session_date,version,cycles,audit_bytes,compacted_at)
+          SELECT substr(created_at,1,10),version,COUNT(*),COALESCE(SUM(length(CAST(payload AS BLOB))),0),? FROM leader_cycle_audit
+          WHERE substr(created_at,1,10)<? GROUP BY substr(created_at,1,10),version
+          ON CONFLICT(session_date,version) DO UPDATE SET cycles=excluded.cycles,audit_bytes=excluded.audit_bytes,compacted_at=excluded.compacted_at`).bind(compactedAt,cutoff),
+        env.MEDS_DB.prepare('DELETE FROM leader_cycle_audit WHERE substr(created_at,1,10)<?').bind(cutoff),
+        env.MEDS_DB.prepare('DELETE FROM leader_research_shards WHERE session_date<?').bind(cutoff),
+        env.MEDS_DB.prepare('UPDATE leader_maintenance_state SET last_maintenance_date=? WHERE id=1').bind(date),
+      );
+    }
+    const projected=db.usage.statements+ss.length+executionGuard.length+maintenance.length+4;
     if(projected>40)throw Error('STATEMENT_BUDGET_EXCEEDED: '+projected);
     const completedAt=new Date().toISOString(),wallTimeMs=Math.max(0,Date.now()-now.getTime());
     const metrics={...data.metrics(),wall_time_ms:wallTimeMs,database:{...db.usage,statements:projected,rows_note:'includes metadata from precommit reads; commit row counts returned in invocation result'},statement_limit:40};
     await db.batch([
-      env.MEDS_DB.prepare('INSERT OR REPLACE INTO engine_write_guard VALUES(1,?,?)').bind(owner,Date.now()),...executionGuard,...ss,
+      env.MEDS_DB.prepare('INSERT OR REPLACE INTO engine_write_guard VALUES(1,?,?)').bind(owner,Date.now()),...executionGuard,...ss,...maintenance,
       env.MEDS_DB.prepare(`INSERT INTO engine_cycles(bucket,started_at,completed_at,management_at,state,metrics,version) VALUES(?,?,?,?,'COMPLETE',?,?)`).bind(engineBucket,startedAt,completedAt,managementAt,JSON.stringify(metrics),CAPACITY_ENGINE),
       env.MEDS_DB.prepare('UPDATE service_state SET last_success_at=?,last_result=?,last_error=NULL,lock_owner=NULL,lock_until=NULL WHERE id=1 AND lock_owner=?').bind(completedAt,JSON.stringify(result),owner),
     ]);
