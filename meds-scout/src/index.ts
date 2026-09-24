@@ -2503,6 +2503,9 @@ async function publicStatus(env: Env): Promise<Response> {
         reporting_value_is_live:complete,reporting_warning:complete?null:'dated retained quotes; excluded from execution and drawdown'};
     });
     const cycle=await env.MEDS_DB.prepare('SELECT * FROM engine_cycles ORDER BY started_at DESC LIMIT 1').first<any>();
+    const dailyRisk=env.LEADER_ONLY==='true'
+      ?await env.MEDS_DB.prepare('SELECT * FROM leader_daily_risk WHERE account_id=? ORDER BY session_date DESC LIMIT 1').bind(ACTIVE_ACCOUNT).first<any>()
+      :null;
     const cycleUsage=cycle?JSON.parse(cycle.metrics):null;
     const expectedValuations=env.LEADER_ONLY==='true'?1:ledgers.length+Number((body.leader_hunt as any)?.accounts?.length??0);
     const valuationsPending=detailed.length<expectedValuations;
@@ -2519,7 +2522,9 @@ async function publicStatus(env: Env): Promise<Response> {
     if(env.LEADER_ONLY!=='true'&&scannerEnabled&&paper.paper_error){body.ok=false;body.health='ENGINE_CRITICAL';}
     body.engine={version:env.LEADER_ONLY==='true'?CAPACITY_ENGINE:ENGINE_VERSION,runtime:env.LEADER_ONLY==='true'?'leader_only':'legacy',active_account:env.LEADER_ONLY==='true'?ACTIVE_ACCOUNT:null,normal_paper_executed:env.LEADER_ONLY!=='true',last_management_at:cycle?.management_at??null,latest_cycle:cycle,
       usage:cycleUsage,single_scheduler:'Cloudflare cron',cadence_minutes:plannedCadence(phase(now)),
-      configured_enabled:env.SCOUT_ENABLED==='true',runtime_paused:!!state?.paused,reduce_only:!!state?.reduce_only,risk_mode:state?.paused?'HARD_HALTED':state?.reduce_only?'REDUCE_ONLY':'NORMAL',live_execution:false,active_risk_policy:env.LEADER_ONLY==='true'?ACTIVE_LEADER_RISK_POLICY:null};
+      configured_enabled:env.SCOUT_ENABLED==='true',runtime_paused:!!state?.paused,reduce_only:!!state?.reduce_only,
+      risk_mode:state?.paused?'HARD_HALTED':state?.reduce_only?'REDUCE_ONLY':dailyRisk?.risk_state==='REDUCE_ONLY'?'REDUCE_ONLY':'NORMAL',
+      daily_risk:dailyRisk,live_execution:false,active_risk_policy:env.LEADER_ONLY==='true'?ACTIVE_LEADER_RISK_POLICY:null};
     body.valuations=detailed;
     body.quote_health=env.LEADER_ONLY==='true'?detailed.flatMap(v=>v.marks.filter((m:any)=>m.state!=='FRESH')):quoteIssues.results??[];
     body.decisions_latest=(rejected.results??[]).map(r=>({...r,reasons:JSON.parse(r.reasons)}));
