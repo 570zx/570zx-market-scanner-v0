@@ -5,7 +5,7 @@ import {markState,LEASE_MS} from './autonomous.ts';
 import {cycleBucket,sessionDate,moverMiss} from './research-audit.ts';
 
 export const CAPACITY_ENGINE='meds-v8.1-leader250-capacity';
-export const CAPACITY_VERSION='leader-hunt-v8.4-rotation-hardening';
+export const CAPACITY_VERSION='leader-hunt-v8.5-risk-governor';
 export const ACTIVE_ACCOUNT='H250';
 export const ACTIVE_LEADER_RISK_POLICY=Object.freeze({
   starting_equity:250,
@@ -24,6 +24,11 @@ export const ACTIVE_LEADER_RISK_POLICY=Object.freeze({
   rotation_account_cooldown_minutes:30,
   rotation_min_victim_age_minutes:15,
   rotation_min_score_improvement:15,
+  // Paper-governor defaults. These are not authorization for future live trading.
+  max_daily_realized_loss_dollars:12.5,
+  max_session_drawdown_pct:0.08,
+  max_entries_per_session:12,
+  max_turnover_per_session_dollars:120,
   live_execution:false,
 });
 export const CAPACITY_SCHEMA=[
@@ -40,6 +45,7 @@ export const CAPACITY_SCHEMA=[
   `CREATE TABLE IF NOT EXISTS leader_control_state(id INTEGER PRIMARY KEY CHECK(id=1),reduce_only INTEGER NOT NULL DEFAULT 0)`,
   `INSERT OR IGNORE INTO leader_control_state(id,reduce_only) VALUES(1,0)`,
   `CREATE TABLE IF NOT EXISTS leader_daily_risk(session_date TEXT NOT NULL,account_id TEXT NOT NULL,rotations INTEGER NOT NULL DEFAULT 0,last_rotation_at TEXT,PRIMARY KEY(session_date,account_id))`,
+  `CREATE TABLE IF NOT EXISTS leader_session_risk(session_date TEXT NOT NULL,account_id TEXT NOT NULL,start_equity REAL,start_realized_pnl REAL NOT NULL,realized_pnl_today REAL NOT NULL DEFAULT 0,entries INTEGER NOT NULL DEFAULT 0,turnover REAL NOT NULL DEFAULT 0,max_drawdown_pct REAL NOT NULL DEFAULT 0,state TEXT NOT NULL DEFAULT 'NORMAL',breach_reason TEXT,updated_at TEXT NOT NULL,PRIMARY KEY(session_date,account_id))`,
   `CREATE TABLE IF NOT EXISTS leader_execution_guard(id INTEGER PRIMARY KEY CHECK(id=1),deadline_ms REAL NOT NULL,checked_at_ms REAL NOT NULL)`,
   `CREATE TRIGGER IF NOT EXISTS leader_execution_deadline_v84 BEFORE INSERT ON leader_execution_guard WHEN NEW.checked_at_ms > NEW.deadline_ms BEGIN SELECT RAISE(ABORT,'execution quote expired at commit'); END`,
   `CREATE INDEX IF NOT EXISTS idx_hunt_account_event_position ON hunt_account_events(account_id,position_id,event_type)`,
@@ -50,7 +56,7 @@ export const CAPACITY_SCHEMA=[
   `DROP INDEX IF EXISTS idx_hunt_option_event_time`,
   `DROP TRIGGER IF EXISTS hunt_account_option_events_once_v8`,
   `CREATE TRIGGER hunt_account_option_events_once_v8 BEFORE INSERT ON hunt_account_option_events WHEN EXISTS(SELECT 1 FROM hunt_account_option_events WHERE account_id=NEW.account_id AND position_id=NEW.position_id AND event_type=NEW.event_type) BEGIN SELECT RAISE(ABORT,'Leader lifecycle event already applied'); END`,
-  `UPDATE paper_meta SET version=12 WHERE id=1`,
+  `UPDATE paper_meta SET version=13 WHERE id=1`,
 ];
 export async function ensureCapacitySchema(db:D1Database){await db.batch(CAPACITY_SCHEMA.map(s=>db.prepare(s)));}
 export type Row=Record<string,any>;
@@ -83,10 +89,17 @@ export class LeaderPlan {
   touched:Row[]=[];cooldown:Set<string>;priorEvents:Row[];priorIntents:Row[];now:Date;phase:string;strengthBySymbol:Map<string,number>;
   cashCredit=0;cashDebit=0;pnlDelta=0;executionDeadline=Infinity;rotations=0;
   rotationCountToday=0;lastRotationAt:string|null=null;rotationRiskDirty=false;
+  sessionStartEquity:number|null=null;sessionStartRealized=0;dailyRealizedPnl=0;sessionEntries=0;sessionTurnover=0;sessionDrawdownPct=0;
+  riskState='NORMAL';riskBreachReason:string|null=null;riskDirty=true;
   private equityLiquidityRemaining=new Map<string,number>();
   constructor(account:Row,positions:Row[],events:Row[],intents:Row[],cooldown:string[],now:Date,phase:string,strengthBySymbol:Map<string,number>=new Map()){
     this.account={...account};this.positions=positions.map(p=>({...p}));this.priorEvents=events;this.priorIntents=intents;this.cooldown=new Set(cooldown);this.now=now;this.phase=phase;this.strengthBySymbol=strengthBySymbol;
     this.rotationCountToday=Number(account.rotations_today??0);this.lastRotationAt=account.last_rotation_at??null;
+    this.sessionStartEquity=account.risk_start_equity==null?null:Number(account.risk_start_equity);
+    this.sessionStartRealized=account.risk_start_realized_pnl==null?Number(account.realized_pnl??0):Number(account.risk_start_realized_pnl);
+    this.dailyRealizedPnl=account.risk_realized_pnl_today==null?Number(account.realized_pnl??0)-this.sessionStartRealized:Number(account.risk_realized_pnl_today);
+    this.sessionEntries=Number(account.risk_entries??0);this.sessionTurnover=Number(account.risk_turnover??0);
+    this.sessionDrawdownPct=Number(account.risk_max_drawdown_pct??0);this.riskState=String(account.risk_state??'NORMAL');this.riskBreachReason=account.risk_breach_reason??null;
   }
   fresh(q:any){return validQuote(q,Date.now());}
   usedQuote(q:any){this.executionDeadline=Math.min(this.executionDeadline,Date.parse(q.t)+90_000);}
@@ -100,12 +113,33 @@ export class LeaderPlan {
   }
   get cash(){return Number(this.account.cash)+this.cashCredit-this.cashDebit;}
   get open(){return [...this.positions,...this.newPositions].filter(p=>p.status==='open');}
+  setRiskValuation(liveEquity:number|null){
+    if(liveEquity==null||!Number.isFinite(liveEquity))return;
+    if(this.sessionStartEquity==null)this.sessionStartEquity=liveEquity;
+    if(this.sessionStartEquity>0)this.sessionDrawdownPct=Math.max(this.sessionDrawdownPct,Math.max(0,1-liveEquity/this.sessionStartEquity));
+    this.refreshRiskState();
+  }
+  refreshRiskState(){
+    let reason:string|null=null;
+    if(this.dailyRealizedPnl<=-ACTIVE_LEADER_RISK_POLICY.max_daily_realized_loss_dollars)reason='DAILY_REALIZED_LOSS_LIMIT';
+    else if(this.sessionDrawdownPct>=ACTIVE_LEADER_RISK_POLICY.max_session_drawdown_pct)reason='SESSION_DRAWDOWN_LIMIT';
+    else if(this.sessionEntries>=ACTIVE_LEADER_RISK_POLICY.max_entries_per_session)reason='SESSION_ENTRY_LIMIT';
+    else if(this.sessionTurnover>=ACTIVE_LEADER_RISK_POLICY.max_turnover_per_session_dollars)reason='SESSION_TURNOVER_LIMIT';
+    if(reason){this.riskState='REDUCE_ONLY';this.riskBreachReason=this.riskBreachReason??reason;}
+  }
+  projectedEntryRisk(cost:number){
+    this.refreshRiskState();
+    if(this.riskState==='REDUCE_ONLY')return this.riskBreachReason??'SESSION_RISK_LIMIT';
+    if(this.sessionEntries+1>ACTIVE_LEADER_RISK_POLICY.max_entries_per_session)return 'SESSION_ENTRY_LIMIT';
+    if(this.sessionTurnover+cost>ACTIVE_LEADER_RISK_POLICY.max_turnover_per_session_dollars)return 'SESSION_TURNOVER_LIMIT';
+    return null;
+  }
   reason(symbol:string){if(this.priorIntents.length||this.intents.length)return 'PENDING_EXIT_INTENT';if(this.open.some(p=>(p.underlying??p.symbol)===symbol))return 'DUPLICATE_POSITION';if(this.cooldown.has(symbol))return 'REENTRY_COOLDOWN';if(this.open.length>=32)return 'OPEN_POSITION_CAP';if(this.cash-30<=.01)return 'CAPITAL_RESERVE_BLOCK';return null;}
   decision(c:Row,lane:string,stage:string,reasons:string[],features:Row={},entered=false){this.decisions.push({bucket:cycleBucket(this.now),created_at:this.now.toISOString(),symbol:c.symbol,lane,account_id:ACTIVE_ACCOUNT,stage,outcome:entered?'ENTERED':reasons.length?'REJECTED':'ELIGIBLE',reasons,features:{...features,price:c.price,day_change_pct:c.dayChangePct,cash:this.cash},version:CAPACITY_VERSION});}
   event(p:Row,type:string,fill:number,qty:number,pnl:number,details:Row){this.events.push({kind:p.kind,account_id:ACTIVE_ACCOUNT,position_id:p.id,underlying:p.underlying,symbol:p.symbol,created_at:this.now.toISOString(),event_type:type,price:fill,quantity:qty,realized_pnl:pnl,details:JSON.stringify(details),version:p.version});}
   sell(p:Row,qty:number,fill:number,type:string|null,details:Row={}){
     const m=p.kind==='option'?100:1,pnl=(fill-p.entry_price)*qty*m;
-    this.cashCredit+=fill*qty*m;this.pnlDelta+=pnl;p.remaining_qty-=qty;p.locked_realized_pnl+=pnl;
+    const proceeds=fill*qty*m;this.cashCredit+=proceeds;this.pnlDelta+=pnl;this.dailyRealizedPnl+=pnl;this.sessionTurnover+=proceeds;p.remaining_qty-=qty;p.locked_realized_pnl+=pnl;this.refreshRiskState();
     if(type)this.event(p,type,fill,qty,pnl,details);return pnl;
   }
   close(p:Row,fill:number,reason:string,runnerQty=0){
@@ -196,6 +230,10 @@ export class LeaderPlan {
     if(replacementQty*replacementFill(replacementQty)>budget)replacementQty=budget/replacementFill(replacementQty);
     const replacementPx=replacementFill(replacementQty),replacementCost=replacementQty*replacementPx;
     if(!(replacementCost>.01)||!(replacementQty>0))return null;
+    const projectedRotationTurnover=victimFill*victimQty+replacementCost;
+    if(this.sessionEntries+1>ACTIVE_LEADER_RISK_POLICY.max_entries_per_session)return null;
+    if(this.sessionTurnover+projectedRotationTurnover>ACTIVE_LEADER_RISK_POLICY.max_turnover_per_session_dollars)return null;
+    if(this.riskState==='REDUCE_ONLY')return null;
     const replacementExit=candidateQuote.bp*(1-Math.min(.01,Math.max(.0002,.0002+replacementQty/Math.max(1,currentMinuteVolume)*.025)));
     if(1-replacementExit/replacementPx>ACTIVE_LEADER_RISK_POLICY.equity_stop_loss_pct)return null;
     // Both legs are fully preflighted before mutating the plan. In shadow mode
@@ -240,13 +278,15 @@ export class LeaderPlan {
       if(qty*fill(qty)>budget)qty=budget/fill(qty);
       const px=fill(qty),cost=qty*px;
       if(!(cost>.01)||!(qty>0)){this.decision(c,lane,'ENTRY',[liquidity?'POSITION_SIZE_ZERO':'MINUTE_LIQUIDITY_LIMIT'],features(c));continue;}
+      const sessionRisk=this.projectedEntryRisk(cost);
+      if(sessionRisk){this.decision(c,lane,'ENTRY_RISK_GATE',[sessionRisk],features(c));continue;}
       const f={...features(c),asset_type:'equity',max_hold_minutes:720,quantity:qty,target_notional:budget,actual_notional:cost,minute_participation:qty/liquidity,fractional_paper:true,entry_slippage_pct:px/q.ap-1,rotated_out:null};
       this.addPosition(c,'equity',c.symbol,qty,px,cost,f);this.usedQuote(q);signals++;
       this.decision(c,lane,'ENTRY',[],f,true);
     }
   }
   addPosition(c:Row,kind:string,symbol:string,qty:number,px:number,cost:number,features:Row){
-    this.cashDebit+=cost;
+    this.cashDebit+=cost;this.sessionEntries++;this.sessionTurnover+=cost;this.refreshRiskState();
     this.newPositions.push({kind,account_id:ACTIVE_ACCOUNT,symbol,...(kind==='option'?{underlying:c.symbol,current_mark:px,current_mark_at:this.now.toISOString(),data_quality:'indicative'}:{}),
       opened_at:this.now.toISOString(),entry_price:px,quantity:qty,entry_notional:cost,stop_price:px*(kind==='option'?.65:.95),target_price:px*3,
       highest_price:px,lowest_price:px,entry_score:c.score,entry_day_change_pct:c.dayChangePct,opened_phase:this.phase,features:JSON.stringify(features),
@@ -290,6 +330,13 @@ const eventColumns='account_id,position_id,symbol,created_at,event_type,price,qu
 export function accountingStatements(db:D1Database,plan:LeaderPlan){
   const ss:D1PreparedStatement[]=[];
   ss.push(db.prepare('INSERT OR REPLACE INTO hunt_risk_guards VALUES(?,?)').bind(ACTIVE_ACCOUNT,plan.account.revision));
+  plan.refreshRiskState();
+  ss.push(db.prepare(`INSERT INTO leader_session_risk(session_date,account_id,start_equity,start_realized_pnl,realized_pnl_today,entries,turnover,max_drawdown_pct,state,breach_reason,updated_at)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(session_date,account_id) DO UPDATE SET start_equity=COALESCE(leader_session_risk.start_equity,excluded.start_equity),
+    realized_pnl_today=excluded.realized_pnl_today,entries=excluded.entries,turnover=excluded.turnover,max_drawdown_pct=MAX(leader_session_risk.max_drawdown_pct,excluded.max_drawdown_pct),
+    state=excluded.state,breach_reason=COALESCE(leader_session_risk.breach_reason,excluded.breach_reason),updated_at=excluded.updated_at`)
+    .bind(sessionDate(plan.now),ACTIVE_ACCOUNT,plan.sessionStartEquity,plan.sessionStartRealized,plan.dailyRealizedPnl,plan.sessionEntries,plan.sessionTurnover,plan.sessionDrawdownPct,plan.riskState,plan.riskBreachReason,plan.now.toISOString()));
+  if(plan.riskState==='REDUCE_ONLY')ss.push(db.prepare('UPDATE leader_control_state SET reduce_only=1 WHERE id=1'));
   if(plan.rotationRiskDirty)ss.push(db.prepare(`INSERT INTO leader_daily_risk(session_date,account_id,rotations,last_rotation_at) VALUES(?,?,?,?) ON CONFLICT(session_date,account_id) DO UPDATE SET rotations=excluded.rotations,last_rotation_at=excluded.last_rotation_at`).bind(sessionDate(plan.now),ACTIVE_ACCOUNT,plan.rotationCountToday,plan.lastRotationAt));
   // Credit exits before inserting entries; reserve and cap triggers see the post-exit account.
   if(plan.cashCredit)ss.push(db.prepare('UPDATE hunt_accounts SET cash=cash+?,realized_pnl=realized_pnl+? WHERE account_id=?').bind(plan.cashCredit,plan.pnlDelta,ACTIVE_ACCOUNT));
