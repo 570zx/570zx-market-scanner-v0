@@ -156,6 +156,9 @@ export const BROKER_SCHEMA=[
   `CREATE TABLE IF NOT EXISTS broker_reconciliations(
     id INTEGER PRIMARY KEY AUTOINCREMENT,created_at TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN('MATCH','MISMATCH','UNAVAILABLE')),
     cash_match INTEGER NOT NULL,positions_match INTEGER NOT NULL,orders_match INTEGER NOT NULL,mismatches TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS broker_observation_cycles(
+    created_at TEXT PRIMARY KEY,mode TEXT NOT NULL,phase TEXT NOT NULL,trading_day INTEGER NOT NULL,
+    reconciliation_state TEXT NOT NULL,positions INTEGER NOT NULL,open_orders INTEGER NOT NULL,fills INTEGER NOT NULL,assets_checked INTEGER NOT NULL)`,
 ];
 
 export async function ensureBrokerSchema(db:D1Database){await db.batch(BROKER_SCHEMA.map(sql=>db.prepare(sql)));}
@@ -258,6 +261,8 @@ export async function observeAndReconcile(db:D1Database,broker:BrokerAdapter,exp
   const [account,clock,positions,orders,fills]=await Promise.all([
     broker.getAccount(),broker.getClock(),broker.listPositions(),broker.listOpenOrders(),broker.listFills(expected.since),
   ]);
+  const symbols=[...new Set([...positions.map(p=>p.symbol),...orders.map(o=>o.symbol)])];
+  const assets=await Promise.all(symbols.map(symbol=>broker.getAsset(symbol)));
   const stamp=now.toISOString();
   const reconciliation=reconcileBrokerState(expected,{cash:account.cash,positions,openOrders:orders});
   const statements:D1PreparedStatement[]=[
@@ -270,10 +275,18 @@ export async function observeAndReconcile(db:D1Database,broker:BrokerAdapter,exp
     db.prepare(`INSERT OR REPLACE INTO broker_position_snapshots(snapshot_at,symbol,asset_type,quantity,avg_entry_price,market_value,raw_json) VALUES(?,?,?,?,?,?,?)`)
       .bind(stamp,p.symbol,p.assetType,canonicalDecimal(p.quantity),canonicalDecimal(p.avgEntryPrice),p.marketValue==null?null:canonicalDecimal(p.marketValue),JSON.stringify(p))
   );
+  for(const a of assets) statements.push(
+    db.prepare(`INSERT INTO broker_asset_cache(symbol,checked_at,asset_type,status,tradable,fractionable,extended_hours,overnight,halted,raw_json)
+      VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(symbol) DO UPDATE SET checked_at=excluded.checked_at,asset_type=excluded.asset_type,status=excluded.status,
+      tradable=excluded.tradable,fractionable=excluded.fractionable,extended_hours=excluded.extended_hours,overnight=excluded.overnight,halted=excluded.halted,raw_json=excluded.raw_json`)
+      .bind(a.symbol,stamp,a.assetType,a.status,a.tradable?1:0,a.fractionable?1:0,a.extendedHours?1:0,a.overnight?1:0,a.halted?1:0,JSON.stringify(a))
+  );
+  statements.push(db.prepare(`INSERT INTO broker_observation_cycles(created_at,mode,phase,trading_day,reconciliation_state,positions,open_orders,fills,assets_checked)
+    VALUES(?,?,?,?,?,?,?,?,?)`).bind(stamp,broker.mode,clock.phase,clock.tradingDay?1:0,reconciliation.state,positions.length,orders.length,fills.length,assets.length));
   await db.batch(statements);
   for(const o of orders) await recordBrokerOrder(db,o);
   for(const fill of fills) await recordBrokerFill(db,fill);
-  return {mode:broker.mode,clock,reconciliation,observed:{positions:positions.length,openOrders:orders.length,fills:fills.length},asOf:stamp};
+  return {mode:broker.mode,clock,reconciliation,observed:{positions:positions.length,openOrders:orders.length,fills:fills.length,assetsChecked:assets.length},asOf:stamp};
 }
 
 export type BrokerReadinessInput={
