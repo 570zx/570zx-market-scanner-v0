@@ -28,3 +28,5 @@ CREATE TABLE IF NOT EXISTS leader_control_state(
   reduce_only INTEGER NOT NULL DEFAULT 0
 );
 INSERT OR IGNORE INTO leader_control_state(id,reduce_only) VALUES(1,0);
+
+UPDATE paper_meta SET version=12 WHERE id=1;
