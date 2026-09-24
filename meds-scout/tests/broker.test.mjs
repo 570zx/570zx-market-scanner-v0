@@ -4,7 +4,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {
   BROKER_SCHEMA,DisabledBrokerAdapter,canonicalDecimal,decimalUnits,formatUnits,decimalEqual,
   createOrderIntent,transitionIntent,recordBrokerOrder,recordBrokerFill,filledQuantity,pendingBrokerIntents,
-  deterministicClientOrderId,executionEligibility,reconcileBrokerState,recordReconciliation,
+  deterministicClientOrderId,executionEligibility,reconcileBrokerState,recordReconciliation,observeAndReconcile,brokerReadiness,
 } from '../src/broker.ts';
 
 class D1{
@@ -116,4 +116,51 @@ test('reconciliation evidence is durably recorded for later incident reconstruct
   const row=d.db.prepare('SELECT * FROM broker_reconciliations').get();
   assert.equal(row.state,'MISMATCH');assert.equal(row.cash_match,0);assert.match(row.mismatches,/CASH_MISMATCH/);
   d.db.close();
+});
+
+
+test('read-only observer reconciles and persists broker evidence without any order action',async()=>{
+  const d=await setup();let submits=0,cancels=0;
+  const broker={
+    mode:'OBSERVE',
+    async getAccount(){return {accountId:'acct-observe',cash:'100.00',buyingPower:'100.00',equity:'110.00',status:'ACTIVE',asOf:'2026-09-24T15:00:00Z'};},
+    async getClock(){return {phase:'regular',tradingDay:true,asOf:'2026-09-24T15:00:00Z'};},
+    async getAsset(symbol){return {symbol,assetType:'equity',status:'active',tradable:true,fractionable:true,extendedHours:true,overnight:false,halted:false};},
+    async getExecutionQuote(symbol){return {symbol,bid:'10.00',ask:'10.01',asOf:'2026-09-24T15:00:00Z',authoritative:true};},
+    async listPositions(){return [{symbol:'TEST',assetType:'equity',quantity:'1.25',avgEntryPrice:'10.01',marketValue:'12.50'}];},
+    async listOpenOrders(){return [{brokerOrderId:'bo-open',clientOrderId:'meds-open',symbol:'TEST',side:'BUY',state:'new',quantity:'1',filledQuantity:'0',limitPrice:'10.01',updatedAt:'2026-09-24T15:00:00Z'}];},
+    async listFills(){return [{fillId:'fill-seen',brokerOrderId:'bo-old',clientOrderId:'meds-old',symbol:'TEST',side:'BUY',quantity:'.25',price:'10.00',fee:'0',filledAt:'2026-09-24T14:59:00Z'}];},
+    async getOrderByClientId(){return null;},
+    async submitOrder(){submits++;throw new Error('observer must never submit');},
+    async cancelOrder(){cancels++;throw new Error('observer must never cancel');},
+  };
+  const expected={cash:'100.00',positions:[{symbol:'TEST',assetType:'equity',quantity:'1.25',avgEntryPrice:'10.01'}],openClientOrderIds:['meds-open'],since:'2026-09-24T14:00:00Z'};
+  const result=await observeAndReconcile(d,broker,expected,new Date('2026-09-24T15:01:00Z'));
+  assert.equal(result.reconciliation.state,'MATCH');assert.equal(submits,0);assert.equal(cancels,0);
+  assert.equal(d.db.prepare('SELECT COUNT(*) n FROM broker_account_snapshots').get().n,1);
+  assert.equal(d.db.prepare('SELECT COUNT(*) n FROM broker_position_snapshots').get().n,1);
+  assert.equal(d.db.prepare('SELECT COUNT(*) n FROM broker_orders').get().n,1);
+  assert.equal(d.db.prepare('SELECT COUNT(*) n FROM broker_fills').get().n,1);
+  assert.equal(d.db.prepare('SELECT state FROM broker_reconciliations').get().state,'MATCH');
+  d.db.close();
+});
+
+test('readiness surface remains false until every external and evidence gate passes',()=>{
+  const blocked=brokerReadiness({
+    mode:'DISABLED',liveExecution:false,pendingIntents:0,unknownIntents:0,
+    latestReconciliationState:null,latestReconciliationAt:null,currentVersionTrades:0,currentVersionSessions:0,
+    cpuEvidence:false,branchProtectionEvidence:false,
+  },Date.parse('2026-09-24T15:00:00Z'));
+  assert.equal(blocked.ready_for_live_capital,false);
+  assert.ok(blocked.blockers.includes('BROKER_OBSERVE_CONNECTED'));
+  assert.ok(blocked.blockers.includes('STRATEGY_CLOSED_TRADES'));
+  assert.ok(blocked.blockers.includes('CLOUDFLARE_CPU_EVIDENCE'));
+  const engineered=brokerReadiness({
+    mode:'OBSERVE',liveExecution:false,pendingIntents:0,unknownIntents:0,
+    latestReconciliationState:'MATCH',latestReconciliationAt:'2026-09-24T14:59:00Z',currentVersionTrades:200,currentVersionSessions:60,
+    cpuEvidence:true,branchProtectionEvidence:true,
+  },Date.parse('2026-09-24T15:00:00Z'));
+  assert.equal(engineered.engineering_gate_pass,true);
+  assert.equal(engineered.ready_for_live_capital,false,'engineering readiness must never self-authorize live capital');
+  assert.equal(engineered.live_execution,false);
 });
