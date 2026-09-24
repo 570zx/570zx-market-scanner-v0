@@ -8,10 +8,14 @@ export class MarketDataCycle {
   budgetExhausted=false;
   failures:{endpoint:string;status:number|null;reason:string}[]=[];
   latencyMs=0;
+  peakConcurrent=0;
   private cache=new Map<string,{at:number;promise:Promise<any>}>();
+  private active=0;private waiters:Array<()=>void>=[];
   readonly credentials:Credentials;
-  readonly limit:number;
-  constructor(credentials:Credentials,limit=36){this.credentials=credentials;this.limit=limit;}
+  readonly limit:number;readonly maxConcurrent:number;
+  constructor(credentials:Credentials,limit=36,maxConcurrent=5){this.credentials=credentials;this.limit=limit;this.maxConcurrent=maxConcurrent;}
+  private async acquire(){if(this.active>=this.maxConcurrent)await new Promise<void>(resolve=>this.waiters.push(resolve));this.active++;this.peakConcurrent=Math.max(this.peakConcurrent,this.active);}
+  private release(){this.active--;this.waiters.shift()?.();}
   async json(path:string,ttlMs=15_000):Promise<any>{
     const prior=this.cache.get(path);
     if(prior&&Date.now()-prior.at<ttlMs){this.cacheHits++;return prior.promise;}
@@ -21,7 +25,7 @@ export class MarketDataCycle {
   }
   private async request(path:string){
     if(this.requests>=this.limit){this.budgetExhausted=true;throw new Error('DATA_REQUEST_BUDGET_EXHAUSTED');}
-    this.requests++;
+    this.requests++;await this.acquire();
     const start=Date.now(),endpoint=path.split('?')[0];
     let status:number|null=null;
     try{
@@ -35,9 +39,9 @@ export class MarketDataCycle {
     }catch(error){
       this.failures.push({endpoint,status,reason:error instanceof Error?error.message.slice(0,120):'DATA_PROVIDER_FAILURE'});
       throw error;
-    }finally{this.latencyMs+=Date.now()-start;}
+    }finally{this.latencyMs+=Date.now()-start;this.release();}
   }
-  metrics(){return {requests:this.requests,request_limit:this.limit,budget_exhausted:this.budgetExhausted,cache_hits:this.cacheHits,retries:this.retries,provider_latency_ms:this.latencyMs,failures:this.failures};}
+  metrics(){return {requests:this.requests,request_limit:this.limit,max_concurrent:this.maxConcurrent,peak_concurrent:this.peakConcurrent,budget_exhausted:this.budgetExhausted,cache_hits:this.cacheHits,retries:this.retries,provider_latency_ms:this.latencyMs,failures:this.failures};}
 }
 
 export function mandatoryUniverse(held:string[],discovered:string[],continuity:string[],cap:number){
