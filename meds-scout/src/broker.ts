@@ -15,7 +15,7 @@ const DECIMAL=/^-?(?:0|[1-9]\d*)(?:\.\d{1,8})?$/;
 export function canonicalDecimal(value:string|number|bigint,scale=8):string{
   const raw=typeof value==='string'?value:typeof value==='bigint'?value.toString():String(value);
   if(!DECIMAL.test(raw))throw new Error('INVALID_DECIMAL');
-  const neg=raw.startsWith('-'),unsigned=neg?raw.slice(1):raw,[whole,frac='']=unsigned.split('.');
+  const neg=raw.startsWith('-'),unsigned=neg?raw.slice(1):raw,[wholeRaw,frac='']=unsigned.split('.'),whole=wholeRaw||'0';
   const padded=(frac+'0'.repeat(scale)).slice(0,scale);
   if(frac.length>scale)throw new Error('DECIMAL_SCALE_EXCEEDED');
   const body=scale?BigInt(whole).toString()+'.'+padded:BigInt(whole).toString();
