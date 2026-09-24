@@ -3,7 +3,7 @@ import {validQuote} from './paper-accounting.ts';
 import {runnerReasons,executionReasons,candidateLane,optionDirection} from './leader-policy.ts';
 import {LEASE_MS,plannedCadence} from './autonomous.ts';
 import {cycleBucket,cadenceBucket,sessionDate,moverMiss} from './research-audit.ts';
-import {ACTIVE_ACCOUNT,CAPACITY_ENGINE,CAPACITY_VERSION,CycleDB,LeaderPlan,ingest,accountingStatements,valuation,type Row} from './leader-capacity.ts';
+import {ACTIVE_ACCOUNT,ACTIVE_LEADER_RISK_POLICY,CAPACITY_ENGINE,CAPACITY_VERSION,CycleDB,LeaderPlan,ingest,accountingStatements,valuation,type Row} from './leader-capacity.ts';
 
 type Dependencies={phase:(now?:Date)=>string;active:(now?:Date)=>boolean;feed:(now?:Date)=>string;
   discover:(env:any,recent:string[])=>Promise<any>;snapshots:(env:any,symbols:string[])=>Promise<any>;news:(env:any,symbols:string[])=>Promise<any[]>;
@@ -20,7 +20,7 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
   const state=(await db.all(`SELECT s.*,m.version AS schema_version,(SELECT completed_at FROM engine_cycles WHERE bucket=?) AS completed_at,COALESCE((SELECT reduce_only FROM leader_control_state WHERE id=1),0) AS reduce_only,(SELECT last_maintenance_date FROM leader_maintenance_state WHERE id=1) AS last_maintenance_date FROM service_state s JOIN paper_meta m ON m.id=s.id WHERE s.id=1`,[engineBucket],'state'))[0];
   if(env.SCOUT_ENABLED!=='true'||state?.paused)return {ok:true,skipped:'disabled',version:CAPACITY_ENGINE};
   if(!d.active(now))return {ok:true,skipped:'outside scan window'};
-  if(state?.schema_version!==12)return {ok:false,error:'DEPLOYMENT_MIGRATION_REQUIRED: expected schema 12'};
+  if(state?.schema_version!==13)return {ok:false,error:'DEPLOYMENT_MIGRATION_REQUIRED: expected schema 13'};
   if(state.completed_at)return {ok:true,skipped:'cycle already complete'};
   const owner=crypto.randomUUID();
   const claim=await db.run(`UPDATE service_state SET lock_owner=?,lock_until=?,last_tick_at=?,last_source=?,tick_count=tick_count+1 WHERE id=1 AND paused=0 AND (lock_until IS NULL OR lock_until<=?)`,[owner,now.getTime()+LEASE_MS,now.toISOString(),source,now.getTime()],'lease_claim');
@@ -30,8 +30,15 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
     if(!env.ALPACA_API_KEY||!env.ALPACA_API_SECRET)throw Error('Missing Alpaca secrets');
     // Reads are independent of the number of historical accounts or held symbols.
     // No normal ledger/position/decision query exists in this runtime.
-    const [accounts,equities,options,events,intents,cooldowns,prior,retained,shards]=await Promise.all([
-      db.all(`SELECT a.*,r.revision,c.version AS runtime_config_version,COALESCE(d.rotations,0) AS rotations_today,d.last_rotation_at FROM hunt_accounts a JOIN hunt_revisions r USING(account_id) JOIN leader_runtime_config c USING(account_id) LEFT JOIN leader_daily_risk d ON d.account_id=a.account_id AND d.session_date=? WHERE c.id=1 AND a.account_id=? AND c.version=?`,[date,ACTIVE_ACCOUNT,CAPACITY_VERSION],'active_account'),
+    const [accounts,equities,options,events,intents,cooldowns,prior,retained,shards,recentEntries]=await Promise.all([
+      db.all(`SELECT a.*,r.revision,c.version AS runtime_config_version,
+        COALESCE(d.rotations,0) AS rotations_today,d.last_rotation_at,d.session_start_equity,d.session_start_realized_pnl,
+        COALESCE(d.realized_pnl,0) AS risk_realized_pnl,COALESCE(d.max_drawdown_pct,0) AS risk_max_drawdown_pct,
+        COALESCE(d.entries,0) AS risk_entries,COALESCE(d.entry_notional,0) AS risk_entry_notional,
+        d.risk_state AS risk_state,d.breach_reason AS risk_breach_reason
+        FROM hunt_accounts a JOIN hunt_revisions r USING(account_id) JOIN leader_runtime_config c USING(account_id)
+        LEFT JOIN leader_daily_risk d ON d.account_id=a.account_id AND d.session_date=?
+        WHERE c.id=1 AND a.account_id=? AND c.version=?`,[date,ACTIVE_ACCOUNT,CAPACITY_VERSION],'active_account'),
       db.all(`SELECT *, 'equity' AS kind FROM hunt_account_positions WHERE account_id=? AND status='open' ORDER BY id`,[ACTIVE_ACCOUNT],'equity_inventory'),
       db.all(`SELECT *, 'option' AS kind FROM hunt_account_option_positions WHERE account_id=? AND status='open' ORDER BY id`,[ACTIVE_ACCOUNT],'option_inventory'),
       db.all(`SELECT 'equity' AS kind,position_id,event_type FROM hunt_account_events WHERE account_id=? AND position_id IN (SELECT id FROM hunt_account_positions WHERE account_id=? AND status='open') UNION ALL SELECT 'option',position_id,event_type FROM hunt_account_option_events WHERE account_id=? AND position_id IN (SELECT id FROM hunt_account_option_positions WHERE account_id=? AND status='open')`,[ACTIVE_ACCOUNT,ACTIVE_ACCOUNT,ACTIVE_ACCOUNT,ACTIVE_ACCOUNT],'lifecycle'),
@@ -40,6 +47,7 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
       db.all(`SELECT * FROM symbol_state WHERE last_seen_at>=?`,[new Date(now.getTime()-12*3600000).toISOString()],'symbol_state'),
       db.all(`SELECT * FROM quote_cache WHERE (asset='equity' AND symbol IN (SELECT symbol FROM hunt_account_positions WHERE account_id=? AND status='open')) OR (asset='option' AND symbol IN (SELECT symbol FROM hunt_account_option_positions WHERE account_id=? AND status='open'))`,[ACTIVE_ACCOUNT,ACTIVE_ACCOUNT],'retained_marks'),
       db.all(`SELECT shard,data FROM leader_research_shards WHERE session_date=? AND version=?`,[date,CAPACITY_VERSION],'research_state'),
+      db.all(`SELECT opened_at,entry_notional FROM hunt_account_positions WHERE account_id=? AND opened_at>=? UNION ALL SELECT opened_at,entry_notional FROM hunt_account_option_positions WHERE account_id=? AND opened_at>=?`,[ACTIVE_ACCOUNT,new Date(now.getTime()-36*3600000).toISOString(),ACTIVE_ACCOUNT,new Date(now.getTime()-36*3600000).toISOString()],'daily_entry_inventory'),
     ]);
     if(accounts.length!==1||accounts[0].starting_equity!==250)throw Error('ACTIVE_ACCOUNT_CONFIGURATION_INVALID_OR_VERSION_MISMATCH');
     if(equities.length+options.length>32)throw Error('ACTIVE_ACCOUNT_POSITION_CAP_INVALID');
@@ -95,19 +103,54 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
     const features=(c:any)=>d.features(c,marketPhase),strengthBySymbol=new Map(prior.map(p=>[p.symbol,Number(p.score??0)])),plan=new LeaderPlan(accounts[0],[...equities,...options],events,intents,cooldowns.map(c=>c.symbol),now,marketPhase,strengthBySymbol);
     plan.manage(stocks,optionMarks);const managementAt=new Date().toISOString();
     const preEntryValuation=valuation(plan,stocks,optionMarks,retained);
-    const reduceOnly=!!state.reduce_only||plan.intents.length>0||intents.length>0;
+    const account=accounts[0],sessionRows=recentEntries.filter(r=>sessionDate(new Date(r.opened_at))===date);
+    const observedEntries=Math.max(Number(account.risk_entries??0),sessionRows.length);
+    const observedEntryNotional=Math.max(Number(account.risk_entry_notional??0),sessionRows.reduce((n,r)=>n+Number(r.entry_notional??0),0));
+    const bootstrapMidSession=account.session_start_realized_pnl==null&&observedEntries>0;
+    const sessionStartRealized=Number(account.session_start_realized_pnl??account.realized_pnl);
+    const sessionStartEquity=Number.isFinite(Number(account.session_start_equity))&&Number(account.session_start_equity)>0
+      ?Number(account.session_start_equity)
+      :preEntryValuation.complete?Number(preEntryValuation.live_equity):null;
+    const realizedToday=(Number(account.realized_pnl)+plan.pnlDelta)-sessionStartRealized;
+    const observedDrawdown=sessionStartEquity&&preEntryValuation.complete
+      ?Math.max(Number(account.risk_max_drawdown_pct??0),Math.max(0,1-Number(preEntryValuation.live_equity)/sessionStartEquity))
+      :Number(account.risk_max_drawdown_pct??0);
+    const riskReasons:string[]=[];
+    if(bootstrapMidSession)riskReasons.push('RISK_GOVERNOR_BOOTSTRAP_REDUCE_ONLY');
+    if(realizedToday<=-ACTIVE_LEADER_RISK_POLICY.starting_equity*ACTIVE_LEADER_RISK_POLICY.max_session_realized_loss_pct)riskReasons.push('DAILY_REALIZED_LOSS_LIMIT');
+    if(observedDrawdown>=ACTIVE_LEADER_RISK_POLICY.max_session_drawdown_pct)riskReasons.push('DAILY_DRAWDOWN_LIMIT');
+    if(observedEntries>=ACTIVE_LEADER_RISK_POLICY.max_entries_per_session)riskReasons.push('DAILY_ENTRY_LIMIT');
+    if(observedEntryNotional>=ACTIVE_LEADER_RISK_POLICY.starting_equity*ACTIVE_LEADER_RISK_POLICY.max_entry_notional_multiple_per_session)riskReasons.push('DAILY_ENTRY_NOTIONAL_LIMIT');
+    const reduceOnly=!!state.reduce_only||plan.intents.length>0||intents.length>0||riskReasons.length>0;
     if(preEntryValuation.complete&&!reduceOnly){
       plan.enterEquities(selected,stocks,features);
       await plan.enterOptions(selected,stocks,optionMarks,(c,dir)=>d.chain(runEnv,c,dir),features);
     }else{
-      const gateReason=state.reduce_only?'MANUAL_REDUCE_ONLY':reduceOnly?'PENDING_EXIT_INTENT':'PORTFOLIO_VALUATION_INCOMPLETE';
+      const gateReasons=state.reduce_only?['MANUAL_REDUCE_ONLY']:(plan.intents.length>0||intents.length>0)?['PENDING_EXIT_INTENT']:!preEntryValuation.complete?['PORTFOLIO_VALUATION_INCOMPLETE']:riskReasons;
       for(const c of selected){
         if(!runnerReasons(c as any).length&&c.executionFresh===true)
-          plan.decision(c,candidateLane(c as any),'ENTRY_RISK_GATE',[gateReason],features(c));
+          plan.decision(c,candidateLane(c as any),'ENTRY_RISK_GATE',gateReasons,{...features(c),risk_governor:{realized_today:realizedToday,max_drawdown_pct:observedDrawdown,entries:observedEntries,entry_notional:observedEntryNotional}});
       }
     }
     if(Date.now()>plan.executionDeadline)throw Error('EXECUTION_QUOTES_EXPIRED_BEFORE_COMMIT');
     const ss=accountingStatements(env.MEDS_DB,plan),stamp=now.toISOString(),selectedSet=new Set(selected.map(c=>c.symbol)),rowMap=new Map(rows.map(c=>[c.symbol,c]));
+    const finalEntries=observedEntries+plan.newPositions.length,finalEntryNotional=observedEntryNotional+plan.newPositions.reduce((n,p)=>n+Number(p.entry_notional??0),0);
+    const finalRealized=(Number(account.realized_pnl)+plan.pnlDelta)-sessionStartRealized;
+    const finalValuation=valuation(plan,stocks,optionMarks,retained);
+    const finalDrawdown=sessionStartEquity&&finalValuation.complete?Math.max(observedDrawdown,Math.max(0,1-Number(finalValuation.live_equity)/sessionStartEquity)):observedDrawdown;
+    const persistedRiskReasons:string[]=[];
+    if(bootstrapMidSession)persistedRiskReasons.push('RISK_GOVERNOR_BOOTSTRAP_REDUCE_ONLY');
+    if(finalRealized<=-ACTIVE_LEADER_RISK_POLICY.starting_equity*ACTIVE_LEADER_RISK_POLICY.max_session_realized_loss_pct)persistedRiskReasons.push('DAILY_REALIZED_LOSS_LIMIT');
+    if(finalDrawdown>=ACTIVE_LEADER_RISK_POLICY.max_session_drawdown_pct)persistedRiskReasons.push('DAILY_DRAWDOWN_LIMIT');
+    if(finalEntries>=ACTIVE_LEADER_RISK_POLICY.max_entries_per_session)persistedRiskReasons.push('DAILY_ENTRY_LIMIT');
+    if(finalEntryNotional>=ACTIVE_LEADER_RISK_POLICY.starting_equity*ACTIVE_LEADER_RISK_POLICY.max_entry_notional_multiple_per_session)persistedRiskReasons.push('DAILY_ENTRY_NOTIONAL_LIMIT');
+    ss.push(env.MEDS_DB.prepare(`INSERT INTO leader_daily_risk(session_date,account_id,rotations,last_rotation_at,session_start_equity,session_start_realized_pnl,realized_pnl,max_drawdown_pct,entries,entry_notional,risk_state,breach_reason,updated_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(session_date,account_id) DO UPDATE SET
+      rotations=excluded.rotations,last_rotation_at=excluded.last_rotation_at,session_start_equity=COALESCE(leader_daily_risk.session_start_equity,excluded.session_start_equity),
+      session_start_realized_pnl=COALESCE(leader_daily_risk.session_start_realized_pnl,excluded.session_start_realized_pnl),realized_pnl=excluded.realized_pnl,
+      max_drawdown_pct=MAX(leader_daily_risk.max_drawdown_pct,excluded.max_drawdown_pct),entries=MAX(leader_daily_risk.entries,excluded.entries),
+      entry_notional=MAX(leader_daily_risk.entry_notional,excluded.entry_notional),risk_state=excluded.risk_state,breach_reason=excluded.breach_reason,updated_at=excluded.updated_at`)
+      .bind(date,ACTIVE_ACCOUNT,plan.rotationCountToday,plan.lastRotationAt,sessionStartEquity,sessionStartRealized,finalRealized,finalDrawdown,finalEntries,finalEntryNotional,persistedRiskReasons.length?'REDUCE_ONLY':'NORMAL',persistedRiskReasons.join(',')||null,stamp));
     const shardMap=new Map<number,Row>(shards.map(s=>[s.shard,JSON.parse(s.data)])),changed=new Set<number>();
     const research:Row[]=[];
     for(const symbol of new Set([...symbols,...discovery.sourceBySymbol.keys()])){

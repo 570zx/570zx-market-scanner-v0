@@ -277,6 +277,38 @@ test('real D1 metadata: maximum mixed full cycle',{skip:process.env.MEDS_REAL_D1
   },'2026-09-18T15:00:00Z');}}finally{await mf.dispose();}
 });
 
+test('account risk governor blocks new risk on daily loss drawdown entry and turnover limits',()=>clocked(async()=>{
+  const scenarios=[
+    {name:'loss',account:{cash:239,current_equity:239,realized_pnl:-11},risk:{session_start_equity:250,session_start_realized_pnl:0,entries:0,entry_notional:0},reason:'DAILY_REALIZED_LOSS_LIMIT'},
+    {name:'drawdown',account:{cash:230,current_equity:230,realized_pnl:0},risk:{session_start_equity:250,session_start_realized_pnl:0,entries:0,entry_notional:0},reason:'DAILY_DRAWDOWN_LIMIT'},
+    {name:'entries',account:{cash:250,current_equity:250,realized_pnl:0},risk:{session_start_equity:250,session_start_realized_pnl:0,entries:20,entry_notional:100},reason:'DAILY_ENTRY_LIMIT'},
+    {name:'turnover',account:{cash:250,current_equity:250,realized_pnl:0},risk:{session_start_equity:250,session_start_realized_pnl:0,entries:5,entry_notional:205},reason:'DAILY_ENTRY_NOTIONAL_LIMIT'},
+  ];
+  for(const x of scenarios){
+    const {env,db}=await setup();provider();
+    db.prepare("UPDATE hunt_accounts SET cash=?,current_equity=?,realized_pnl=? WHERE account_id='H250'").run(x.account.cash,x.account.current_equity,x.account.realized_pnl);
+    db.prepare(`INSERT INTO leader_daily_risk(session_date,account_id,rotations,last_rotation_at,session_start_equity,session_start_realized_pnl,realized_pnl,max_drawdown_pct,entries,entry_notional,risk_state,breach_reason,updated_at)
+      VALUES('2026-09-18','H250',0,NULL,?,?,0,0,?,?,'NORMAL',NULL,?)`)
+      .run(x.risk.session_start_equity,x.risk.session_start_realized_pnl,x.risk.entries,x.risk.entry_notional,new Date().toISOString());
+    const r=await runTick(env,'risk-'+x.name);assert.equal(r.ok,true,JSON.stringify(r));assert.equal(r.hunt.account_entries,0,x.name);
+    const audit=JSON.parse(db.prepare('SELECT payload FROM leader_cycle_audit ORDER BY bucket DESC LIMIT 1').get().payload);
+    assert.ok(audit.decisions.some(d=>d.stage==='ENTRY_RISK_GATE'&&d.reasons.includes(x.reason)),x.name);
+    const risk=db.prepare("SELECT * FROM leader_daily_risk WHERE session_date='2026-09-18' AND account_id='H250'").get();
+    assert.equal(risk.risk_state,'REDUCE_ONLY',x.name);assert.match(risk.breach_reason,new RegExp(x.reason),x.name);
+    db.close();
+  }
+},'2026-09-18T15:00:00Z'));
+
+test('v8.5 mid-session bootstrap is reduce-only until a clean session baseline exists',()=>clocked(async()=>{
+  const {env,db}=await setup();seed(db,1,'equity',4);provider({price:4});
+  const r=await runTick(env,'risk-bootstrap');assert.equal(r.ok,true,JSON.stringify(r));assert.equal(r.hunt.account_entries,0);
+  const audit=JSON.parse(db.prepare('SELECT payload FROM leader_cycle_audit ORDER BY bucket DESC LIMIT 1').get().payload);
+  assert.ok(audit.decisions.some(d=>d.stage==='ENTRY_RISK_GATE'&&d.reasons.includes('RISK_GOVERNOR_BOOTSTRAP_REDUCE_ONLY')));
+  const risk=db.prepare("SELECT * FROM leader_daily_risk WHERE session_date='2026-09-18' AND account_id='H250'").get();
+  assert.equal(risk.risk_state,'REDUCE_ONLY');assert.match(risk.breach_reason,/RISK_GOVERNOR_BOOTSTRAP_REDUCE_ONLY/);
+  db.close();
+},'2026-09-18T15:00:00Z'));
+
 test('elite continuation runner can rotate one weak holding when only reserve cash remains',()=>clocked(async()=>{
   const {env,db}=await setup();
   const account=db.prepare("SELECT a.*,r.revision FROM hunt_accounts a JOIN hunt_revisions r USING(account_id) WHERE account_id='H250'").get();
