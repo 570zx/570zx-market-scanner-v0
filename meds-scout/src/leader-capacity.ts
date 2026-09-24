@@ -50,7 +50,7 @@ export const CAPACITY_SCHEMA=[
   `DROP INDEX IF EXISTS idx_hunt_option_event_time`,
   `DROP TRIGGER IF EXISTS hunt_account_option_events_once_v8`,
   `CREATE TRIGGER hunt_account_option_events_once_v8 BEFORE INSERT ON hunt_account_option_events WHEN EXISTS(SELECT 1 FROM hunt_account_option_events WHERE account_id=NEW.account_id AND position_id=NEW.position_id AND event_type=NEW.event_type) BEGIN SELECT RAISE(ABORT,'Leader lifecycle event already applied'); END`,
-  `UPDATE paper_meta SET version=11 WHERE id=1`,
+  `UPDATE paper_meta SET version=12 WHERE id=1`,
 ];
 export async function ensureCapacitySchema(db:D1Database){await db.batch(CAPACITY_SCHEMA.map(s=>db.prepare(s)));}
 export type Row=Record<string,any>;
