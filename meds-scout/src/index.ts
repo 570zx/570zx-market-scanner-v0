@@ -2163,11 +2163,10 @@ async function publicStatus(env: Env): Promise<Response> {
   // additive schema upgrades here too so monitoring cannot observe a new
   // Worker with the previous D1 schema while waiting for the next cron tick.
   if(paperEnabled) await ensurePaperSchema(env);
-  const state = await env.MEDS_DB.prepare(
-    `SELECT s.paused,s.last_tick_at,s.last_success_at,s.last_source,s.last_error,s.last_result,
-      COALESCE((SELECT reduce_only FROM leader_control_state WHERE id=1),0) AS reduce_only
-     FROM service_state s WHERE s.id=1`
-  ).first<any>();
+  const state = env.LEADER_ONLY==='true'
+    ? await env.MEDS_DB.prepare(`SELECT s.paused,s.last_tick_at,s.last_success_at,s.last_source,s.last_error,s.last_result,
+        COALESCE((SELECT reduce_only FROM leader_control_state WHERE id=1),0) AS reduce_only FROM service_state s WHERE s.id=1`).first<any>()
+    : await env.MEDS_DB.prepare(`SELECT paused,last_tick_at,last_success_at,last_source,last_error,last_result,0 AS reduce_only FROM service_state WHERE id=1`).first<any>();
   const secondsSinceTick = secondsSince(state?.last_tick_at);
   const secondsSinceSuccess = secondsSince(state?.last_success_at);
   const scannerEnabled = env.SCOUT_ENABLED === "true" && !state?.paused;
@@ -2815,8 +2814,10 @@ export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
     if (url.pathname === '/health' && req.method === 'GET') {
-      const state=await env.MEDS_DB.prepare(`SELECT s.paused,s.last_tick_at,s.last_success_at,s.last_source,s.last_error,
-        COALESCE((SELECT reduce_only FROM leader_control_state WHERE id=1),0) AS reduce_only FROM service_state s WHERE s.id=1`).first<any>();
+      const state=env.LEADER_ONLY==='true'
+        ? await env.MEDS_DB.prepare(`SELECT s.paused,s.last_tick_at,s.last_success_at,s.last_source,s.last_error,
+            COALESCE((SELECT reduce_only FROM leader_control_state WHERE id=1),0) AS reduce_only FROM service_state s WHERE s.id=1`).first<any>()
+        : await env.MEDS_DB.prepare('SELECT paused,last_tick_at,last_success_at,last_source,last_error,0 AS reduce_only FROM service_state WHERE id=1').first<any>();
       const enabled=env.SCOUT_ENABLED==='true'&&!state?.paused,active=inScanWindow();
       let degraded=false,valuation_state:'VALUED'|'PORTFOLIO_PARTIALLY_VALUED'|'NOT_YET_VALUED'='VALUED';
       if(env.LEADER_ONLY==='true'){
@@ -2831,7 +2832,8 @@ export default {
       const health=env.TRADING_MODE!=='shadow'?'ENGINE_CRITICAL':healthState(enabled,active,state?.last_success_at??null,state?.last_error??null,degraded,
         env.ENGINE_CADENCE==='session'?plannedCadence(phase()):5);
       return Response.json({ok:!['ENGINE_CRITICAL','ENGINE_STALE'].includes(health),health,version:env.LEADER_ONLY==='true'?CAPACITY_ENGINE:ENGINE_VERSION,leader_version:env.LEADER_ONLY==='true'?CAPACITY_VERSION:HUNT_VERSION,
-        mode:'shadow',live_execution:false,enabled,reduce_only:!!state?.reduce_only,risk_mode:state?.paused?'HARD_HALTED':state?.reduce_only?'REDUCE_ONLY':'NORMAL',valuation_state,time:new Date().toISOString(),market:easternParts(),feed:stockFeed(),...state});
+        mode:'shadow',live_execution:false,enabled,valuation_state,time:new Date().toISOString(),market:easternParts(),feed:stockFeed(),...state,
+        reduce_only:!!state?.reduce_only,risk_mode:state?.paused?'HARD_HALTED':state?.reduce_only?'REDUCE_ONLY':'NORMAL'});
     }
     if (url.pathname === "/status" && req.method === "GET") return publicStatus(env);
     if(url.pathname==='/status/hunt/performance'&&req.method==='GET') return Response.json(await performanceReport(env.MEDS_DB,url,env.LEADER_ONLY==='true'?CAPACITY_VERSION:undefined),{headers:{'cache-control':'no-store'}});
@@ -2864,28 +2866,31 @@ export default {
     }
     if (!env.ADMIN_TOKEN || req.headers.get("authorization") !== `Bearer ${env.ADMIN_TOKEN}`) return Response.json({error:"Unauthorized"},{status:401});
     if ((url.pathname === "/control/pause" || url.pathname === "/control/reduce-only") && req.method === "POST") {
-      await env.MEDS_DB.prepare('UPDATE leader_control_state SET reduce_only=1 WHERE id=1').run();
-      return Response.json({ok:true,paused:false,reduce_only:true,risk_mode:'REDUCE_ONLY',message:'new entries blocked; position management and exits continue'});
+      if(env.LEADER_ONLY==='true'){
+        await env.MEDS_DB.prepare('UPDATE leader_control_state SET reduce_only=1 WHERE id=1').run();
+        return Response.json({ok:true,paused:false,reduce_only:true,risk_mode:'REDUCE_ONLY',message:'new entries blocked; position management and exits continue'});
+      }
+      if(url.pathname==='/control/reduce-only')return Response.json({error:'reduce-only is available only in Leader runtime'},{status:409});
+      await env.MEDS_DB.prepare('UPDATE service_state SET paused=1 WHERE id=1').run();
+      return Response.json({ok:true,paused:true,reduce_only:false,risk_mode:'HARD_HALTED'});
     }
     if (url.pathname === "/control/halt" && req.method === "POST") {
-      await env.MEDS_DB.batch([
-        env.MEDS_DB.prepare('UPDATE leader_control_state SET reduce_only=1 WHERE id=1'),
-        env.MEDS_DB.prepare('UPDATE service_state SET paused=1 WHERE id=1'),
-      ]);
-      return Response.json({ok:true,paused:true,reduce_only:true,risk_mode:'HARD_HALTED',message:'all engine activity halted until resume'});
+      if(env.LEADER_ONLY==='true')await env.MEDS_DB.prepare('UPDATE leader_control_state SET reduce_only=1 WHERE id=1').run();
+      await env.MEDS_DB.prepare('UPDATE service_state SET paused=1 WHERE id=1').run();
+      return Response.json({ok:true,paused:true,reduce_only:env.LEADER_ONLY==='true',risk_mode:'HARD_HALTED',message:'all engine activity halted until resume'});
     }
     if (url.pathname === "/control/resume" && req.method === "POST") {
-      await env.MEDS_DB.batch([
-        env.MEDS_DB.prepare('UPDATE service_state SET paused=0 WHERE id=1'),
-        env.MEDS_DB.prepare('UPDATE leader_control_state SET reduce_only=0 WHERE id=1'),
-      ]);
+      await env.MEDS_DB.prepare('UPDATE service_state SET paused=0 WHERE id=1').run();
+      if(env.LEADER_ONLY==='true')await env.MEDS_DB.prepare('UPDATE leader_control_state SET reduce_only=0 WHERE id=1').run();
       return Response.json({ok:true,paused:false,reduce_only:false,risk_mode:'NORMAL',enabled:env.SCOUT_ENABLED==="true",message:env.SCOUT_ENABLED==="true"?"paper engine resumes on next configured tick":"SCOUT_ENABLED=false; deployment gate remains disabled"});
     }
     if (url.pathname === "/scan" && req.method === "POST") return Response.json(await runTick(env,"manual"));
     if (url.pathname === '/shadow/open' && req.method === 'POST') {
       if(env.TRADING_MODE!=='shadow'||env.SCOUT_ENABLED!=='true') return Response.json({error:'shadow engine disabled'},{status:409});
-      const control=await env.MEDS_DB.prepare('SELECT reduce_only FROM leader_control_state WHERE id=1').first<any>();
-      if(control?.reduce_only) return Response.json({error:'engine is reduce-only'},{status:409});
+      if(env.LEADER_ONLY==='true'){
+        const control=await env.MEDS_DB.prepare('SELECT reduce_only FROM leader_control_state WHERE id=1').first<any>();
+        if(control?.reduce_only) return Response.json({error:'engine is reduce-only'},{status:409});
+      }
       const owner=crypto.randomUUID();
       const lock=await env.MEDS_DB.prepare('UPDATE service_state SET lock_owner=?,lock_until=? WHERE id=1 AND paused=0 AND (lock_until IS NULL OR lock_until<=?)')
         .bind(owner,Date.now()+LEASE_MS,Date.now()).run();
