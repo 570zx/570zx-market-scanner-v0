@@ -82,8 +82,8 @@ export class DisabledBrokerAdapter implements BrokerAdapter{
   async listOpenOrders(){return this.disabled();}
   async listFills(_since:string){return this.disabled();}
   async getOrderByClientId(_clientOrderId:string){return this.disabled();}
-  async submitOrder(_order:SubmitOrder){throw new Error('BROKER_EXECUTION_DISABLED');}
-  async cancelOrder(_brokerOrderId:string){throw new Error('BROKER_EXECUTION_DISABLED');}
+  async submitOrder(_order:SubmitOrder):Promise<BrokerOrder>{throw new Error('BROKER_EXECUTION_DISABLED');}
+  async cancelOrder(_brokerOrderId:string):Promise<BrokerOrder>{throw new Error('BROKER_EXECUTION_DISABLED');}
 }
 
 export type ExecutionEligibilityRequest={
