@@ -23,4 +23,8 @@ CREATE TABLE IF NOT EXISTS leader_maintenance_state(
 );
 INSERT OR IGNORE INTO leader_maintenance_state(id,last_maintenance_date) VALUES(1,NULL);
 
-ALTER TABLE service_state ADD COLUMN reduce_only INTEGER NOT NULL DEFAULT 0;
+CREATE TABLE IF NOT EXISTS leader_control_state(
+  id INTEGER PRIMARY KEY CHECK(id=1),
+  reduce_only INTEGER NOT NULL DEFAULT 0
+);
+INSERT OR IGNORE INTO leader_control_state(id,reduce_only) VALUES(1,0);
