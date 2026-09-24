@@ -95,13 +95,15 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
     const features=(c:any)=>d.features(c,marketPhase),strengthBySymbol=new Map(prior.map(p=>[p.symbol,Number(p.score??0)])),plan=new LeaderPlan(accounts[0],[...equities,...options],events,intents,cooldowns.map(c=>c.symbol),now,marketPhase,strengthBySymbol);
     plan.manage(stocks,optionMarks);const managementAt=new Date().toISOString();
     const preEntryValuation=valuation(plan,stocks,optionMarks,retained);
-    if(preEntryValuation.complete){
+    const reduceOnly=plan.intents.length>0||intents.length>0;
+    if(preEntryValuation.complete&&!reduceOnly){
       plan.enterEquities(selected,stocks,features);
       await plan.enterOptions(selected,stocks,optionMarks,(c,dir)=>d.chain(runEnv,c,dir),features);
     }else{
+      const gateReason=reduceOnly?'PENDING_EXIT_INTENT':'PORTFOLIO_VALUATION_INCOMPLETE';
       for(const c of selected){
         if(!runnerReasons(c as any).length&&c.executionFresh===true)
-          plan.decision(c,candidateLane(c as any),'ENTRY_RISK_GATE',['PORTFOLIO_VALUATION_INCOMPLETE'],features(c));
+          plan.decision(c,candidateLane(c as any),'ENTRY_RISK_GATE',[gateReason],features(c));
       }
     }
     if(Date.now()>plan.executionDeadline)throw Error('EXECUTION_QUOTES_EXPIRED_BEFORE_COMMIT');
