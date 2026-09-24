@@ -1,6 +1,6 @@
 export type ResearchCandidate={symbol:string;price:number;bid:number;ask:number;spreadPct:number;dayChangePct:number;score:number;
   catalystScore:number;volumeAccel:number;dayVolume:number;previousDayVolume:number;minuteVolume:number;consecutiveHits:number;
-  executionFresh?:boolean;quoteAgeMs?:number;discoverySource?:string;discoveryRank?:number|null;dataWarnings?:string[]};
+  executionFresh?:boolean;executionAuthority?:boolean;executionFeed?:string;quoteAgeMs?:number;discoverySource?:string;discoveryRank?:number|null;dataWarnings?:string[]};
 
 export function runnerReasons(c:ResearchCandidate):string[]{
   const reasons:string[]=[...(c.dataWarnings??[])];
