@@ -6,6 +6,7 @@ import {ENGINE_VERSION, LEADER_VERSION, SCHEMA_VERSION, LEASE_MS, ensureAutonomo
 import {MarketDataCycle, mandatoryUniverse, refreshHeldQuotes, retainQuotes, retainedQuoteMap} from './market-data.ts';
 import {runnerReasons, executionReasons, optionDirection, candidateLane, orderedRunnerCandidates, preservedMaxHold} from './leader-policy.ts';
 import {SIM_VERSION, EXEC_VERSION, LIMITS, validQuote, equityExit, optionQuote, riskCapacity, type Exposure} from './paper-accounting.ts';
+import {brokerReadiness} from './broker.ts';
 
 interface Env {
   LEADER_ONLY?: string;
@@ -2839,6 +2840,42 @@ export default {
       return Response.json({ok:!['ENGINE_CRITICAL','ENGINE_STALE'].includes(health),health,version:env.LEADER_ONLY==='true'?CAPACITY_ENGINE:ENGINE_VERSION,leader_version:env.LEADER_ONLY==='true'?CAPACITY_VERSION:HUNT_VERSION,
         mode:'shadow',live_execution:false,enabled,valuation_state,time:new Date().toISOString(),market:easternParts(),feed:stockFeed(),...state,
         reduce_only:!!state?.reduce_only,risk_mode:state?.paused?'HARD_HALTED':state?.reduce_only?'REDUCE_ONLY':'NORMAL'});
+    }
+    if (url.pathname === "/status/broker-readiness" && req.method === "GET") {
+      const [config,intents,reconciliation,observation,trades,sessions]=await Promise.all([
+        env.MEDS_DB.prepare("SELECT mode,live_execution FROM broker_runtime_config WHERE id=1").first<any>(),
+        env.MEDS_DB.prepare(`SELECT
+          SUM(CASE WHEN state IN('INTENDED','SUBMITTING','SUBMITTED','PARTIALLY_FILLED','CANCEL_REQUESTED','UNKNOWN') THEN 1 ELSE 0 END) pending,
+          SUM(CASE WHEN state='UNKNOWN' THEN 1 ELSE 0 END) unknown_count
+          FROM broker_order_intents`).first<any>(),
+        env.MEDS_DB.prepare('SELECT created_at,state FROM broker_reconciliations ORDER BY id DESC LIMIT 1').first<any>(),
+        env.MEDS_DB.prepare('SELECT created_at,mode,phase,trading_day,reconciliation_state,positions,open_orders,fills,assets_checked FROM broker_observation_cycles ORDER BY created_at DESC LIMIT 1').first<any>(),
+        env.MEDS_DB.prepare(`SELECT
+          (SELECT COUNT(*) FROM hunt_account_trades WHERE account_id=? AND version=?)
+          +(SELECT COUNT(*) FROM hunt_account_option_trades WHERE account_id=? AND version=?) n`)
+          .bind(ACTIVE_ACCOUNT,CAPACITY_VERSION,ACTIVE_ACCOUNT,CAPACITY_VERSION).first<any>(),
+        env.MEDS_DB.prepare('SELECT COUNT(DISTINCT session_date) n FROM leader_session_summary WHERE version=?').bind(CAPACITY_VERSION).first<any>(),
+      ]);
+      return Response.json({
+        ...brokerReadiness({
+          mode:(config?.mode??'DISABLED'),
+          liveExecution:!!config?.live_execution,
+          pendingIntents:Number(intents?.pending??0),
+          unknownIntents:Number(intents?.unknown_count??0),
+          latestReconciliationState:reconciliation?.state??null,
+          latestReconciliationAt:reconciliation?.created_at??null,
+          currentVersionTrades:Number(trades?.n??0),
+          currentVersionSessions:Number(sessions?.n??0),
+          cpuEvidence:false,
+          branchProtectionEvidence:false,
+        }),
+        strategy_version:CAPACITY_VERSION,
+        broker_mode:config?.mode??'DISABLED',
+        evidence:{closed_trades:Number(trades?.n??0),compacted_sessions:Number(sessions?.n??0)},
+        reconciliation:{state:reconciliation?.state??null,at:reconciliation?.created_at??null},
+        observation:observation??null,
+        intent_state:{pending:Number(intents?.pending??0),unknown:Number(intents?.unknown_count??0)},
+      },{headers:{'cache-control':'no-store'}});
     }
     if (url.pathname === "/status" && req.method === "GET") return publicStatus(env);
     if(url.pathname==='/status/hunt/performance'&&req.method==='GET') return Response.json(await performanceReport(env.MEDS_DB,url,env.LEADER_ONLY==='true'?CAPACITY_VERSION:undefined),{headers:{'cache-control':'no-store'}});
