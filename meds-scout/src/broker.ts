@@ -244,3 +244,64 @@ export async function recordReconciliation(db:D1Database,result:ReturnType<typeo
   await db.prepare('INSERT INTO broker_reconciliations(created_at,state,cash_match,positions_match,orders_match,mismatches) VALUES(?,?,?,?,?,?)')
     .bind(now.toISOString(),result.state,result.cashMatch?1:0,result.positionsMatch?1:0,result.ordersMatch?1:0,JSON.stringify(result.mismatches)).run();
 }
+
+
+export type ObserveExpected={
+  cash:string;
+  positions:BrokerPosition[];
+  openClientOrderIds:string[];
+  since:string;
+};
+
+export async function observeAndReconcile(db:D1Database,broker:BrokerAdapter,expected:ObserveExpected,now=new Date()){
+  if(broker.mode==='DISABLED')throw new Error('BROKER_OBSERVE_DISABLED');
+  const [account,clock,positions,orders,fills]=await Promise.all([
+    broker.getAccount(),broker.getClock(),broker.listPositions(),broker.listOpenOrders(),broker.listFills(expected.since),
+  ]);
+  const stamp=now.toISOString();
+  const reconciliation=reconcileBrokerState(expected,{cash:account.cash,positions,openOrders:orders});
+  const statements:D1PreparedStatement[]=[
+    db.prepare(`INSERT OR REPLACE INTO broker_account_snapshots(snapshot_at,account_id,cash,buying_power,equity,status,raw_json) VALUES(?,?,?,?,?,?,?)`)
+      .bind(stamp,account.accountId,canonicalDecimal(account.cash),canonicalDecimal(account.buyingPower),canonicalDecimal(account.equity),account.status,JSON.stringify(account)),
+    db.prepare('INSERT INTO broker_reconciliations(created_at,state,cash_match,positions_match,orders_match,mismatches) VALUES(?,?,?,?,?,?)')
+      .bind(stamp,reconciliation.state,reconciliation.cashMatch?1:0,reconciliation.positionsMatch?1:0,reconciliation.ordersMatch?1:0,JSON.stringify(reconciliation.mismatches)),
+  ];
+  for(const p of positions) statements.push(
+    db.prepare(`INSERT OR REPLACE INTO broker_position_snapshots(snapshot_at,symbol,asset_type,quantity,avg_entry_price,market_value,raw_json) VALUES(?,?,?,?,?,?,?)`)
+      .bind(stamp,p.symbol,p.assetType,canonicalDecimal(p.quantity),canonicalDecimal(p.avgEntryPrice),p.marketValue==null?null:canonicalDecimal(p.marketValue),JSON.stringify(p))
+  );
+  await db.batch(statements);
+  for(const o of orders) await recordBrokerOrder(db,o);
+  for(const fill of fills) await recordBrokerFill(db,fill);
+  return {mode:broker.mode,clock,reconciliation,observed:{positions:positions.length,openOrders:orders.length,fills:fills.length},asOf:stamp};
+}
+
+export type BrokerReadinessInput={
+  mode:BrokerMode;liveExecution:boolean;
+  pendingIntents:number;unknownIntents:number;
+  latestReconciliationState:string|null;latestReconciliationAt:string|null;
+  currentVersionTrades:number;currentVersionSessions:number;
+  cpuEvidence:boolean;branchProtectionEvidence:boolean;
+};
+export function brokerReadiness(input:BrokerReadinessInput,now=Date.now()){
+  const recAge=input.latestReconciliationAt?Math.max(0,now-Date.parse(input.latestReconciliationAt)):Infinity;
+  const gates=[
+    {id:'LIVE_EXECUTION_DISABLED',pass:input.liveExecution===false,detail:'Live brokerage execution remains hard-disabled'},
+    {id:'BROKER_OBSERVE_CONNECTED',pass:input.mode!=='DISABLED',detail:input.mode==='DISABLED'?'No broker observe/paper adapter is connected':input.mode},
+    {id:'RECONCILIATION_MATCH',pass:input.latestReconciliationState==='MATCH'&&recAge<=5*60_000,detail:input.latestReconciliationState??'NO_RECONCILIATION'},
+    {id:'NO_UNKNOWN_INTENTS',pass:input.unknownIntents===0,detail:String(input.unknownIntents)},
+    {id:'NO_PENDING_INTENTS',pass:input.pendingIntents===0,detail:String(input.pendingIntents)},
+    {id:'STRATEGY_CLOSED_TRADES',pass:input.currentVersionTrades>=200,detail:`${input.currentVersionTrades}/200`},
+    {id:'STRATEGY_FULL_SESSIONS',pass:input.currentVersionSessions>=60,detail:`${input.currentVersionSessions}/60`},
+    {id:'CLOUDFLARE_CPU_EVIDENCE',pass:input.cpuEvidence,detail:input.cpuEvidence?'verified':'production CPU evidence required'},
+    {id:'PRODUCTION_BRANCH_PROTECTION',pass:input.branchProtectionEvidence,detail:input.branchProtectionEvidence?'verified':'external GitHub protection evidence required'},
+  ];
+  return {
+    ready_for_live_capital:false,
+    live_execution:false,
+    engineering_gate_pass:gates.every(g=>g.pass),
+    gates,
+    blockers:gates.filter(g=>!g.pass).map(g=>g.id),
+    note:'Passing engineering gates is necessary but does not itself authorize or enable live execution.',
+  };
+}
