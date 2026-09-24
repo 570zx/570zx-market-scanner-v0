@@ -37,6 +37,19 @@ CREATE TABLE IF NOT EXISTS broker_order_intents(
 );
 CREATE INDEX IF NOT EXISTS idx_broker_intent_state ON broker_order_intents(state,updated_at);
 
+CREATE TABLE IF NOT EXISTS broker_transition_guard(
+  id INTEGER PRIMARY KEY CHECK(id=1),
+  client_order_id TEXT NOT NULL,
+  expected_state TEXT NOT NULL,
+  checked_at TEXT NOT NULL
+);
+CREATE TRIGGER IF NOT EXISTS broker_transition_state_guard
+BEFORE INSERT ON broker_transition_guard
+WHEN NOT EXISTS(SELECT 1 FROM broker_order_intents WHERE client_order_id=NEW.client_order_id AND state=NEW.expected_state)
+BEGIN
+  SELECT RAISE(ABORT,'broker intent state conflict');
+END;
+
 CREATE TABLE IF NOT EXISTS broker_order_events(
   event_key TEXT PRIMARY KEY,
   intent_id TEXT NOT NULL,
