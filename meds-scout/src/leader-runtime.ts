@@ -126,7 +126,7 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
       plan.enterEquities(selected,stocks,features);
       await plan.enterOptions(selected,stocks,optionMarks,(c,dir)=>d.chain(runEnv,c,dir),features);
     }else{
-      const gateReasons=state.reduce_only?['MANUAL_REDUCE_ONLY']:riskReasons.length?riskReasons:reduceOnly?['PENDING_EXIT_INTENT']:['PORTFOLIO_VALUATION_INCOMPLETE'];
+      const gateReasons=state.reduce_only?['MANUAL_REDUCE_ONLY']:(plan.intents.length>0||intents.length>0)?['PENDING_EXIT_INTENT']:!preEntryValuation.complete?['PORTFOLIO_VALUATION_INCOMPLETE']:riskReasons;
       for(const c of selected){
         if(!runnerReasons(c as any).length&&c.executionFresh===true)
           plan.decision(c,candidateLane(c as any),'ENTRY_RISK_GATE',gateReasons,{...features(c),risk_governor:{realized_today:realizedToday,max_drawdown_pct:observedDrawdown,entries:observedEntries,entry_notional:observedEntryNotional}});
