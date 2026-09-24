@@ -3,7 +3,7 @@ import {validQuote} from './paper-accounting.ts';
 import {runnerReasons,executionReasons,candidateLane,optionDirection} from './leader-policy.ts';
 import {LEASE_MS,plannedCadence} from './autonomous.ts';
 import {cycleBucket,cadenceBucket,sessionDate,moverMiss} from './research-audit.ts';
-import {ACTIVE_ACCOUNT,CAPACITY_ENGINE,CAPACITY_VERSION,CycleDB,LeaderPlan,ingest,accountingStatements,valuation,type Row} from './leader-capacity.ts';
+import {ACTIVE_ACCOUNT,CAPACITY_ENGINE,CAPACITY_VERSION,CycleDB,LeaderPlan,ingest,accountingStatements,riskGovernorStatements,valuation,type Row} from './leader-capacity.ts';
 
 type Dependencies={phase:(now?:Date)=>string;active:(now?:Date)=>boolean;feed:(now?:Date)=>string;
   discover:(env:any,recent:string[])=>Promise<any>;snapshots:(env:any,symbols:string[])=>Promise<any>;news:(env:any,symbols:string[])=>Promise<any[]>;
@@ -165,6 +165,7 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
     }
     if(quoteRows.length){const cols=Object.keys(quoteRows[0]);ss.push(ingest(env.MEDS_DB,'quote_cache',quoteRows,cols,upsert(cols,['asset','symbol'])+' WHERE excluded.quote_at>quote_cache.quote_at'));}
     const v=valuation(plan,stocks,optionMarks,retained);plan.setRiskValuation(v.complete?v.live_equity:null);
+    ss.push(...riskGovernorStatements(env.MEDS_DB,plan));
     const vCols=Object.keys(v);ss.push(ingest(env.MEDS_DB,'portfolio_valuation_state',[v],vCols,upsert(vCols,['account_id'])));
     const peak=v.complete?Math.max(accounts[0].max_equity,v.live_equity!):accounts[0].max_equity,dd=v.complete?Math.max(accounts[0].max_drawdown_pct,1-v.live_equity!/peak):accounts[0].max_drawdown_pct;
     ss.push(env.MEDS_DB.prepare('UPDATE hunt_accounts SET current_equity=CASE WHEN ? THEN ? ELSE current_equity END,max_equity=?,max_drawdown_pct=?,updated_at=? WHERE account_id=?').bind(v.complete,v.live_equity,peak,dd,stamp,ACTIVE_ACCOUNT));
