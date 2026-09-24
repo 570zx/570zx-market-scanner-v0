@@ -141,6 +141,9 @@ test('read-only observer reconciles and persists broker evidence without any ord
   assert.equal(d.db.prepare('SELECT COUNT(*) n FROM broker_position_snapshots').get().n,1);
   assert.equal(d.db.prepare('SELECT COUNT(*) n FROM broker_orders').get().n,1);
   assert.equal(d.db.prepare('SELECT COUNT(*) n FROM broker_fills').get().n,1);
+  assert.equal(d.db.prepare('SELECT COUNT(*) n FROM broker_asset_cache').get().n,1);
+  const cycle=d.db.prepare('SELECT * FROM broker_observation_cycles').get();
+  assert.equal(cycle.phase,'regular');assert.equal(cycle.trading_day,1);assert.equal(cycle.assets_checked,1);
   assert.equal(d.db.prepare('SELECT state FROM broker_reconciliations').get().state,'MATCH');
   d.db.close();
 });
