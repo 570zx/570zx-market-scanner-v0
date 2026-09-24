@@ -3,7 +3,7 @@ import {validQuote} from './paper-accounting.ts';
 import {runnerReasons,executionReasons,candidateLane,optionDirection} from './leader-policy.ts';
 import {LEASE_MS,plannedCadence} from './autonomous.ts';
 import {cycleBucket,cadenceBucket,sessionDate,moverMiss} from './research-audit.ts';
-import {ACTIVE_ACCOUNT,CAPACITY_ENGINE,CAPACITY_VERSION,CycleDB,LeaderPlan,ingest,accountingStatements,valuation,type Row} from './leader-capacity.ts';
+import {ACTIVE_ACCOUNT,ACTIVE_LEADER_RISK_POLICY,CAPACITY_ENGINE,CAPACITY_VERSION,CycleDB,LeaderPlan,ingest,accountingStatements,valuation,type Row} from './leader-capacity.ts';
 
 type Dependencies={phase:(now?:Date)=>string;active:(now?:Date)=>boolean;feed:(now?:Date)=>string;
   discover:(env:any,recent:string[])=>Promise<any>;snapshots:(env:any,symbols:string[])=>Promise<any>;news:(env:any,symbols:string[])=>Promise<any[]>;
