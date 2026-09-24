@@ -20,7 +20,7 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
   const state=(await db.all(`SELECT s.*,m.version AS schema_version,(SELECT completed_at FROM engine_cycles WHERE bucket=?) AS completed_at,COALESCE((SELECT reduce_only FROM leader_control_state WHERE id=1),0) AS reduce_only,(SELECT last_maintenance_date FROM leader_maintenance_state WHERE id=1) AS last_maintenance_date FROM service_state s JOIN paper_meta m ON m.id=s.id WHERE s.id=1`,[engineBucket],'state'))[0];
   if(env.SCOUT_ENABLED!=='true'||state?.paused)return {ok:true,skipped:'disabled',version:CAPACITY_ENGINE};
   if(!d.active(now))return {ok:true,skipped:'outside scan window'};
-  if(state?.schema_version!==11)return {ok:false,error:'DEPLOYMENT_MIGRATION_REQUIRED: expected schema 11'};
+  if(state?.schema_version!==12)return {ok:false,error:'DEPLOYMENT_MIGRATION_REQUIRED: expected schema 12'};
   if(state.completed_at)return {ok:true,skipped:'cycle already complete'};
   const owner=crypto.randomUUID();
   const claim=await db.run(`UPDATE service_state SET lock_owner=?,lock_until=?,last_tick_at=?,last_source=?,tick_count=tick_count+1 WHERE id=1 AND paused=0 AND (lock_until IS NULL OR lock_until<=?)`,[owner,now.getTime()+LEASE_MS,now.toISOString(),source,now.getTime()],'lease_claim');
