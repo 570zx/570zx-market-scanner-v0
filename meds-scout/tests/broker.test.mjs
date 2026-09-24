@@ -4,7 +4,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {
   BROKER_SCHEMA,DisabledBrokerAdapter,canonicalDecimal,decimalUnits,formatUnits,decimalEqual,
   createOrderIntent,transitionIntent,recordBrokerOrder,recordBrokerFill,filledQuantity,pendingBrokerIntents,
-  deterministicClientOrderId,executionEligibility,reconcileBrokerState,
+  deterministicClientOrderId,executionEligibility,reconcileBrokerState,recordReconciliation,
 } from '../src/broker.ts';
 
 class D1{
@@ -65,6 +65,7 @@ test('deterministic intent id makes retries idempotent and state transitions opt
   await transitionIntent(d,id,'INTENDED','SUBMITTING');
   await assert.rejects(transitionIntent(d,id,'INTENDED','SUBMITTING'),/INTENT_STATE_CONFLICT/);
   await transitionIntent(d,id,'SUBMITTING','SUBMITTED',{brokerOrderId:'bo-1'});
+  assert.equal(d.db.prepare('SELECT COUNT(*) n FROM broker_order_events').get().n,3,'INTENDED plus two state transitions must be durable');
   assert.equal((await pendingBrokerIntents(d)).length,1);
   d.db.close();
 });
@@ -104,4 +105,15 @@ test('reconciliation detects cash positions and unknown orders independently',()
   assert.equal(r.state,'MISMATCH');assert.equal(r.cashMatch,false);assert.equal(r.positionsMatch,false);assert.equal(r.ordersMatch,false);
   assert.ok(r.mismatches.includes('CASH_MISMATCH'));assert.ok(r.mismatches.includes('POSITION_MISMATCH:TEST'));
   assert.ok(r.mismatches.includes('ORDER_MISMATCH:meds-a'));assert.ok(r.mismatches.includes('ORDER_MISMATCH:meds-b'));
+});
+
+test('reconciliation evidence is durably recorded for later incident reconstruction',async()=>{
+  const d=await setup(),result=reconcileBrokerState(
+    {cash:'100',positions:[],openClientOrderIds:[]},
+    {cash:'99',positions:[],openOrders:[]}
+  );
+  await recordReconciliation(d,result,new Date('2026-09-24T15:00:00Z'));
+  const row=d.db.prepare('SELECT * FROM broker_reconciliations').get();
+  assert.equal(row.state,'MISMATCH');assert.equal(row.cash_match,0);assert.match(row.mismatches,/CASH_MISMATCH/);
+  d.db.close();
 });
