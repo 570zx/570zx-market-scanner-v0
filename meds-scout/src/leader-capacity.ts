@@ -330,13 +330,6 @@ const eventColumns='account_id,position_id,symbol,created_at,event_type,price,qu
 export function accountingStatements(db:D1Database,plan:LeaderPlan){
   const ss:D1PreparedStatement[]=[];
   ss.push(db.prepare('INSERT OR REPLACE INTO hunt_risk_guards VALUES(?,?)').bind(ACTIVE_ACCOUNT,plan.account.revision));
-  plan.refreshRiskState();
-  ss.push(db.prepare(`INSERT INTO leader_session_risk(session_date,account_id,start_equity,start_realized_pnl,realized_pnl_today,entries,turnover,max_drawdown_pct,state,breach_reason,updated_at)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(session_date,account_id) DO UPDATE SET start_equity=COALESCE(leader_session_risk.start_equity,excluded.start_equity),
-    realized_pnl_today=excluded.realized_pnl_today,entries=excluded.entries,turnover=excluded.turnover,max_drawdown_pct=MAX(leader_session_risk.max_drawdown_pct,excluded.max_drawdown_pct),
-    state=excluded.state,breach_reason=COALESCE(leader_session_risk.breach_reason,excluded.breach_reason),updated_at=excluded.updated_at`)
-    .bind(sessionDate(plan.now),ACTIVE_ACCOUNT,plan.sessionStartEquity,plan.sessionStartRealized,plan.dailyRealizedPnl,plan.sessionEntries,plan.sessionTurnover,plan.sessionDrawdownPct,plan.riskState,plan.riskBreachReason,plan.now.toISOString()));
-  if(plan.riskState==='REDUCE_ONLY')ss.push(db.prepare('UPDATE leader_control_state SET reduce_only=1 WHERE id=1'));
   if(plan.rotationRiskDirty)ss.push(db.prepare(`INSERT INTO leader_daily_risk(session_date,account_id,rotations,last_rotation_at) VALUES(?,?,?,?) ON CONFLICT(session_date,account_id) DO UPDATE SET rotations=excluded.rotations,last_rotation_at=excluded.last_rotation_at`).bind(sessionDate(plan.now),ACTIVE_ACCOUNT,plan.rotationCountToday,plan.lastRotationAt));
   // Credit exits before inserting entries; reserve and cap triggers see the post-exit account.
   if(plan.cashCredit)ss.push(db.prepare('UPDATE hunt_accounts SET cash=cash+?,realized_pnl=realized_pnl+? WHERE account_id=?').bind(plan.cashCredit,plan.pnlDelta,ACTIVE_ACCOUNT));
@@ -350,6 +343,15 @@ export function accountingStatements(db:D1Database,plan:LeaderPlan){
   if(plan.cashDebit)ss.push(db.prepare('UPDATE hunt_accounts SET cash=cash-? WHERE account_id=?').bind(plan.cashDebit,ACTIVE_ACCOUNT));
   if(plan.intents.length)ss.push(ingest(db,'hunt_exit_intents',plan.intents,['kind','position_id','reason','requested_at'],'ON CONFLICT(kind,position_id) DO NOTHING'));
   return ss;
+}
+
+export function riskGovernorStatements(db:D1Database,plan:LeaderPlan){
+  plan.refreshRiskState();
+  return [db.prepare(`INSERT INTO leader_session_risk(session_date,account_id,start_equity,start_realized_pnl,realized_pnl_today,entries,turnover,max_drawdown_pct,state,breach_reason,updated_at)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(session_date,account_id) DO UPDATE SET start_equity=COALESCE(leader_session_risk.start_equity,excluded.start_equity),
+    realized_pnl_today=excluded.realized_pnl_today,entries=excluded.entries,turnover=excluded.turnover,max_drawdown_pct=MAX(leader_session_risk.max_drawdown_pct,excluded.max_drawdown_pct),
+    state=excluded.state,breach_reason=CASE WHEN excluded.state='REDUCE_ONLY' THEN COALESCE(leader_session_risk.breach_reason,excluded.breach_reason) ELSE NULL END,updated_at=excluded.updated_at`)
+    .bind(sessionDate(plan.now),ACTIVE_ACCOUNT,plan.sessionStartEquity,plan.sessionStartRealized,plan.dailyRealizedPnl,plan.sessionEntries,plan.sessionTurnover,plan.sessionDrawdownPct,plan.riskState,plan.riskBreachReason,plan.now.toISOString())];
 }
 
 export function valuation(plan:LeaderPlan,stocks:Row,options:Row,retained:Row[]){
