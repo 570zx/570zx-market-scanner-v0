@@ -350,7 +350,10 @@ export class RobinhoodAgenticBroker implements LiveBroker{
     const found=new Map<string,Record<string,unknown>>();
     walkObjects(r.data,o=>{const id=str(pick(o,ACCOUNT_KEYS));if(id&&!found.has(id))found.set(id,o);});
     if(found.size===1){this.accountId=[...found.keys()][0];return;}
-    const agentic=[...found].filter(([,o])=>/agent/i.test(JSON.stringify(o)));
+    // get_accounts marks exactly one account tradable with agentic_allowed=true;
+    // the others carry agentic_allowed=false and are read-only. Only an explicit
+    // true counts (the field's mere presence on every account does not).
+    const agentic=[...found].filter(([,o])=>{const v=pick(o,['agentic_allowed','agenticallowed']);return v===true||String(v).toLowerCase()==='true';});
     if(agentic.length===1){this.accountId=agentic[0][0];return;}
     throw new Error(found.size?'ROBINHOOD_ACCOUNT_AMBIGUOUS:'+found.size:'ROBINHOOD_ACCOUNT_ID_UNAVAILABLE');
   }

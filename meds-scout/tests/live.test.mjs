@@ -633,6 +633,18 @@ test('adapter refuses to send an order it cannot express exactly as a limit orde
   const twoAccounts={name:'get_accounts',inputSchema:{type:'object',properties:{}}},port={name:'get_portfolio',inputSchema:{type:'object',properties:{account_number:{type:'string'}},required:['account_number']}};
   const b=new RobinhoodAgenticBroker([twoAccounts,port],async()=>({isError:false,text:'',data:{data:{accounts:[{account_number:'A1',type:'cash'},{account_number:'A2',type:'margin'}]}}}));
   await assert.rejects(()=>b.account(),/ROBINHOOD_ACCOUNT_AMBIGUOUS:2/);
+  // Four accounts, each with an agentic_allowed flag: only the one marked true is used.
+  const four=[{account_number:'A1',agentic_allowed:false},{account_number:'A2',agentic_allowed:false},{account_number:'A3',agentic_allowed:true},{account_number:'A4',agentic_allowed:false}];
+  const calls=[];
+  const pick1=new RobinhoodAgenticBroker([twoAccounts,port],async(name,args)=>{calls.push([name,args]);
+    return name==='get_accounts'?{isError:false,text:'',data:{data:{accounts:four}}}:{isError:false,text:'',data:{buying_power:'10'}};});
+  await pick1.account();
+  assert.deepEqual(calls.at(-1),['get_portfolio',{account_number:'A3'}]);
+  // Two tradable accounts, or none, is still refused.
+  const twoTrue=new RobinhoodAgenticBroker([twoAccounts,port],async()=>({isError:false,text:'',data:{data:{accounts:four.map(a=>({...a,agentic_allowed:a.account_number!=='A2'}))}}}));
+  await assert.rejects(()=>twoTrue.account(),/ROBINHOOD_ACCOUNT_AMBIGUOUS:4/);
+  const noneTrue=new RobinhoodAgenticBroker([twoAccounts,port],async()=>({isError:false,text:'',data:{data:{accounts:four.map(a=>({...a,agentic_allowed:false}))}}}));
+  await assert.rejects(()=>noneTrue.account(),/ROBINHOOD_ACCOUNT_AMBIGUOUS:4/);
 });
 
 test('adapter handles uppercase enums, numeric fields, DAY time-in-force, confirmations and a review step',async()=>{
