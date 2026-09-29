@@ -1,0 +1,112 @@
+name: MEDS backtest
+
+# Replays MEDS's production Leader code over past market days and compares rule
+# sets. Run it from the Actions tab: "MEDS backtest" -> "Run workflow".
+# Needs repository secrets ALPACA_API_KEY and ALPACA_API_SECRET (the same keys
+# the Worker uses; Alpaca's free plan is enough). Market data is cached between
+# runs, so later runs mostly re-use it.
+
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "Trading days to replay, ending yesterday (40 takes about an hour the first time)"
+        required: true
+        default: "40"
+      end:
+        description: "Last day to include, YYYY-MM-DD (blank = yesterday)"
+        required: false
+        default: ""
+      variants:
+        description: "Rule sets: all, or a comma list from meds-scout/backtest/variants.mjs"
+        required: true
+        default: "all"
+
+permissions:
+  contents: write # publishes the report to the backtest-results branch
+
+concurrency:
+  group: meds-backtest
+  cancel-in-progress: false
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    defaults:
+      run:
+        working-directory: meds-scout
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check Alpaca secrets
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
+        run: |
+          if [ -z "$ALPACA_API_KEY" ] || [ -z "$ALPACA_API_SECRET" ]; then
+            echo "::error::Add ALPACA_API_KEY and ALPACA_API_SECRET under Settings > Secrets and variables > Actions, then run again."
+            exit 1
+          fi
+      - name: Restore cached market data
+        uses: actions/cache/restore@v4
+        with:
+          path: meds-scout/backtest/data
+          key: meds-backtest-data-v1-${{ github.run_id }}
+          restore-keys: meds-backtest-data-v1-
+      - name: Run backtest
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
+          DAYS: ${{ inputs.days }}
+          END_DATE: ${{ inputs.end }}
+          VARIANTS: ${{ inputs.variants }}
+        run: |
+          set -euo pipefail
+          args=(--days "$DAYS" --variants "$VARIANTS" --workers 2)
+          if [ -n "$END_DATE" ]; then args+=(--end "$END_DATE"); fi
+          node --disable-warning=ExperimentalWarning backtest/run.mjs "${args[@]}"
+      - name: Save market data for the next run
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: meds-scout/backtest/data
+          key: meds-backtest-data-v1-${{ github.run_id }}
+      - name: Write job summary
+        if: always()
+        run: |
+          if [ -f backtest/out/summary.md ]; then cat backtest/out/summary.md >> "$GITHUB_STEP_SUMMARY"; else echo "No report was produced; see the Run backtest step." >> "$GITHUB_STEP_SUMMARY"; fi
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: meds-backtest-${{ github.run_id }}
+          path: meds-scout/backtest/out
+          if-no-files-found: ignore
+      - name: Publish report to the backtest-results branch
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          dest="runs/$(date -u +%Y-%m-%d)-${GITHUB_RUN_ID}"
+          work="$RUNNER_TEMP/results"
+          if git ls-remote --exit-code --heads "$remote" backtest-results >/dev/null 2>&1; then
+            git clone --quiet --depth 1 --branch backtest-results "$remote" "$work"
+          else
+            git init --quiet -b backtest-results "$work"
+            git -C "$work" remote add origin "$remote"
+            printf '# MEDS backtest reports\n\nEach run is in runs/. LATEST.md is the most recent summary.\n' > "$work/README.md"
+          fi
+          mkdir -p "$work/$dest"
+          cp -r backtest/out/. "$work/$dest/"
+          cp backtest/out/summary.md "$work/LATEST.md"
+          cd "$work"
+          git config user.name "meds-backtest"
+          git config user.email "meds-backtest@users.noreply.github.com"
+          git add -A
+          git commit --quiet -m "MEDS backtest ${dest}"
+          git push --quiet origin HEAD:backtest-results

@@ -8,7 +8,8 @@
     "deploy": "node scripts/deploy.mjs",
     "db:init": "wrangler d1 migrations apply MEDS_DB --remote",
     "test": "node --test tests/*.test.mjs",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "backtest": "node --disable-warning=ExperimentalWarning backtest/run.mjs"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20260917.1",

@@ -3,20 +3,21 @@ import {validQuote} from './paper-accounting.ts';
 import {runnerReasons,executionReasons,candidateLane,optionDirection} from './leader-policy.ts';
 import {LEASE_MS,plannedCadence} from './autonomous.ts';
 import {cycleBucket,cadenceBucket,sessionDate,moverMiss} from './research-audit.ts';
-import {ACTIVE_ACCOUNT,ACTIVE_LEADER_RISK_POLICY,CAPACITY_ENGINE,CAPACITY_VERSION,CycleDB,LeaderPlan,ingest,accountingStatements,valuation,type Row} from './leader-capacity.ts';
+import {ACTIVE_ACCOUNT,ACTIVE_LEADER_RISK_POLICY,CAPACITY_ENGINE,CAPACITY_VERSION,CycleDB,LeaderPlan,ingest,accountingStatements,valuation,type LeaderPolicy,type Row} from './leader-capacity.ts';
 import {mirrorRequestsFromPlan} from './live-execution.ts';
 
 type Dependencies={phase:(now?:Date)=>string;active:(now?:Date)=>boolean;feed:(now?:Date)=>string;
   discover:(env:any,recent:string[])=>Promise<any>;snapshots:(env:any,symbols:string[])=>Promise<any>;news:(env:any,symbols:string[])=>Promise<any[]>;
   score:(c:any,regular:boolean)=>any;catalyst:(news:any[],symbol:string)=>any;select:(rows:any[],discovery:any)=>any[];
-  features:(c:any,phase:any)=>Row;chain:(env:any,c:any,direction:'bull'|'bear')=>Promise<any[]>};
+  features:(c:any,phase:any)=>Row;chain:(env:any,c:any,direction:'bull'|'bear')=>Promise<any[]>;
+  policy?:LeaderPolicy}; // production always runs ACTIVE_LEADER_RISK_POLICY; the backtester passes variants
 const shardFor=(symbol:string)=>[...symbol].reduce((n,c)=>(n*31+c.charCodeAt(0))>>>0,0)%16;
 const fresh=(time:string|undefined,maxAge:number)=>Number.isFinite(Date.parse(time??''))&&Date.parse(time!)<=Date.now()&&Date.now()-Date.parse(time!)<=maxAge;
 const upsert=(columns:string[],keys:string[])=>'ON CONFLICT('+keys.join(',')+') DO UPDATE SET '+columns.filter(c=>!keys.includes(c)).map(c=>c+'=excluded.'+c).join(',');
 
 export async function runLeaderCycle(env:any,source:string,d:Dependencies){
   if(env.TRADING_MODE!=='shadow')throw Error('Only shadow mode is supported; no brokerage execution exists');
-  const db=new CycleDB(env.MEDS_DB),now=new Date(),bucket=cycleBucket(now),date=sessionDate(now),marketPhase=d.phase(now);
+  const db=new CycleDB(env.MEDS_DB),now=new Date(),bucket=cycleBucket(now),date=sessionDate(now),marketPhase=d.phase(now),policy=d.policy??ACTIVE_LEADER_RISK_POLICY;
   const cadence=env.ENGINE_CADENCE==='session'?plannedCadence(marketPhase):5,engineBucket=cadenceBucket(now,cadence||5),startedAt=now.toISOString();
   const state=(await db.all(`SELECT s.*,m.version AS schema_version,(SELECT completed_at FROM engine_cycles WHERE bucket=?) AS completed_at,COALESCE((SELECT reduce_only FROM leader_control_state WHERE id=1),0) AS reduce_only,(SELECT last_maintenance_date FROM leader_maintenance_state WHERE id=1) AS last_maintenance_date FROM service_state s JOIN paper_meta m ON m.id=s.id WHERE s.id=1`,[engineBucket],'state'))[0];
   if(env.SCOUT_ENABLED!=='true'||state?.paused)return {ok:true,skipped:'disabled',version:CAPACITY_ENGINE};
@@ -103,7 +104,7 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
     let news:any[]=[];try{news=await d.news(runEnv,selected.map(c=>c.symbol));}catch{}
     for(const c of selected){const h=d.catalyst(news,c.symbol);c.catalystScore=h.score;c.catalystSummary=h.summary;d.score(c,marketPhase==='regular');}
     selected=d.select(selected,discovery);
-    const features=(c:any)=>d.features(c,marketPhase),strengthBySymbol=new Map(prior.map(p=>[p.symbol,Number(p.score??0)])),plan=new LeaderPlan(accounts[0],[...equities,...options],events,intents,cooldowns.map(c=>c.symbol),now,marketPhase,strengthBySymbol);
+    const features=(c:any)=>d.features(c,marketPhase),strengthBySymbol=new Map(prior.map(p=>[p.symbol,Number(p.score??0)])),plan=new LeaderPlan(accounts[0],[...equities,...options],events,intents,cooldowns.map(c=>c.symbol),now,marketPhase,strengthBySymbol,policy);
     plan.manage(stocks,optionMarks);const managementAt=new Date().toISOString();
     const preEntryValuation=valuation(plan,stocks,optionMarks,retained);
     const account=accounts[0],sessionRows=recentEntries.filter(r=>sessionDate(new Date(r.opened_at))===date);
@@ -120,10 +121,10 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
       :Number(account.risk_max_drawdown_pct??0);
     const riskReasons:string[]=[];
     if(bootstrapMidSession)riskReasons.push('RISK_GOVERNOR_BOOTSTRAP_REDUCE_ONLY');
-    if(realizedToday<=-ACTIVE_LEADER_RISK_POLICY.starting_equity*ACTIVE_LEADER_RISK_POLICY.max_session_realized_loss_pct)riskReasons.push('DAILY_REALIZED_LOSS_LIMIT');
-    if(observedDrawdown>=ACTIVE_LEADER_RISK_POLICY.max_session_drawdown_pct)riskReasons.push('DAILY_DRAWDOWN_LIMIT');
-    if(observedEntries>=ACTIVE_LEADER_RISK_POLICY.max_entries_per_session)riskReasons.push('DAILY_ENTRY_LIMIT');
-    if(observedEntryNotional>=ACTIVE_LEADER_RISK_POLICY.starting_equity*ACTIVE_LEADER_RISK_POLICY.max_entry_notional_multiple_per_session)riskReasons.push('DAILY_ENTRY_NOTIONAL_LIMIT');
+    if(realizedToday<=-policy.starting_equity*policy.max_session_realized_loss_pct)riskReasons.push('DAILY_REALIZED_LOSS_LIMIT');
+    if(observedDrawdown>=policy.max_session_drawdown_pct)riskReasons.push('DAILY_DRAWDOWN_LIMIT');
+    if(observedEntries>=policy.max_entries_per_session)riskReasons.push('DAILY_ENTRY_LIMIT');
+    if(observedEntryNotional>=policy.starting_equity*policy.max_entry_notional_multiple_per_session)riskReasons.push('DAILY_ENTRY_NOTIONAL_LIMIT');
     const reduceOnly=!!state.reduce_only||plan.stuckExitBlocked||riskReasons.length>0;
     if(preEntryValuation.complete&&!reduceOnly){
       plan.enterEquities(selected,stocks,features);
@@ -143,10 +144,10 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
     const finalDrawdown=sessionStartEquity&&finalValuation.complete?Math.max(observedDrawdown,Math.max(0,1-Number(finalValuation.live_equity)/sessionStartEquity)):observedDrawdown;
     const persistedRiskReasons:string[]=[];
     if(bootstrapMidSession)persistedRiskReasons.push('RISK_GOVERNOR_BOOTSTRAP_REDUCE_ONLY');
-    if(finalRealized<=-ACTIVE_LEADER_RISK_POLICY.starting_equity*ACTIVE_LEADER_RISK_POLICY.max_session_realized_loss_pct)persistedRiskReasons.push('DAILY_REALIZED_LOSS_LIMIT');
-    if(finalDrawdown>=ACTIVE_LEADER_RISK_POLICY.max_session_drawdown_pct)persistedRiskReasons.push('DAILY_DRAWDOWN_LIMIT');
-    if(finalEntries>=ACTIVE_LEADER_RISK_POLICY.max_entries_per_session)persistedRiskReasons.push('DAILY_ENTRY_LIMIT');
-    if(finalEntryNotional>=ACTIVE_LEADER_RISK_POLICY.starting_equity*ACTIVE_LEADER_RISK_POLICY.max_entry_notional_multiple_per_session)persistedRiskReasons.push('DAILY_ENTRY_NOTIONAL_LIMIT');
+    if(finalRealized<=-policy.starting_equity*policy.max_session_realized_loss_pct)persistedRiskReasons.push('DAILY_REALIZED_LOSS_LIMIT');
+    if(finalDrawdown>=policy.max_session_drawdown_pct)persistedRiskReasons.push('DAILY_DRAWDOWN_LIMIT');
+    if(finalEntries>=policy.max_entries_per_session)persistedRiskReasons.push('DAILY_ENTRY_LIMIT');
+    if(finalEntryNotional>=policy.starting_equity*policy.max_entry_notional_multiple_per_session)persistedRiskReasons.push('DAILY_ENTRY_NOTIONAL_LIMIT');
     ss.push(env.MEDS_DB.prepare(`INSERT INTO leader_daily_risk(session_date,account_id,rotations,last_rotation_at,session_start_equity,session_start_realized_pnl,realized_pnl,max_drawdown_pct,entries,entry_notional,risk_state,breach_reason,updated_at)
       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(session_date,account_id) DO UPDATE SET
       rotations=excluded.rotations,last_rotation_at=excluded.last_rotation_at,session_start_equity=COALESCE(leader_daily_risk.session_start_equity,excluded.session_start_equity),

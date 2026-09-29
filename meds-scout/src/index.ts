@@ -97,17 +97,18 @@ function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
 }
 
+const EASTERN_PARTS = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
+  weekday: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
 function easternParts(date = new Date()) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    weekday: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(date);
+  const parts = EASTERN_PARTS.formatToParts(date);
   const get = (t: string) => parts.find(p => p.type === t)?.value ?? "";
   return {
     weekday: get("weekday"),
@@ -771,8 +772,9 @@ function paperHeaders(env: PaperEnv): HeadersInit {
 function paperClamp(v:number,lo:number,hi:number){ return Math.max(lo,Math.min(hi,v)); }
 function isoDate(d:Date){ return d.toISOString().slice(0,10); }
 function addDays(d:Date,n:number){ const x=new Date(d); x.setUTCDate(x.getUTCDate()+n); return x; }
+const ET_PARTS = new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',weekday:'short',hour:'2-digit',minute:'2-digit',hour12:false});
 function etParts(date = new Date()) {
-  const parts = new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',weekday:'short',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(date);
+  const parts = ET_PARTS.formatToParts(date);
   const get=(t:string)=>parts.find(p=>p.type===t)?.value??'';
   return {weekday:get('weekday'),hour:Number(get('hour')),minute:Number(get('minute'))};
 }
@@ -2102,8 +2104,11 @@ async function openShadowPosition(env: Env, req: Request) {
   return Response.json({ok:true,symbol,entry,qty});
 }
 
+// The production Leader cycle wiring. Exported so the backtester replays
+// history through exactly these functions.
+export const LEADER_DEPENDENCIES={phase,active:inScanWindow,feed:stockFeed,discover:discoverSymbols,snapshots:fetchSnapshots,news:fetchNewsForSymbols,score:scoreCandidate,catalyst:heuristicCatalyst,select:selectLeaderResearch,features:huntFeatures,chain:optionChain};
 async function runTick(env: Env, source: string) {
-  if(env.LEADER_ONLY==='true')return runLeaderCycle(env,source,{phase,active:inScanWindow,feed:stockFeed,discover:discoverSymbols,snapshots:fetchSnapshots,news:fetchNewsForSymbols,score:scoreCandidate,catalyst:heuristicCatalyst,select:selectLeaderResearch,features:huntFeatures,chain:optionChain});
+  if(env.LEADER_ONLY==='true')return runLeaderCycle(env,source,LEADER_DEPENDENCIES);
   return runTickLegacy(env,source);
 }
 async function runTickLegacy(env: Env, source: string) {
