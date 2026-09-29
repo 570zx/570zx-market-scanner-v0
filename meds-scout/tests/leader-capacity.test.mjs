@@ -501,3 +501,80 @@ test('v8.6: liquidity-capped dust entries are rejected below minimum notional',(
   assert.ok(plan.decisions.some(d=>d.reasons.includes('BELOW_MIN_ENTRY_NOTIONAL')),JSON.stringify(plan.decisions.map(d=>d.reasons)));
   db.close();
 }));
+
+// Live outbox: the paper cycle records, inside its own audit transaction,
+// exactly the equity entries and exits the live layer should mirror.
+test('live outbox lists every committed paper equity entry with its paper price and size',t=>clocked(async()=>{
+  const {env,db}=await setup();provider();
+  const r=await runTick(env,'outbox-entries');assert.equal(r.ok,true,JSON.stringify(r));assert.equal(r.hunt.account_entries,6);
+  const audit=JSON.parse(db.prepare('SELECT payload FROM leader_cycle_audit ORDER BY bucket DESC LIMIT 1').get().payload);
+  const opened=db.prepare("SELECT symbol,entry_notional,entry_price FROM hunt_account_positions WHERE account_id='H250' AND status='open' ORDER BY symbol").all();
+  const mirrored=audit.live_mirror.filter(m=>m.action==='ENTRY').sort((a,b)=>a.symbol.localeCompare(b.symbol));
+  assert.deepEqual(mirrored.map(m=>[m.symbol,m.paper_notional,m.paper_price]),opened.map(p=>[p.symbol,p.entry_notional,p.entry_price]));
+  assert.ok(mirrored.every(m=>m.strategy_version===CAPACITY_VERSION&&m.request_id.endsWith('|ENTRY|'+m.symbol)));
+  assert.ok(r.database.statements<=35,'the outbox rides the existing audit statement');
+  db.close();
+},'2026-09-18T15:00:00Z'));
+
+test('live outbox lists full and partial paper exits and never options',t=>clocked(async()=>{
+  const {env,db}=await setup();mixedBook(db);
+  const h1=db.prepare("SELECT * FROM hunt_account_positions WHERE account_id='H250' AND symbol='HELD1'").get();
+  db.exec("DELETE FROM hunt_account_positions WHERE id="+h1.id);
+  const big={...h1,quantity:10,remaining_qty:10,entry_notional:h1.entry_price*10};delete big.id;
+  db.prepare(`INSERT INTO hunt_account_positions(${Object.keys(big).join(',')}) VALUES(${Object.keys(big).map(()=>'?').join(',')})`).run(...Object.values(big));
+  db.prepare("UPDATE hunt_accounts SET cash=cash-? WHERE account_id='H250'").run(h1.entry_price*9.75);
+  provider({mixed:true});const r=await runTick(env,'outbox-exits');assert.equal(r.ok,true,JSON.stringify(r));
+  const audit=JSON.parse(db.prepare('SELECT payload FROM leader_cycle_audit ORDER BY bucket DESC LIMIT 1').get().payload);
+  const closed=db.prepare("SELECT DISTINCT symbol FROM hunt_account_trades WHERE account_id='H250'").all().map(x=>x.symbol).sort();
+  const exitAll=audit.live_mirror.filter(m=>m.action==='EXIT_ALL').map(m=>m.symbol).sort();
+  // A liquidity-limited stop is a full-exit intent: live leaves the whole position at once.
+  const limited=db.prepare("SELECT DISTINCT p.symbol FROM hunt_account_events e JOIN hunt_account_positions p ON p.id=e.position_id WHERE e.account_id='H250' AND e.event_type LIKE 'PARTIAL_EXIT_%'").all().map(x=>x.symbol);
+  assert.ok(closed.length>0);assert.ok(limited.includes('HELD1'),'HELD1 is the illiquid stop');
+  assert.deepEqual(exitAll,[...new Set([...closed,...limited])].sort());
+  const partial=audit.live_mirror.filter(m=>m.action==='EXIT_FRACTION');
+  for(const m of partial){
+    const p=db.prepare("SELECT quantity,remaining_qty,status FROM hunt_account_positions WHERE account_id='H250' AND symbol=?").get(m.symbol);
+    assert.equal(p.status,'open');assert.ok(m.fraction>0&&m.fraction<1);
+  }
+  const optionSymbols=new Set(db.prepare("SELECT symbol FROM hunt_account_option_positions").all().map(x=>x.symbol));
+  assert.ok(audit.live_mirror.every(m=>!optionSymbols.has(m.symbol)),'options are never mirrored');
+  db.close();
+},'2026-09-18T15:00:00Z'));
+
+test('worker wiring: console, public live status, truthful health, and cron routing to the live step',t=>clocked(async(advance)=>{
+  const {env,db}=await setup();
+  for(const m of ['0010_broker_boundary.sql','0011_broker_observation.sql','0013_live_execution.sql'])db.exec(readFileSync(new URL('../migrations/'+m,import.meta.url),'utf8'));
+  env.ADMIN_TOKEN='t'.repeat(40);
+  const call=async(path,init)=>worker.fetch(new Request('https://meds.test'+path,init),env);
+  const form=fields=>({method:'POST',body:new URLSearchParams(fields)});
+
+  const page=await call('/live');assert.equal(page.status,200);assert.match(await page.text(),/MEDS live trading/);
+  assert.equal(page.headers.get('x-frame-options'),'DENY');
+  assert.match(await (await call('/live',form({admin_token:'wrong',action:'enable'}))).text(),/Wrong admin token/);
+  assert.match(await (await call('/live',form({admin_token:env.ADMIN_TOKEN,action:'enable'}))).text(),/Connect Robinhood first/);
+  assert.match(await (await call('/live',form({admin_token:env.ADMIN_TOKEN,action:'limits',max_capital:'100',max_order_notional:'8'}))).text(),/Limits saved/);
+  const live=await (await call('/status/live')).json();
+  assert.equal(live.live_execution,false);assert.equal(live.limits.max_capital,100);assert.equal(live.limits.max_order_notional,8);assert.equal(live.connection.logged_in,false);
+  assert.equal((await (await call('/status/broker/tools')).json()).count,0);
+  const bearer={headers:{authorization:'Bearer '+env.ADMIN_TOKEN},method:'POST'};
+  assert.equal((await call('/control/live/on',bearer)).status,409,'cannot switch on without a Robinhood login');
+  assert.equal((await (await call('/health')).json()).live_execution,false);
+  const readiness=await (await call('/status/broker-readiness')).json();
+  assert.equal(readiness.live_execution,false);assert.equal(readiness.broker_mode,'DISABLED');
+
+  // Cron: the first minute runs the paper cycle; a later minute in the same
+  // bucket skips it and runs the live step in its own invocation.
+  provider();
+  const waits=[];const ctx={waitUntil:p=>waits.push(p)};
+  await worker.scheduled({cron:'* * * * *',scheduledTime:Date.now()},env,ctx);await Promise.all(waits);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM engine_cycles').get().n,1);
+  assert.equal(db.prepare('SELECT state FROM live_sync').get().state,'NOT_CONNECTED','paper minute does not run the live step');
+  assert.equal(db.prepare('SELECT synced_at FROM live_sync').get().synced_at,null);
+  advance(60_000);waits.length=0;
+  await worker.scheduled({cron:'* * * * *',scheduledTime:Date.now()},env,ctx);await Promise.all(waits);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM engine_cycles').get().n,1,'paper cycle is not repeated inside its bucket');
+  const sync=db.prepare('SELECT state,synced_at FROM live_sync').get();
+  assert.equal(sync.state,'NOT_CONNECTED');assert.ok(sync.synced_at,'live step ran');
+  assert.ok(db.prepare('SELECT last_mirror_bucket FROM live_control').get().last_mirror_bucket,'live cursor starts at the latest committed cycle');
+  db.close();
+},'2026-09-18T15:00:00Z'));

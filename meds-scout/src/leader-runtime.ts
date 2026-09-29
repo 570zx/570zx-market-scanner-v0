@@ -4,6 +4,7 @@ import {runnerReasons,executionReasons,candidateLane,optionDirection} from './le
 import {LEASE_MS,plannedCadence} from './autonomous.ts';
 import {cycleBucket,cadenceBucket,sessionDate,moverMiss} from './research-audit.ts';
 import {ACTIVE_ACCOUNT,ACTIVE_LEADER_RISK_POLICY,CAPACITY_ENGINE,CAPACITY_VERSION,CycleDB,LeaderPlan,ingest,accountingStatements,valuation,type Row} from './leader-capacity.ts';
+import {mirrorRequestsFromPlan} from './live-execution.ts';
 
 type Dependencies={phase:(now?:Date)=>string;active:(now?:Date)=>boolean;feed:(now?:Date)=>string;
   discover:(env:any,recent:string[])=>Promise<any>;snapshots:(env:any,symbols:string[])=>Promise<any>;news:(env:any,symbols:string[])=>Promise<any[]>;
@@ -51,6 +52,8 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
     ]);
     if(accounts.length!==1||accounts[0].starting_equity!==250)throw Error('ACTIVE_ACCOUNT_CONFIGURATION_INVALID_OR_VERSION_MISMATCH');
     if(equities.length+options.length>32)throw Error('ACTIVE_ACCOUNT_POSITION_CAP_INVALID');
+    // Paper quantities at cycle start, so live can mirror exactly what this cycle sold.
+    const remainingAtStart=new Map<string,number>(equities.map(p=>['equity:'+p.id,Number(p.remaining_qty??p.quantity)]));
     const discovery=await d.discover(runEnv,prior.slice().sort((a,b)=>b.score-a.score).slice(0,80).map(p=>p.symbol));
     const executionFeed=d.feed(now),equityExecutionAuthoritative=marketPhase==='regular'&&executionFeed==='iex';
     const held=[...new Set([...equities.map(p=>p.symbol),...options.map(p=>p.underlying)])];
@@ -192,7 +195,9 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
         return {bucket,symbol:g.symbol,session_date:date,phase:marketPhase,rank:g.rank,summary:JSON.stringify(summary),version:CAPACITY_VERSION};
       });
     }
-    ss.push(ingest(env.MEDS_DB,'leader_cycle_audit',[{bucket,created_at:stamp,version:CAPACITY_VERSION,payload:JSON.stringify({session_date:date,phase:marketPhase,research,decisions:plan.decisions,board,movers:audits.map(a=>JSON.parse(a.summary)),shortlist:selected.map(c=>c.symbol)})}],['bucket','created_at','version','payload'],'ON CONFLICT(bucket) DO NOTHING'));
+    ss.push(ingest(env.MEDS_DB,'leader_cycle_audit',[{bucket,created_at:stamp,version:CAPACITY_VERSION,payload:JSON.stringify({session_date:date,phase:marketPhase,research,decisions:plan.decisions,board,movers:audits.map(a=>JSON.parse(a.summary)),shortlist:selected.map(c=>c.symbol),
+      // Live outbox: committed atomically with the paper accounting in this same transaction.
+      live_mirror:mirrorRequestsFromPlan(plan,remainingAtStart,bucket,stamp,CAPACITY_VERSION)})}],['bucket','created_at','version','payload'],'ON CONFLICT(bucket) DO NOTHING'));
     const quoteRows:Row[]=[];
     const wanted=new Map([...equities,...options,...plan.newPositions].map(p=>[p.kind+':'+p.symbol,p]));
     for(const p of wanted.values()){

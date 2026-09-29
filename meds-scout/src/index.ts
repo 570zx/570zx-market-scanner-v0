@@ -7,12 +7,18 @@ import {MarketDataCycle, mandatoryUniverse, refreshHeldQuotes, retainQuotes, ret
 import {runnerReasons, executionReasons, optionDirection, candidateLane, orderedRunnerCandidates, preservedMaxHold} from './leader-policy.ts';
 import {SIM_VERSION, EXEC_VERSION, LIMITS, validQuote, equityExit, optionQuote, riskCapacity, type Exposure} from './paper-accounting.ts';
 import {brokerReadiness} from './broker.ts';
+import {RobinhoodSession,loadToolCatalog,loadRuntimeTools,connectionStatus,shapeRow,shapesStatement,type FetchLike,type ShapeRow} from './robinhood-mcp.ts';
+import {RobinhoodAgenticBroker,toolCapabilities,relevantToolNames,NotSent} from './robinhood-broker.ts';
+import {runLiveStep,liveStatus,setLiveEnabled,setLiveLimits,clearLiveHalt,publicError} from './live-execution.ts';
+import {renderConsole,handleConsolePost} from './live-console.ts';
+import {sessionDate} from './research-audit.ts';
 
 interface Env {
   LEADER_ONLY?: string;
   DATA?: MarketDataCycle;
   ENGINE_CADENCE?: string;
   ADMIN_TOKEN?: string;
+  BROKER_TOKEN_KEY?: string;
   SCOUT_ENABLED?: string;
   MEDS_DB: D1Database;
   AI?: Ai;
@@ -2279,7 +2285,7 @@ async function publicStatus(env: Env): Promise<Response> {
     ok: scannerHealthy && paperHealthy,
     service: "MEDS Scout",
     mode: "shadow",
-    live_execution: false,
+    live_execution: await liveEnabled(env),
     time: now.toISOString(),
     scanner,
     paper,
@@ -2525,7 +2531,7 @@ async function publicStatus(env: Env): Promise<Response> {
       usage:cycleUsage,single_scheduler:'Cloudflare cron',cadence_minutes:plannedCadence(phase(now)),
       configured_enabled:env.SCOUT_ENABLED==='true',runtime_paused:!!state?.paused,reduce_only:!!state?.reduce_only,
       risk_mode:state?.paused?'HARD_HALTED':state?.reduce_only?'REDUCE_ONLY':dailyRisk?.risk_state==='REDUCE_ONLY'?'REDUCE_ONLY':'NORMAL',
-      daily_risk:dailyRisk,live_execution:false,active_risk_policy:env.LEADER_ONLY==='true'?ACTIVE_LEADER_RISK_POLICY:null};
+      daily_risk:dailyRisk,live_execution:body.live_execution===true,active_risk_policy:env.LEADER_ONLY==='true'?ACTIVE_LEADER_RISK_POLICY:null};
     body.valuations=detailed;
     body.quote_health=env.LEADER_ONLY==='true'?detailed.flatMap(v=>v.marks.filter((m:any)=>m.state!=='FRESH')):quoteIssues.results??[];
     body.decisions_latest=(rejected.results??[]).map(r=>({...r,reasons:JSON.parse(r.reasons)}));
@@ -2803,10 +2809,60 @@ async function publicPaperRows(pathname: string, url: URL, env: Env): Promise<Re
   }
 }
 
+// ---------------------------------------------------------------- live execution wiring
+
+// Workers throw "Illegal invocation" if the global fetch is called as a method
+// of another object, so the live modules always receive this wrapper.
+const workerFetch:FetchLike=(input,init)=>fetch(input,init);
+const SHAPE_REFRESH_MS=6*3600_000;
+// Robinhood calls per live run. Leaves room under the Free plan's 50
+// subrequests for a token refresh and the alert webhook.
+const LIVE_MCP_CALL_BUDGET=40;
+
+async function liveEnabled(env:Env){
+  try{return !!(await env.MEDS_DB.prepare('SELECT enabled FROM live_control WHERE id=1').first<any>())?.enabled;}catch{return false;}
+}
+
+async function runLive(env:Env){
+  const now=new Date(),db=env.MEDS_DB,shapes:ShapeRow[]=[];
+  return runLiveStep({
+    db,now:()=>new Date(),phase:phase(now),sessionDate:sessionDate(now),scoutEnabled:env.SCOUT_ENABLED==='true',
+    paperOpenSymbols:async()=>new Set(((await db.prepare("SELECT DISTINCT symbol FROM hunt_account_positions WHERE account_id=? AND status='open'")
+      .bind(ACTIVE_ACCOUNT).all<any>()).results??[]).map((r:any)=>String(r.symbol).toUpperCase())),
+    connect:async()=>{
+      const session=await RobinhoodSession.load(db,env,workerFetch);
+      if(!session)return null;
+      const {tools,shapeAt}=await loadRuntimeTools(db,relevantToolNames());
+      if(!tools.length)throw new Error('ROBINHOOD_TOOL_CATALOG_EMPTY_LOGIN_AGAIN');
+      return new RobinhoodAgenticBroker(tools,async(name,args)=>{
+        if(session.client.calls>=LIVE_MCP_CALL_BUDGET)throw new NotSent('SUBREQUEST_BUDGET');
+        const r=await session.client.callTool(name,args);
+        const at=shapeAt.get(name);
+        if(at==null||!(now.getTime()-at<SHAPE_REFRESH_MS)){shapeAt.set(name,now.getTime());shapes.push(shapeRow(name,r,now));}
+        return r;
+      });
+    },
+    notify:(text,key)=>postAlert(env,text,key),
+    sleep:ms=>new Promise(resolve=>setTimeout(resolve,ms)),
+    flush:()=>shapes.length?[shapesStatement(db,shapes.splice(0))]:[],
+  });
+}
+
 export { runTick, scanTick, manageShadowPositions, inScanWindow, heuristicCatalyst, ensurePaperSchema, valueLedger, markLedger, manageEquityPositions, manageOptionPositions, enterEquityProposal, enterOptionsForCandidate, leaderHuntEligible, leaderEquityRunnerEligible, leaderEquityRunnerScore, runLeaderHunt, manageLeaderHuntPositions, runHuntAccounts, manageHuntAccountPositions, markHuntAccounts, selectLeaderOption, enterLeaderHuntOptions, manageHuntOptionPositions, HUNT_VERSION };
 export default {
-  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
+  async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext) {
     ctx.waitUntil((async()=>{
+      const at=new Date(Number(controller?.scheduledTime)||Date.now());
+      // Leader runtime: minutes divisible by five run the paper cycle (as the
+      // old */5 schedule did); every other minute runs the live Robinhood step
+      // in its own invocation, with its own Free-plan budget of 50 queries and
+      // 50 subrequests, so live exits and sync keep running even while the
+      // paper cycle is failing. Outside the regular session the live step runs
+      // every ten minutes.
+      if(env.LEADER_ONLY==='true'&&at.getUTCMinutes()%5!==0){
+        if(phase(at)!=='regular'&&at.getUTCMinutes()%10!==1)return {ok:true,skipped:'live step runs every ten minutes outside the regular session'};
+        try{return await runLive(env);}catch(error){return {ok:false,error:error instanceof Error?error.message:'live step failed'};}
+      }
       // Scheduler heartbeat is intentionally independent of cycle success.
       // If this timestamp stops moving, Cloudflare never invoked the Worker;
       // if it moves while last_success_at stalls, the failure is inside MEDS.
@@ -2837,8 +2893,9 @@ export default {
       }
       const health=env.TRADING_MODE!=='shadow'?'ENGINE_CRITICAL':healthState(enabled,active,state?.last_success_at??null,state?.last_error??null,degraded,
         env.ENGINE_CADENCE==='session'?plannedCadence(phase()):5);
+      const live=await liveEnabled(env);
       return Response.json({ok:!['ENGINE_CRITICAL','ENGINE_STALE'].includes(health),health,version:env.LEADER_ONLY==='true'?CAPACITY_ENGINE:ENGINE_VERSION,leader_version:env.LEADER_ONLY==='true'?CAPACITY_VERSION:HUNT_VERSION,
-        mode:'shadow',live_execution:false,enabled,valuation_state,time:new Date().toISOString(),market:easternParts(),feed:stockFeed(),...state,
+        mode:'shadow',live_execution:live,execution_mode:live?'live_mirror':'shadow',enabled,valuation_state,time:new Date().toISOString(),market:easternParts(),feed:stockFeed(),...state,
         reduce_only:!!state?.reduce_only,risk_mode:state?.paused?'HARD_HALTED':state?.reduce_only?'REDUCE_ONLY':'NORMAL'});
     }
     if (url.pathname === "/status/broker-readiness" && req.method === "GET") {
@@ -2856,26 +2913,53 @@ export default {
           .bind(ACTIVE_ACCOUNT,CAPACITY_VERSION,ACTIVE_ACCOUNT,CAPACITY_VERSION).first<any>(),
         env.MEDS_DB.prepare('SELECT COUNT(DISTINCT session_date) n FROM leader_session_summary WHERE version=?').bind(CAPACITY_VERSION).first<any>(),
       ]);
+      const [liveOn,liveSync,liveConn]=await Promise.all([
+        liveEnabled(env),
+        env.MEDS_DB.prepare('SELECT synced_at,ok,reconciliation FROM live_sync WHERE id=1').first<any>().catch(()=>null),
+        connectionStatus(env.MEDS_DB).catch(()=>null),
+      ]);
+      let liveRecon:string|null=null;try{liveRecon=liveSync?.ok?JSON.parse(liveSync.reconciliation??'null')?.state??null:null;}catch{}
       return Response.json({
         ...brokerReadiness({
-          mode:(config?.mode??'DISABLED'),
-          liveExecution:!!config?.live_execution,
+          mode:liveConn?.logged_in?'OBSERVE':(config?.mode??'DISABLED'),
+          liveExecution:liveOn,
           pendingIntents:Number(intents?.pending??0),
           unknownIntents:Number(intents?.unknown_count??0),
-          latestReconciliationState:reconciliation?.state??null,
-          latestReconciliationAt:reconciliation?.created_at??null,
+          latestReconciliationState:liveRecon??reconciliation?.state??null,
+          latestReconciliationAt:liveRecon?liveSync?.synced_at??null:reconciliation?.created_at??null,
           currentVersionTrades:Number(trades?.n??0),
           currentVersionSessions:Number(sessions?.n??0),
           cpuEvidence:false,
           branchProtectionEvidence:false,
         }),
         strategy_version:CAPACITY_VERSION,
-        broker_mode:config?.mode??'DISABLED',
+        broker_mode:liveConn?.logged_in?(liveOn?'LIVE':'OBSERVE'):config?.mode??'DISABLED',
         evidence:{closed_trades:Number(trades?.n??0),compacted_sessions:Number(sessions?.n??0)},
         reconciliation:{state:reconciliation?.state??null,at:reconciliation?.created_at??null},
         observation:observation??null,
         intent_state:{pending:Number(intents?.pending??0),unknown:Number(intents?.unknown_count??0)},
       },{headers:{'cache-control':'no-store'}});
+    }
+    if (url.pathname === '/live' && req.method === 'GET') return renderConsole(env);
+    if (url.pathname === '/live' && req.method === 'POST') return handleConsolePost(req,env,workerFetch,()=>runLive(env));
+    if (url.pathname === '/status/live' && req.method === 'GET') {
+      try{
+        const connection=await connectionStatus(env.MEDS_DB);
+        return Response.json({ok:true,read_only:true,...await liveStatus(env.MEDS_DB,false),connection:{...connection,last_error:publicError(connection.last_error)}},{headers:{'cache-control':'no-store'}});
+      }
+      catch(error){return Response.json({ok:false,read_only:true,error:error instanceof Error?error.message:'live status unavailable'},{status:503});}
+    }
+    if (url.pathname === '/status/broker/tools' && req.method === 'GET') {
+      // Robinhood's tool definitions (the same for every account): lets the
+      // order mapping be checked without exposing any account data.
+      try{const catalog=await loadToolCatalog(env.MEDS_DB);return Response.json({ok:true,read_only:true,count:catalog.length,capabilities:toolCapabilities(catalog),tools:catalog},{headers:{'cache-control':'no-store'}});}
+      catch(error){return Response.json({ok:false,error:error instanceof Error?error.message:'catalog unavailable'},{status:503});}
+    }
+    if (url.pathname === '/status/broker/shapes' && req.method === 'GET') {
+      // Response structure only (keys and value types), never values.
+      try{const rows=(await env.MEDS_DB.prepare('SELECT tool,shape,is_error,captured_at FROM broker_tool_shapes ORDER BY tool').all<any>()).results??[];
+        return Response.json({ok:true,read_only:true,shapes:rows.map(r=>({...r,shape:JSON.parse(r.shape)}))},{headers:{'cache-control':'no-store'}});}
+      catch(error){return Response.json({ok:false,error:error instanceof Error?error.message:'shapes unavailable'},{status:503});}
     }
     if (url.pathname === "/status" && req.method === "GET") return publicStatus(env);
     if(url.pathname==='/status/hunt/performance'&&req.method==='GET') return Response.json(await performanceReport(env.MEDS_DB,url,env.LEADER_ONLY==='true'?CAPACITY_VERSION:undefined),{headers:{'cache-control':'no-store'}});
@@ -2927,6 +3011,27 @@ export default {
       return Response.json({ok:true,paused:false,reduce_only:false,risk_mode:'NORMAL',enabled:env.SCOUT_ENABLED==="true",message:env.SCOUT_ENABLED==="true"?"paper engine resumes on next configured tick":"SCOUT_ENABLED=false; deployment gate remains disabled"});
     }
     if (url.pathname === "/scan" && req.method === "POST") return Response.json(await runTick(env,"manual"));
+    if (url.pathname === '/control/live/on' && req.method === 'POST') {
+      const [conn,catalog]=await Promise.all([connectionStatus(env.MEDS_DB),loadToolCatalog(env.MEDS_DB)]);
+      const caps=toolCapabilities(catalog);
+      if(!conn.logged_in||conn.relogin_required)return Response.json({error:'Robinhood is not connected; log in at /live first'},{status:409});
+      if(!caps.can_trade)return Response.json({error:'Robinhood tools needed for trading are missing',tools:caps.tools},{status:409});
+      await setLiveEnabled(env.MEDS_DB,true);
+      return Response.json({ok:true,live_execution:true});
+    }
+    if (url.pathname === '/control/live/off' && req.method === 'POST') {await setLiveEnabled(env.MEDS_DB,false);return Response.json({ok:true,live_execution:false,message:'no new buys; MEDS still exits what it holds'});}
+    if (url.pathname === '/control/live/clear-halt' && req.method === 'POST') {
+      try{return Response.json({ok:true,accepted_broker_quantities_for:await clearLiveHalt(env.MEDS_DB)});}
+      catch(error){return Response.json({error:error instanceof Error?error.message:'clear halt failed'},{status:409});}
+    }
+    if (url.pathname === '/control/live/limits' && req.method === 'POST') {
+      const body=await req.json().catch(()=>null);
+      if(!body||typeof body!=='object')return Response.json({error:'JSON body required'},{status:400});
+      try{await setLiveLimits(env.MEDS_DB,body as Record<string,unknown>);}catch(error){return Response.json({error:error instanceof Error?error.message:'invalid limits'},{status:400});}
+      return Response.json({ok:true,...await liveStatus(env.MEDS_DB,false)});
+    }
+    if (url.pathname === '/control/live/run' && req.method === 'POST') return Response.json(await runLive(env));
+    if (url.pathname === '/control/live/detail' && req.method === 'GET') return Response.json(await liveStatus(env.MEDS_DB,true));
     if (url.pathname === '/shadow/open' && req.method === 'POST') {
       if(env.TRADING_MODE!=='shadow'||env.SCOUT_ENABLED!=='true') return Response.json({error:'shadow engine disabled'},{status:409});
       if(env.LEADER_ONLY==='true'){

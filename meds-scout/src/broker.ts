@@ -1,9 +1,8 @@
-// Broker boundary scaffolding for MEDS real-capital readiness.
-//
-// IMPORTANT: production MEDS does not instantiate a brokerage adapter and this
-// module deliberately has no LIVE mode. It provides durable intent,
-// reconciliation and exact-decimal primitives that can be exercised against a
-// fake broker or, later, a separately authorized paper/observe adapter.
+// Broker boundary primitives for MEDS: durable intents, reconciliation and
+// exact decimals. Live order flow lives in live-execution.ts (Robinhood
+// Agentic Trading via robinhood-broker.ts) and is switched on by the operator
+// from the /live console; it records its intents, orders and fills in the
+// broker_* tables defined here.
 
 export type BrokerMode='DISABLED'|'OBSERVE'|'PAPER';
 export type IntentState='INTENDED'|'SUBMITTING'|'SUBMITTED'|'PARTIALLY_FILLED'|'FILLED'|'CANCEL_REQUESTED'|'CANCELED'|'REJECTED'|'UNKNOWN';
@@ -299,7 +298,7 @@ export type BrokerReadinessInput={
 export function brokerReadiness(input:BrokerReadinessInput,now=Date.now()){
   const recAge=input.latestReconciliationAt?Math.max(0,now-Date.parse(input.latestReconciliationAt)):Infinity;
   const gates=[
-    {id:'LIVE_EXECUTION_DISABLED',pass:input.liveExecution===false,detail:'Live brokerage execution remains hard-disabled'},
+    {id:'LIVE_EXECUTION_DISABLED',pass:input.liveExecution===false,detail:input.liveExecution?'Live execution is ON by operator decision, before these gates passed':'Live brokerage execution is off'},
     {id:'BROKER_OBSERVE_CONNECTED',pass:input.mode!=='DISABLED',detail:input.mode==='DISABLED'?'No broker observe/paper adapter is connected':input.mode},
     {id:'RECONCILIATION_MATCH',pass:input.latestReconciliationState==='MATCH'&&recAge<=5*60_000,detail:input.latestReconciliationState??'NO_RECONCILIATION'},
     {id:'NO_UNKNOWN_INTENTS',pass:input.unknownIntents===0,detail:String(input.unknownIntents)},
@@ -311,7 +310,7 @@ export function brokerReadiness(input:BrokerReadinessInput,now=Date.now()){
   ];
   return {
     ready_for_live_capital:false,
-    live_execution:false,
+    live_execution:input.liveExecution,
     engineering_gate_pass:gates.every(g=>g.pass),
     gates,
     blockers:gates.filter(g=>!g.pass).map(g=>g.id),

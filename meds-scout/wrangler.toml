@@ -6,10 +6,13 @@ keep_vars = true
 [version_metadata]
 binding = "CF_VERSION_METADATA"
 
-# Scheduled scans paused to conserve daily usage.
-# Manual/read-only endpoints remain available.
+# Every minute. Minutes divisible by five run the paper cycle (as the old
+# */5 schedule did); the other minutes run the live Robinhood step in their own
+# invocation, so each gets the Free plan's 50-query / 50-subrequest budget and
+# live exits keep running even if the paper cycle fails. Outside the regular
+# session the live step runs every ten minutes.
 [triggers]
-crons = ["*/5 * * * *"]
+crons = ["* * * * *"]
 
 [[d1_databases]]
 binding = "MEDS_DB"
@@ -39,7 +42,8 @@ MARKET_TIMEZONE = "America/New_York"
 # Runtime secrets are configured in Cloudflare, not committed here:
 # ALPACA_API_KEY
 # ALPACA_API_SECRET
-# ADMIN_TOKEN
-# ALERT_WEBHOOK_URL (optional; Discord webhook works)
+# ADMIN_TOKEN (also unlocks the /live console; Robinhood tokens are sealed with a key derived from it)
+# BROKER_TOKEN_KEY (optional: 32 random bytes, base64; seals Robinhood tokens instead of ADMIN_TOKEN)
+# ALERT_WEBHOOK_URL (optional; Discord webhook works; live fills and halts are sent here)
 # BORROW_PROVIDER_URL (optional; must return JSON metrics for requested symbols)
 # BORROW_PROVIDER_TOKEN (optional)
