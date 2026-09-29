@@ -1,0 +1,49 @@
+name = "meds-scout-agent"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+keep_vars = true
+
+[version_metadata]
+binding = "CF_VERSION_METADATA"
+
+# Every minute. Minutes divisible by five run the paper cycle (as the old
+# */5 schedule did); the other minutes run the live Robinhood step in their own
+# invocation, so each gets the Free plan's 50-query / 50-subrequest budget and
+# live exits keep running even if the paper cycle fails. Outside the regular
+# session the live step runs every ten minutes.
+[triggers]
+crons = ["* * * * *"]
+
+[[d1_databases]]
+binding = "MEDS_DB"
+database_name = "meds-scout"
+database_id = "4c51e6c1-6d95-4002-800a-a7c74da64b24"
+
+[vars]
+TRADING_MODE = "shadow"
+SCOUT_ENABLED = "true"
+LEADER_ONLY = "true"
+PAPER_ENABLED = "false"
+ENGINE_CADENCE = "session"
+MIN_PRICE = "0.50"
+MAX_PRICE = "20.00"
+MAX_DAY_CHANGE_PCT = "25"
+MIN_SIGNAL_SCORE = "67"
+MAX_WATCH_SYMBOLS = "4"
+MAX_NEW_POSITION_PCT = "0.40"
+PROFIT_PROTECT_PCT = "0.15"
+FIRST_TAKE_PROFIT_PCT = "0.20"
+FIRST_TAKE_PROFIT_FRACTION = "0.70"
+SECOND_TAKE_PROFIT_PCT = "0.30"
+SECOND_TAKE_PROFIT_FRACTION = "0.50"
+STOP_LOSS_PCT = "0.12"
+MARKET_TIMEZONE = "America/New_York"
+
+# Runtime secrets are configured in Cloudflare, not committed here:
+# ALPACA_API_KEY
+# ALPACA_API_SECRET
+# ADMIN_TOKEN (also unlocks the /live console; Robinhood tokens are sealed with a key derived from it)
+# BROKER_TOKEN_KEY (optional: 32 random bytes, base64; seals Robinhood tokens instead of ADMIN_TOKEN)
+# ALERT_WEBHOOK_URL (optional; Discord webhook works; live fills and halts are sent here)
+# BORROW_PROVIDER_URL (optional; must return JSON metrics for requested symbols)
+# BORROW_PROVIDER_TOKEN (optional)

@@ -1,0 +1,1 @@
+ALTER TABLE service_state ADD COLUMN tick_count INTEGER NOT NULL DEFAULT 0;
