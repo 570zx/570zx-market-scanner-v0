@@ -65,7 +65,8 @@ export function indicators(bar) {
 
 const liquid = (ctx, s, d, minAdv, minPrice) => {
   const c = ctx.bars[s].c[d], adv = ctx.ind[s].adv20[d];
-  return Number.isFinite(c) && c >= minPrice && Number.isFinite(adv) && adv >= minAdv;
+  // ctx.universe can only tighten the strategy's own liquidity floor.
+  return Number.isFinite(c) && c >= Math.max(minPrice, ctx.universe?.minPrice ?? 0) && Number.isFinite(adv) && adv >= Math.max(minAdv, ctx.universe?.minAdv ?? 0);
 };
 
 // Buy strong uptrends after a sharp short-term dip; sell when they bounce.
@@ -151,10 +152,10 @@ export function everLiquid(bar, minAdv = 20e6, minPrice = 8) {
 export const STRATEGIES = [pullback, gapDrift, momentum];
 
 // ---------------------------------------------------------------- simulator
-export function simulate({sessions, bars, ind, strategy, startEquity = 250, costPct = strategy?.cost ?? 0.001, from = WARMUP, to = sessions.length - 1, benchmark = null}) {
+export function simulate({sessions, bars, ind, strategy, startEquity = 250, costPct = strategy?.cost ?? 0.001, from = WARMUP, to = sessions.length - 1, benchmark = null, universe = null}) {
   const symbols = Object.keys(bars);
   const monthOf = d => sessions[d].slice(0, 7);
-  const ctx = {sessions, bars, ind, symbols, firstOfMonth: d => d > 0 && monthOf(d) !== monthOf(d - 1)};
+  const ctx = {sessions, bars, ind, symbols, universe, firstOfMonth: d => d > 0 && monthOf(d) !== monthOf(d - 1)};
   let cash = startEquity;
   const open = [], trades = [], curve = [];
   let pendingEntries = [], pendingExits = new Map(); // sym -> reason

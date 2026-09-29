@@ -63,3 +63,13 @@ test('statistics: equity curve, drawdown and win rate', () => {
   assert.equal(s.trades, 1); assert.equal(s.winRatePct, 100); assert.ok(s.returnPct > 9 && s.returnPct < 10.1);
   assert.equal(s.maxDrawdownPct, 0);
 });
+
+test('a universe filter can only tighten the liquidity floor', () => {
+  const a = flatBar(100); for (let i = 0; i < N; i++) { a.c[i] = 100 + i * 0.2; a.o[i] = a.c[i]; a.h[i] = a.c[i] + 1; a.l[i] = a.c[i] - 1; a.v[i] = 5e6; }
+  const d = WARMUP + 10; a.c[d] = a.c[d] * 0.9;
+  const base = {sessions, bars: {A: a}, ind: {A: indicators(a)}, symbols: ['A'], firstOfMonth: () => false};
+  assert.equal(pullback.entries(base, d).length, 1);
+  assert.equal(pullback.entries({...base, universe: {minAdv: 5e9, minPrice: 0}}, d).length, 0);
+  assert.equal(pullback.entries({...base, universe: {minAdv: 0, minPrice: 1e6}}, d).length, 0);
+  assert.equal(pullback.entries({...base, universe: {minAdv: 0, minPrice: 0}}, d).length, 1);
+});
