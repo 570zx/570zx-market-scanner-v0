@@ -17,7 +17,7 @@ export class Alpaca {
     if (!key || !secret) throw new Error('ALPACA_API_KEY and ALPACA_API_SECRET are required');
     this.headers = {'APCA-API-KEY-ID': key, 'APCA-API-SECRET-KEY': secret, accept: 'application/json'};
     this.interval = 60_000 / rpm; this.fetch = fetchImpl; this.sleep = sleep; this.log = log; this.maxRetries = maxRetries;
-    this.nextSlot = 0; this.requests = 0; this.retries = 0; this.tradingBase = null;
+    this.skipped = new Set(); this.nextSlot = 0; this.requests = 0; this.retries = 0; this.tradingBase = null;
   }
   // Reserve evenly spaced start times so concurrent callers share one budget.
   async slot() {
@@ -77,6 +77,13 @@ export class Alpaca {
       await this.pages('/v2/stocks/bars', {symbols: symbols.join(','), timeframe, start, end, adjustment, feed, limit: 10000, sort: 'asc', ...(asof ? {asof} : {})},
         page => { for (const [s, rows] of Object.entries(page.bars ?? {})) (out[s] ??= []).push(...(rows ?? [])); });
     } catch (error) {
+      // Alpaca's asset list holds a few symbols its data API rejects
+      // ("invalid symbol: X"); skip that one and carry on with the rest.
+      const bad = error.status === 400 ? /invalid symbol: ?([A-Za-z0-9.\-\/]+)/.exec(error.message)?.[1] : null;
+      if (bad && symbols.includes(bad)) {
+        this.skipped.add(bad);
+        return this.bars(symbols.filter(s => s !== bad), {timeframe, start, end, adjustment, feed, asof});
+      }
       if (!([400, 413, 414, 431].includes(error.status) && symbols.length > 25)) throw error;
       this.log(`splitting a ${symbols.length}-symbol request after HTTP ${error.status}`);
       const half = Math.ceil(symbols.length / 2), options = {timeframe, start, end, adjustment, feed, asof};
