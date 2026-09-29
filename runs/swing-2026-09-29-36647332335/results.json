@@ -1,0 +1,517 @@
+{
+ "meta": {
+  "first": "2021-11-02",
+  "last": "2026-09-28",
+  "sessions": 1230,
+  "liquid": 5098,
+  "listed": 15498
+ },
+ "results": [
+  {
+   "id": "pullback",
+   "stats": {
+    "id": "pullback",
+    "final": 76.91,
+    "returnPct": -69.24,
+    "maxDrawdownPct": 80.57,
+    "trades": 1037,
+    "winRatePct": 57.86,
+    "avgTradePct": -0.25,
+    "avgHoldDays": 3.35,
+    "exposurePct": 99.43,
+    "byYear": {
+     "2021": -10.28,
+     "2022": -50.26,
+     "2023": 1.04,
+     "2024": -24.89,
+     "2025": -13.34,
+     "2026": 4.83
+    },
+    "beforeAfter2025": {
+     "before2025Pct": -66.13,
+     "from2025Pct": -9.16
+    },
+    "byExit": {
+     "bounce": {
+      "n": 873,
+      "avgPct": 1.45,
+      "pnl": 438.24
+     },
+     "stop": {
+      "n": 145,
+      "avgPct": -9.71,
+      "pnl": -565.12
+     },
+     "time": {
+      "n": 19,
+      "avgPct": -6.27,
+      "pnl": -44.35
+     }
+    }
+   },
+   "stress": {
+    "id": "pullback",
+    "final": 27.33,
+    "returnPct": -89.07,
+    "maxDrawdownPct": 90.61,
+    "trades": 1037,
+    "winRatePct": 53.42,
+    "avgTradePct": -0.55,
+    "avgHoldDays": 3.35,
+    "exposurePct": 99.43,
+    "byYear": {
+     "2021": -13.4,
+     "2022": -59.57,
+     "2023": -17.55,
+     "2024": -40.06,
+     "2025": -29.7,
+     "2026": -10.13
+    },
+    "beforeAfter2025": {
+     "before2025Pct": -82.7,
+     "from2025Pct": -36.82
+    },
+    "byExit": {
+     "bounce": {
+      "n": 873,
+      "avgPct": 1.14,
+      "pnl": 226.43
+     },
+     "stop": {
+      "n": 145,
+      "avgPct": -9.98,
+      "pnl": -415.78
+     },
+     "time": {
+      "n": 19,
+      "avgPct": -6.55,
+      "pnl": -32.62
+     }
+    }
+   }
+  },
+  {
+   "id": "gap_drift",
+   "stats": {
+    "id": "gap_drift",
+    "final": 14.89,
+    "returnPct": -94.04,
+    "maxDrawdownPct": 94.04,
+    "trades": 343,
+    "winRatePct": 29.74,
+    "avgTradePct": -2.23,
+    "avgHoldDays": 5.45,
+    "exposurePct": 68.78,
+    "byYear": {
+     "2021": -15.08,
+     "2022": -41.65,
+     "2023": -41.78,
+     "2024": -35.81,
+     "2025": -67.82,
+     "2026": 0
+    },
+    "beforeAfter2025": {
+     "before2025Pct": -81.48,
+     "from2025Pct": -67.82
+    },
+    "byExit": {
+     "stop": {
+      "n": 193,
+      "avgPct": -8.74,
+      "pnl": -486.81
+     },
+     "time": {
+      "n": 128,
+      "avgPct": 7.93,
+      "pnl": 279.5
+     },
+     "lost_gap": {
+      "n": 22,
+      "avgPct": -4.2,
+      "pnl": -27.8
+     }
+    }
+   },
+   "stress": {
+    "id": "gap_drift",
+    "final": 14.54,
+    "returnPct": -94.18,
+    "maxDrawdownPct": 94.18,
+    "trades": 285,
+    "winRatePct": 26.67,
+    "avgTradePct": -2.73,
+    "avgHoldDays": 5.69,
+    "exposurePct": 59.76,
+    "byYear": {
+     "2021": -19.02,
+     "2022": -53.06,
+     "2023": -53.77,
+     "2024": -51.41,
+     "2025": -31.88,
+     "2026": 0
+    },
+    "beforeAfter2025": {
+     "before2025Pct": -91.46,
+     "from2025Pct": -31.88
+    },
+    "byExit": {
+     "stop": {
+      "n": 155,
+      "avgPct": -9.6,
+      "pnl": -382.79
+     },
+     "time": {
+      "n": 113,
+      "avgPct": 7.05,
+      "pnl": 172.19
+     },
+     "lost_gap": {
+      "n": 17,
+      "avgPct": -5.23,
+      "pnl": -24.86
+     }
+    }
+   }
+  },
+  {
+   "id": "momentum",
+   "stats": {
+    "id": "momentum",
+    "final": 14.98,
+    "returnPct": -94.01,
+    "maxDrawdownPct": 95.03,
+    "trades": 106,
+    "winRatePct": 29.25,
+    "avgTradePct": -6.77,
+    "avgHoldDays": 21.8,
+    "exposurePct": 83.82,
+    "byYear": {
+     "2021": 13.58,
+     "2022": -44.51,
+     "2023": -31.18,
+     "2024": -43.93,
+     "2025": -70.99,
+     "2026": -15.07
+    },
+    "beforeAfter2025": {
+     "before2025Pct": -75.68,
+     "from2025Pct": -75.36
+    },
+    "byExit": {
+     "stop": {
+      "n": 62,
+      "avgPct": -20.79,
+      "pnl": -441.79
+     },
+     "rebalance": {
+      "n": 44,
+      "avgPct": 12.97,
+      "pnl": 206.77
+     }
+    }
+   },
+   "stress": {
+    "id": "momentum",
+    "final": 14,
+    "returnPct": -94.4,
+    "maxDrawdownPct": 95.16,
+    "trades": 95,
+    "winRatePct": 28.42,
+    "avgTradePct": -8.1,
+    "avgHoldDays": 20.92,
+    "exposurePct": 70.24,
+    "byYear": {
+     "2021": 13.36,
+     "2022": -45.85,
+     "2023": -33,
+     "2024": -45.14,
+     "2025": -75.18,
+     "2026": 0
+    },
+    "beforeAfter2025": {
+     "before2025Pct": -77.44,
+     "from2025Pct": -75.18
+    },
+    "byExit": {
+     "stop": {
+      "n": 54,
+      "avgPct": -21.11,
+      "pnl": -423.7
+     },
+     "rebalance": {
+      "n": 41,
+      "avgPct": 9.03,
+      "pnl": 187.7
+     }
+    }
+   }
+  },
+  {
+   "id": "pullback_large",
+   "stats": {
+    "id": "pullback_large",
+    "final": 114.74,
+    "returnPct": -54.11,
+    "maxDrawdownPct": 63.84,
+    "trades": 922,
+    "winRatePct": 58.79,
+    "avgTradePct": -0.19,
+    "avgHoldDays": 3.25,
+    "exposurePct": 93.5,
+    "byYear": {
+     "2021": -6.18,
+     "2022": -31.39,
+     "2023": -7.81,
+     "2024": 13.45,
+     "2025": -32.57,
+     "2026": 1.08
+    },
+    "beforeAfter2025": {
+     "before2025Pct": -32.66,
+     "from2025Pct": -31.84
+    },
+    "byExit": {
+     "bounce": {
+      "n": 763,
+      "avgPct": 1.38,
+      "pnl": 526.36
+     },
+     "stop": {
+      "n": 153,
+      "avgPct": -7.87,
+      "pnl": -649.65
+     },
+     "time": {
+      "n": 6,
+      "avgPct": -3.64,
+      "pnl": -11.63
+     }
+    }
+   },
+   "stress": {
+    "id": "pullback_large",
+    "final": 45.69,
+    "returnPct": -81.72,
+    "maxDrawdownPct": 83.75,
+    "trades": 922,
+    "winRatePct": 52.49,
+    "avgTradePct": -0.49,
+    "avgHoldDays": 3.25,
+    "exposurePct": 93.5,
+    "byYear": {
+     "2021": -9.29,
+     "2022": -41.42,
+     "2023": -23.23,
+     "2024": -7.58,
+     "2025": -44.38,
+     "2026": -12.84
+    },
+    "beforeAfter2025": {
+     "before2025Pct": -62.3,
+     "from2025Pct": -51.52
+    },
+    "byExit": {
+     "bounce": {
+      "n": 763,
+      "avgPct": 1.07,
+      "pnl": 287.46
+     },
+     "stop": {
+      "n": 153,
+      "avgPct": -8.15,
+      "pnl": -483.17
+     },
+     "time": {
+      "n": 6,
+      "avgPct": -3.93,
+      "pnl": -8.39
+     }
+    }
+   }
+  },
+  {
+   "id": "gap_drift_large",
+   "stats": {
+    "id": "gap_drift_large",
+    "final": 85.56,
+    "returnPct": -65.78,
+    "maxDrawdownPct": 69.34,
+    "trades": 153,
+    "winRatePct": 32.68,
+    "avgTradePct": -1.95,
+    "avgHoldDays": 6.92,
+    "exposurePct": 53.33,
+    "byYear": {
+     "2021": -5.04,
+     "2022": -16.28,
+     "2023": -19.22,
+     "2024": 5.58,
+     "2025": -32.11,
+     "2026": -25.66
+    },
+    "beforeAfter2025": {
+     "before2025Pct": -32.19,
+     "from2025Pct": -49.53
+    },
+    "byExit": {
+     "time": {
+      "n": 71,
+      "avgPct": 4.76,
+      "pnl": 171.06
+     },
+     "stop": {
+      "n": 58,
+      "avgPct": -8.82,
+      "pnl": -270.36
+     },
+     "lost_gap": {
+      "n": 24,
+      "avgPct": -5.17,
+      "pnl": -65.14
+     }
+    }
+   },
+   "stress": {
+    "id": "gap_drift_large",
+    "final": 54.56,
+    "returnPct": -78.17,
+    "maxDrawdownPct": 80.27,
+    "trades": 153,
+    "winRatePct": 30.72,
+    "avgTradePct": -2.83,
+    "avgHoldDays": 6.92,
+    "exposurePct": 53.33,
+    "byYear": {
+     "2021": -6.68,
+     "2022": -22.19,
+     "2023": -24.13,
+     "2024": -3.77,
+     "2025": -39.02,
+     "2026": -32.49
+    },
+    "beforeAfter2025": {
+     "before2025Pct": -46.98,
+     "from2025Pct": -58.83
+    },
+    "byExit": {
+     "time": {
+      "n": 71,
+      "avgPct": 3.82,
+      "pnl": 115.28
+     },
+     "stop": {
+      "n": 58,
+      "avgPct": -9.64,
+      "pnl": -247.57
+     },
+     "lost_gap": {
+      "n": 24,
+      "avgPct": -6.02,
+      "pnl": -63.15
+     }
+    }
+   }
+  },
+  {
+   "id": "momentum_large",
+   "stats": {
+    "id": "momentum_large",
+    "final": 514.79,
+    "returnPct": 105.92,
+    "maxDrawdownPct": 60.84,
+    "trades": 114,
+    "winRatePct": 40.35,
+    "avgTradePct": 5.95,
+    "avgHoldDays": 25.08,
+    "exposurePct": 95.28,
+    "byYear": {
+     "2021": -20.49,
+     "2022": -37.72,
+     "2023": 62.06,
+     "2024": -1.92,
+     "2025": -16.34,
+     "2026": 212.73
+    },
+    "beforeAfter2025": {
+     "before2025Pct": -21.29,
+     "from2025Pct": 161.62
+    },
+    "byExit": {
+     "stop": {
+      "n": 49,
+      "avgPct": -20.97,
+      "pnl": -738.98
+     },
+     "rebalance": {
+      "n": 65,
+      "avgPct": 26.24,
+      "pnl": 886.76
+     }
+    }
+   },
+   "stress": {
+    "id": "momentum_large",
+    "final": 463.04,
+    "returnPct": 85.22,
+    "maxDrawdownPct": 63.89,
+    "trades": 114,
+    "winRatePct": 39.47,
+    "avgTradePct": 5.63,
+    "avgHoldDays": 25.08,
+    "exposurePct": 95.28,
+    "byYear": {
+     "2021": -20.71,
+     "2022": -39.22,
+     "2023": 58.91,
+     "2024": -4.29,
+     "2025": -18.24,
+     "2026": 209.05
+    },
+    "beforeAfter2025": {
+     "before2025Pct": -26.7,
+     "from2025Pct": 152.69
+    },
+    "byExit": {
+     "stop": {
+      "n": 49,
+      "avgPct": -21.2,
+      "pnl": -698.51
+     },
+     "rebalance": {
+      "n": 65,
+      "avgPct": 25.86,
+      "pnl": 806.85
+     }
+    }
+   }
+  },
+  {
+   "id": "buy_and_hold_SPY",
+   "stats": {
+    "id": "buy_and_hold_SPY",
+    "final": 415.81,
+    "returnPct": 66.32,
+    "maxDrawdownPct": 25.36,
+    "trades": 0,
+    "winRatePct": null,
+    "avgTradePct": null,
+    "avgHoldDays": null,
+    "exposurePct": 100,
+    "byYear": {
+     "2021": 3.18,
+     "2022": -19.48,
+     "2023": 24.29,
+     "2024": 23.3,
+     "2025": 16.35,
+     "2026": 12.27
+    },
+    "beforeAfter2025": {
+     "before2025Pct": 27.32,
+     "from2025Pct": 30.63
+    },
+    "byExit": {}
+   },
+   "stress": null
+  }
+ ]
+}
