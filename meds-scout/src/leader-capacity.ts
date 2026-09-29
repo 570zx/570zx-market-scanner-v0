@@ -41,7 +41,7 @@ export const ACTIVE_LEADER_RISK_POLICY=Object.freeze({
   trail_pct:null as number|null,
   take_profit_pct:null as number|null,
   // Kill switch: sell every position at the next fresh quote (set by /control/flatten).
-  flatten_now:false,
+  flatten_now:false as boolean,
 });
 export type LeaderPolicy=typeof ACTIVE_LEADER_RISK_POLICY;
 const ET_CLOCK=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour:'2-digit',minute:'2-digit',hour12:false});
