@@ -1,7 +1,18 @@
+import {validQuote} from './paper-accounting.ts';
+
+// Any displayed bid is at least one share. Without this floor a fractional
+// dust position in a thin name (no minute bar inside 3 minutes) has zero exit
+// capacity forever, even while a fresh bid is being quoted. v8.6 lets up to
+// one share exit against a fresh displayed bid; larger size stays capped at
+// 5% of recent minute volume.
+export const DISPLAYED_BID_FLOOR_SHARES=1;
 export function equityExitCapacity(snapshot:any,now=Date.now()){
   const t=Date.parse(snapshot?.minuteBar?.t??'');
   const v=Number(snapshot?.minuteBar?.v);
-  return Number.isFinite(t)&&t<=now&&now-t<=180_000&&Number.isFinite(v)&&v>0?v*.05:0;
+  const minute=Number.isFinite(t)&&t<=now&&now-t<=180_000&&Number.isFinite(v)&&v>0?v*.05:0;
+  const q=snapshot?.latestQuote;
+  const displayed=validQuote(q,now)&&Number(q.bs)>0?DISPLAYED_BID_FLOOR_SHARES:0;
+  return Math.max(minute,displayed);
 }
 
 // A stop is an intent to liquidate, not a promise that unlimited size filled.

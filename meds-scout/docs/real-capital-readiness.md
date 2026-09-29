@@ -6,7 +6,7 @@ This document describes the engineering gates for the active Leader-only H250 ru
 
 ## Current architecture
 
-- Strategy runtime: `leader-hunt-v8.5-account-risk-governor`
+- Strategy runtime: `leader-hunt-v8.6-exit-liquidity` (v8.5 cohort preserved separately)
 - Capacity engine: `meds-v8.1-leader250-capacity`
 - Active account: H250, approximately $250 starting scale
 - Runtime: Cloudflare Workers + D1

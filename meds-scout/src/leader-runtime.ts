@@ -121,15 +121,15 @@ export async function runLeaderCycle(env:any,source:string,d:Dependencies){
     if(observedDrawdown>=ACTIVE_LEADER_RISK_POLICY.max_session_drawdown_pct)riskReasons.push('DAILY_DRAWDOWN_LIMIT');
     if(observedEntries>=ACTIVE_LEADER_RISK_POLICY.max_entries_per_session)riskReasons.push('DAILY_ENTRY_LIMIT');
     if(observedEntryNotional>=ACTIVE_LEADER_RISK_POLICY.starting_equity*ACTIVE_LEADER_RISK_POLICY.max_entry_notional_multiple_per_session)riskReasons.push('DAILY_ENTRY_NOTIONAL_LIMIT');
-    const reduceOnly=!!state.reduce_only||plan.intents.length>0||intents.length>0||riskReasons.length>0;
+    const reduceOnly=!!state.reduce_only||plan.stuckExitBlocked||riskReasons.length>0;
     if(preEntryValuation.complete&&!reduceOnly){
       plan.enterEquities(selected,stocks,features);
       await plan.enterOptions(selected,stocks,optionMarks,(c,dir)=>d.chain(runEnv,c,dir),features);
     }else{
-      const gateReasons=state.reduce_only?['MANUAL_REDUCE_ONLY']:(plan.intents.length>0||intents.length>0)?['PENDING_EXIT_INTENT']:!preEntryValuation.complete?['PORTFOLIO_VALUATION_INCOMPLETE']:riskReasons;
+      const gateReasons=state.reduce_only?['MANUAL_REDUCE_ONLY']:plan.stuckExitBlocked?['PENDING_EXIT_INTENT']:!preEntryValuation.complete?['PORTFOLIO_VALUATION_INCOMPLETE']:riskReasons;
       for(const c of selected){
         if(!runnerReasons(c as any).length&&c.executionFresh===true)
-          plan.decision(c,candidateLane(c as any),'ENTRY_RISK_GATE',gateReasons,{...features(c),risk_governor:{realized_today:realizedToday,max_drawdown_pct:observedDrawdown,entries:observedEntries,entry_notional:observedEntryNotional}});
+          plan.decision(c,candidateLane(c as any),'ENTRY_RISK_GATE',gateReasons,{...features(c),risk_governor:{stuck_exit_exposure:plan.stuckExitExposure,pending_exit_intents:intents.length+plan.intents.length,realized_today:realizedToday,max_drawdown_pct:observedDrawdown,entries:observedEntries,entry_notional:observedEntryNotional}});
       }
     }
     if(Date.now()>plan.executionDeadline)throw Error('EXECUTION_QUOTES_EXPIRED_BEFORE_COMMIT');

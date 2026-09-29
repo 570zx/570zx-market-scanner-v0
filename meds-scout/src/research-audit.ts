@@ -114,6 +114,7 @@ export const STRATEGY_VERSION_ORDER=[
   'leader-hunt-v8.3-capital-rotation',
   'leader-hunt-v8.4-rotation-hardening',
   'leader-hunt-v8.5-account-risk-governor',
+  'leader-hunt-v8.6-exit-liquidity',
 ] as const;
 export async function performanceReport(db:D1Database,url:URL,currentVersion=LEADER_VERSION){
   const requested=url.searchParams.get('version')??currentVersion;

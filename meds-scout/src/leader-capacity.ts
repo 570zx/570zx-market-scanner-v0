@@ -5,12 +5,14 @@ import {markState,LEASE_MS} from './autonomous.ts';
 import {cycleBucket,sessionDate,moverMiss} from './research-audit.ts';
 
 export const CAPACITY_ENGINE='meds-v8.1-leader250-capacity';
-export const CAPACITY_VERSION='leader-hunt-v8.5-account-risk-governor';
+export const CAPACITY_VERSION='leader-hunt-v8.6-exit-liquidity';
 export const ACTIVE_ACCOUNT='H250';
 export const ACTIVE_LEADER_RISK_POLICY=Object.freeze({
   starting_equity:250,
   protected_cash_reserve:30,
   target_entry_notional:10,
+  min_entry_notional:2.5,
+  max_stuck_exit_exposure_pct:0.05,
   max_open_positions:32,
   max_equity_entries_per_cycle:6,
   max_option_entries_per_cycle:3,
@@ -104,7 +106,16 @@ export class LeaderPlan {
   }
   get cash(){return Number(this.account.cash)+this.cashCredit-this.cashDebit;}
   get open(){return [...this.positions,...this.newPositions].filter(p=>p.status==='open');}
-  reason(symbol:string){if(this.priorIntents.length||this.intents.length)return 'PENDING_EXIT_INTENT';if(this.open.some(p=>(p.underlying??p.symbol)===symbol))return 'DUPLICATE_POSITION';if(this.cooldown.has(symbol))return 'REENTRY_COOLDOWN';if(this.open.length>=32)return 'OPEN_POSITION_CAP';if(this.cash-30<=.01)return 'CAPITAL_RESERVE_BLOCK';return null;}
+  // Unresolved exits block new risk only when the inventory they hold is
+  // material. v8.5 froze every entry on any intent, so two sub-$10 positions
+  // with no exit liquidity locked the whole account in reduce-only for days.
+  get stuckExitExposure(){
+    const ids=new Set([...this.priorIntents,...this.intents].map(i=>i.kind+':'+Number(i.position_id)));
+    return this.positions.filter(p=>p.status==='open'&&ids.has(p.kind+':'+Number(p.id)))
+      .reduce((n,p)=>n+Number(p.remaining_qty??p.quantity)*Number(p.entry_price)*(p.kind==='option'?100:1),0);
+  }
+  get stuckExitBlocked(){return this.stuckExitExposure>ACTIVE_LEADER_RISK_POLICY.starting_equity*ACTIVE_LEADER_RISK_POLICY.max_stuck_exit_exposure_pct;}
+  reason(symbol:string){if(this.stuckExitBlocked)return 'PENDING_EXIT_INTENT';if(this.open.some(p=>(p.underlying??p.symbol)===symbol))return 'DUPLICATE_POSITION';if(this.cooldown.has(symbol))return 'REENTRY_COOLDOWN';if(this.open.length>=32)return 'OPEN_POSITION_CAP';if(this.cash-30<=.01)return 'CAPITAL_RESERVE_BLOCK';return null;}
   decision(c:Row,lane:string,stage:string,reasons:string[],features:Row={},entered=false){this.decisions.push({bucket:cycleBucket(this.now),created_at:this.now.toISOString(),symbol:c.symbol,lane,account_id:ACTIVE_ACCOUNT,stage,outcome:entered?'ENTERED':reasons.length?'REJECTED':'ELIGIBLE',reasons,features:{...features,price:c.price,day_change_pct:c.dayChangePct,cash:this.cash},version:CAPACITY_VERSION});}
   event(p:Row,type:string,fill:number,qty:number,pnl:number,details:Row){this.events.push({kind:p.kind,account_id:ACTIVE_ACCOUNT,position_id:p.id,underlying:p.underlying,symbol:p.symbol,created_at:this.now.toISOString(),event_type:type,price:fill,quantity:qty,realized_pnl:pnl,details:JSON.stringify(details),version:p.version});}
   sell(p:Row,qty:number,fill:number,type:string|null,details:Row={}){
@@ -244,6 +255,7 @@ export class LeaderPlan {
       if(qty*fill(qty)>budget)qty=budget/fill(qty);
       const px=fill(qty),cost=qty*px;
       if(!(cost>.01)||!(qty>0)){this.decision(c,lane,'ENTRY',[liquidity?'POSITION_SIZE_ZERO':'MINUTE_LIQUIDITY_LIMIT'],features(c));continue;}
+      if(cost<ACTIVE_LEADER_RISK_POLICY.min_entry_notional){this.decision(c,lane,'ENTRY',['BELOW_MIN_ENTRY_NOTIONAL'],{...features(c),modeled_entry_notional:cost});continue;}
       const f={...features(c),asset_type:'equity',max_hold_minutes:720,quantity:qty,target_notional:budget,actual_notional:cost,minute_participation:qty/liquidity,fractional_paper:true,entry_slippage_pct:px/q.ap-1,rotated_out:null};
       this.addPosition(c,'equity',c.symbol,qty,px,cost,f);this.usedQuote(q);signals++;
       this.decision(c,lane,'ENTRY',[],f,true);

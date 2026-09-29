@@ -140,8 +140,15 @@ function mixedBook(db){
   db.exec("UPDATE hunt_accounts SET cash=cash+350,realized_pnl=350,current_equity=600,max_equity=600 WHERE account_id='H250'");
   db.exec("UPDATE hunt_account_positions SET entry_price=1,entry_notional=.25,stop_price=.95,target_price=3,highest_price=1,lowest_price=1 WHERE account_id='H250' AND symbol NOT IN ('HELD0','HELD1'); UPDATE hunt_accounts SET cash=cash+14 WHERE account_id='H250'");
 }
-test('maximum mixed path: exits, events and pending intents force reduce-only entries',t=>clocked(async()=>{
-  const {env,db}=await setup();mixedBook(db);provider({mixed:true});const r=await runTick(env,'worst');assert.equal(r.ok,true,JSON.stringify(r));assert.ok(r.database.statements<=40);
+test('maximum mixed path: exits, events and material pending intents force reduce-only entries',t=>clocked(async()=>{
+  const {env,db}=await setup();mixedBook(db);
+  // v8.6: dust exits clear against the displayed bid, so make one held name material ($50) and illiquid.
+  const h1=db.prepare("SELECT * FROM hunt_account_positions WHERE account_id='H250' AND symbol='HELD1'").get();
+  db.exec("DELETE FROM hunt_account_positions WHERE id="+h1.id);
+  const big={...h1,quantity:10,remaining_qty:10,entry_notional:h1.entry_price*10};delete big.id;
+  db.prepare(`INSERT INTO hunt_account_positions(${Object.keys(big).join(',')}) VALUES(${Object.keys(big).map(()=>'?').join(',')})`).run(...Object.values(big));
+  db.prepare("UPDATE hunt_accounts SET cash=cash-? WHERE account_id='H250'").run(h1.entry_price*9.75);
+  provider({mixed:true});const r=await runTick(env,'worst');assert.equal(r.ok,true,JSON.stringify(r));assert.ok(r.database.statements<=40);
   for(const table of ['hunt_account_trades','hunt_account_option_trades','hunt_exit_intents'])assert.ok(db.prepare('SELECT COUNT(*) n FROM '+table).get().n,table);
   assert.equal(db.prepare("SELECT COUNT(*) n FROM hunt_account_option_positions WHERE account_id='H250' AND symbol LIKE 'TEST%'").get().n,0);const audit=JSON.parse(db.prepare('SELECT payload FROM leader_cycle_audit ORDER BY bucket DESC LIMIT 1').get().payload);assert.ok(audit.decisions.some(d=>d.reasons.includes('PENDING_EXIT_INTENT')));
   assert.ok(db.prepare("SELECT cash FROM hunt_accounts WHERE account_id='H250'").get().cash>=30);
@@ -355,8 +362,8 @@ test('partial stop liquidity cannot be reused by capital rotation in the same cy
   const soldBefore=plan.events.reduce((n,e)=>n+Number(e.quantity),0);
   const strong=candidate({symbol:'RAIN',price:1.105,bid:1.10,ask:1.11,spreadPct:.9,dayChangePct:65,score:80,catalystScore:22,volumeAccel:1,dayVolume:9000000,previousDayVolume:100000,minuteVolume:100000,consecutiveHits:4});
   plan.enterEquities([strong],stocks,c=>c);
-  assert.equal(soldBefore,.5);assert.equal(plan.rotations,0);assert.equal(plan.trades.length,0);
-  assert.equal(plan.positions[0].remaining_qty,9.5);assert.equal(plan.newPositions.length,0);
+  assert.equal(soldBefore,1);assert.equal(plan.rotations,0);assert.equal(plan.trades.length,0);
+  assert.equal(plan.positions[0].remaining_qty,9);assert.equal(plan.newPositions.length,0);
   db.close();
 },'2026-09-18T15:00:00Z'));
 
@@ -451,3 +458,46 @@ test('mixed management recovers held stock and option quotes with one bounded re
   const r=await runTick(env,'recovery');assert.equal(r.ok,true,JSON.stringify(r));assert.equal(r.usage.retries,2);assert.ok(r.hunt.exits>=17);assert.ok(r.database.statements<=40);
   t.diagnostic(JSON.stringify({scenario:'mixed retry recovery',...r.database,provider:r.usage.requests}));db.close();
 },'2026-09-18T15:00:00Z'));
+
+// v8.6 exit-liquidity cohort: reproduces the 2026-09-25..29 production deadlock
+// (BLCK $10 and BEC $0.24 fractional positions below stop, no recent minute bar).
+const dustHeld=(id,symbol,qty,entry,over={})=>({id,kind:'equity',account_id:'H250',symbol,opened_at:new Date(Date.now()-3*86400000).toISOString(),entry_price:entry,quantity:qty,remaining_qty:qty,entry_notional:qty*entry,stop_price:entry*.95,target_price:entry*3,highest_price:entry,lowest_price:entry,entry_score:60,entry_day_change_pct:2,opened_phase:'regular',features:'{"max_hold_minutes":720}',status:'open',version:'leader-hunt-v8.5-account-risk-governor',locked_realized_pnl:0,take200_done:0,...over});
+const noMinuteBar=(bp,ap,bs=100)=>({latestQuote:{...quote(bp,ap),bs},prevDailyBar:{c:bp,v:100000},dailyBar:{v:1000}});
+
+test('v8.6: fractional dust stops exit against a fresh displayed bid with no minute bar',()=>clocked(async()=>{
+  const {db}=await setup();const account=db.prepare("SELECT a.*,r.revision FROM hunt_accounts a JOIN hunt_revisions r USING(account_id) WHERE account_id='H250'").get();
+  const plan=new LeaderPlan(account,[dustHeld(523,'BLCK',.402,24.88),dustHeld(530,'BEC',.0129,18.84)],[],[],[],new Date(),'regular');
+  plan.manage({BLCK:noMinuteBar(9.6,9.7),BEC:noMinuteBar(16.5,16.6)},{});
+  assert.equal(plan.trades.length,2);assert.equal(plan.intents.length,0);assert.ok(plan.trades.every(t=>t.exit_reason==='stop'));
+  assert.ok(plan.trades.every(t=>t.version==='leader-hunt-v8.5-account-risk-governor'),'carried positions close into their own cohort');
+  db.close();
+}));
+
+test('v8.6: no displayed bid means no dust exit and the intent is retained',()=>clocked(async()=>{
+  const {db}=await setup();const account=db.prepare("SELECT a.*,r.revision FROM hunt_accounts a JOIN hunt_revisions r USING(account_id) WHERE account_id='H250'").get();
+  const plan=new LeaderPlan(account,[dustHeld(523,'BLCK',.402,24.88)],[],[],[],new Date(),'regular');
+  plan.manage({BLCK:noMinuteBar(9.6,9.7,0)},{});
+  assert.equal(plan.trades.length,0);assert.equal(plan.intents.length,1);
+  assert.equal(plan.stuckExitBlocked,false,'a ~$10 stuck position must not freeze a $250 account');
+  db.close();
+}));
+
+test('v8.6: immaterial stuck exits do not block entries; material ones still do',()=>clocked(async()=>{
+  const {db}=await setup();const account=db.prepare("SELECT a.*,r.revision FROM hunt_accounts a JOIN hunt_revisions r USING(account_id) WHERE account_id='H250'").get();
+  const intent=id=>({kind:'equity',position_id:id,reason:'stop',requested_at:new Date(Date.now()-86400000).toISOString()});
+  const small=new LeaderPlan({...account,cash:185},[dustHeld(523,'BLCK',.402,24.88)],[],[intent(523)],[],new Date(),'regular');
+  assert.ok(small.stuckExitExposure<12.5);assert.equal(small.reason('RAIN'),null);assert.equal(small.reason('BLCK'),'DUPLICATE_POSITION');
+  const big=new LeaderPlan({...account,cash:185},[dustHeld(600,'THIN',10,4)],[],[intent(600)],[],new Date(),'regular');
+  assert.equal(big.stuckExitExposure,40);assert.equal(big.reason('RAIN'),'PENDING_EXIT_INTENT');
+  db.close();
+}));
+
+test('v8.6: liquidity-capped dust entries are rejected below minimum notional',()=>clocked(async()=>{
+  const {db}=await setup();const account=db.prepare("SELECT a.*,r.revision FROM hunt_accounts a JOIN hunt_revisions r USING(account_id) WHERE account_id='H250'").get();
+  const plan=new LeaderPlan({...account,cash:185},[],[],[],[],new Date(),'regular');
+  const stocks={TINY:snapshot(18.8,18.85,2)};
+  plan.enterEquities([candidate({symbol:'TINY',price:18.82,bid:18.8,ask:18.85,spreadPct:.27,minuteVolume:2})],stocks,c=>c);
+  assert.equal(plan.newPositions.length,0);
+  assert.ok(plan.decisions.some(d=>d.reasons.includes('BELOW_MIN_ENTRY_NOTIONAL')),JSON.stringify(plan.decisions.map(d=>d.reasons)));
+  db.close();
+}));
