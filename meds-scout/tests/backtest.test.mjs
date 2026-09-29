@@ -256,6 +256,20 @@ test('Alpaca client paginates, retries rate limits and falls back to the live tr
 
 // ---------------------------------------------------------------- spread model
 
+test('Alpaca client skips a symbol the data API calls invalid and keeps the rest', async () => {
+  const seen = [];
+  const fetchImpl = async url => {
+    const u = new URL(url), list = (u.searchParams.get('symbols') ?? '').split(',');
+    seen.push(list.length);
+    if (list.includes('BAD1')) return new Response(JSON.stringify({message: 'invalid symbol: BAD1'}), {status: 400});
+    return Response.json({bars: Object.fromEntries(list.map(s => [s, [{t: '2026-01-02T05:00:00Z', o: 1, h: 1, l: 1, c: 1, v: 1}]])), next_page_token: null});
+  };
+  const a = new Alpaca({key: 'k', secret: 's', rpm: 6000, fetchImpl, sleep: async () => {}});
+  const out = await a.bars(['AAA', 'BAD1', 'CCC'], {timeframe: '1Day', start: '2026-01-01', end: '2026-01-05'});
+  assert.deepEqual(Object.keys(out).sort(), ['AAA', 'CCC']);
+  assert.deepEqual([...a.skipped], ['BAD1']);
+});
+
 test('spread model fit recovers known coefficients and respects the tick floor', () => {
   const rand = rng(11), truth = [0.8, -0.4, -0.25, -0.05, 0.3], samples = [];
   for (let i = 0; i < 400; i++) {
