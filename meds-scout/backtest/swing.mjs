@@ -61,7 +61,7 @@ async function loadUniverse(alpaca, store, {start, end, batch, log}) {
     let kept;
     if (store.has(name)) kept = store.read(name);
     else {
-      const got = await alpaca.bars(list, {timeframe: '1Day', start, end: addDays(end, 1), adjustment: 'split', feed: 'sip'});
+      const got = await alpaca.bars(list, {timeframe: '1Day', start, end, adjustment: 'split', feed: 'sip'});
       kept = {};
       for (const [sym, rows] of Object.entries(got)) {
         const bar = rows2bars(rows, dateIndex, sessions.length);

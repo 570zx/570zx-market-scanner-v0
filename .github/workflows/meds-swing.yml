@@ -54,7 +54,12 @@ jobs:
           START: ${{ inputs.start }}
         run: |
           set -euo pipefail
-          node --max-old-space-size=6000 --disable-warning=ExperimentalWarning backtest/swing.mjs --start "$START" --rpm 45
+          node --max-old-space-size=6000 --disable-warning=ExperimentalWarning backtest/swing.mjs --start "$START" --rpm 45 2>&1 | tee swing-run.log
+      - name: Show the error
+        if: failure()
+        run: |
+          # Put the end of the log in an annotation so it can be read without opening the logs.
+          echo "::error::$(tail -n 12 swing-run.log | cut -c1-300 | tr '\n' '|')"
       - name: Save market data for the next run
         if: always()
         uses: actions/cache/save@v4
