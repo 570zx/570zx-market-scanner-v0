@@ -66,3 +66,11 @@ Official references:
 - https://developers.cloudflare.com/workers/wrangler/configuration/#automatic-provisioning
 - https://developers.cloudflare.com/workers/platform/pricing/
 - https://developers.cloudflare.com/d1/platform/pricing/
+
+## Deploying from GitHub
+
+Actions -> **MEDS deploy** -> Run workflow. It runs the tests, deploys the
+Worker with `npm run deploy` (schema migrations included) and checks `/health`.
+It needs the repository secrets `CLOUDFLARE_API_TOKEN` (Workers Scripts: Edit,
+D1: Edit) and `CLOUDFLARE_ACCOUNT_ID`. Deploying never switches live trading
+on; that stays behind `/control/live/on`.
