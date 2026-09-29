@@ -38,6 +38,9 @@ export function summarizeVariant(variant, run, costs = {}) {
     final_equity: r2(last.equity_marked ?? 250), return_pct: r2(((last.equity_marked ?? 250) / 250 - 1) * 100), realized_pnl: r2(last.realized_pnl ?? 0),
     max_drawdown_pct: r2(maxDrawdownPct(run.curve)), best_day: r2(Math.max(0, ...dailyChanges)), worst_day: r2(Math.min(0, ...dailyChanges)),
     losing_days: dailyChanges.filter(x => x < 0).length,
+    // Held-back check: paper P&L over the last 10 days versus the days before them.
+    // Rule choices made by looking at the earlier days should still hold up on the last ones.
+    split: days.length >= 20 ? {early_days: days.length - 10, early_pnl: r2(days[days.length - 11].equity_marked - 250), late_days: 10, late_pnl: r2(last.equity_marked - days[days.length - 11].equity_marked)} : null,
     overnight: {...tradeStats(overnight), share_pct: r2(pct(overnight.length, trades.length))},
     exits: Object.fromEntries(Object.entries(byReason).map(([k, ts]) => [k, tradeStats(ts)]).sort((a, b) => b[1].n - a[1].n)),
     by_entry_day_change: byEntry, top_rejections: rejections,
@@ -69,6 +72,12 @@ export function renderSummary({meta, results}) {
       `${money(r.paper_at_real_quotes?.pnl_nbbo)} | ${money(r.live_mirror?.total_pnl)} | ${pctText(r.max_drawdown_pct)} | ${r.overnight.n} |`);
   }
   L.push('');
+  if (results.some(r => r.split)) {
+    L.push('| Rule set | Earlier days: paper P&L | Last 10 days (held back): paper P&L |');
+    L.push('|---|---:|---:|');
+    for (const r of results) if (r.split) L.push(`| **${r.id}** | ${money(r.split.early_pnl)} (${r.split.early_days} days) | ${money(r.split.late_pnl)} |`);
+    L.push('');
+  }
   L.push('**Paper P&L**: the paper account ($250, fractional shares) marked at the last trade, using the modeled spread. ' +
     '**Same trades at real quotes**: those exact trades re-priced at the real NBBO one minute after each decision (bought at the ask, sold at the bid). ' +
     '**Live mirror P&L**: what the Robinhood mirror would have done with those decisions — whole shares, $12 orders, its 3% spread and 2% chase limits, 3 orders a minute.');
