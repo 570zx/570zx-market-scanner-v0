@@ -2535,7 +2535,7 @@ async function publicStatus(env: Env): Promise<Response> {
     body.engine={version:env.LEADER_ONLY==='true'?CAPACITY_ENGINE:ENGINE_VERSION,runtime:env.LEADER_ONLY==='true'?'leader_only':'legacy',active_account:env.LEADER_ONLY==='true'?ACTIVE_ACCOUNT:null,normal_paper_executed:env.LEADER_ONLY!=='true',last_management_at:cycle?.management_at??null,latest_cycle:cycle,
       usage:cycleUsage,single_scheduler:'Cloudflare cron',cadence_minutes:plannedCadence(phase(now)),
       configured_enabled:env.SCOUT_ENABLED==='true',runtime_paused:!!state?.paused,reduce_only:!!state?.reduce_only,
-      risk_mode:state?.paused?'HARD_HALTED':state?.reduce_only?'REDUCE_ONLY':dailyRisk?.risk_state==='REDUCE_ONLY'?'REDUCE_ONLY':'NORMAL',
+      risk_mode:state?.paused?'HARD_HALTED':Number(state?.reduce_only)===2?'FLATTENING':state?.reduce_only?'REDUCE_ONLY':dailyRisk?.risk_state==='REDUCE_ONLY'?'REDUCE_ONLY':'NORMAL',
       daily_risk:dailyRisk,live_execution:body.live_execution===true,active_risk_policy:env.LEADER_ONLY==='true'?ACTIVE_LEADER_RISK_POLICY:null};
     body.valuations=detailed;
     body.quote_health=env.LEADER_ONLY==='true'?detailed.flatMap(v=>v.marks.filter((m:any)=>m.state!=='FRESH')):quoteIssues.results??[];
@@ -2901,7 +2901,7 @@ export default {
       const live=await liveEnabled(env);
       return Response.json({ok:!['ENGINE_CRITICAL','ENGINE_STALE'].includes(health),health,version:env.LEADER_ONLY==='true'?CAPACITY_ENGINE:ENGINE_VERSION,leader_version:env.LEADER_ONLY==='true'?CAPACITY_VERSION:HUNT_VERSION,
         mode:'shadow',live_execution:live,execution_mode:live?'live_mirror':'shadow',enabled,valuation_state,time:new Date().toISOString(),market:easternParts(),feed:stockFeed(),...state,
-        reduce_only:!!state?.reduce_only,risk_mode:state?.paused?'HARD_HALTED':state?.reduce_only?'REDUCE_ONLY':'NORMAL'});
+        reduce_only:!!state?.reduce_only,risk_mode:state?.paused?'HARD_HALTED':Number(state?.reduce_only)===2?'FLATTENING':state?.reduce_only?'REDUCE_ONLY':'NORMAL'});
     }
     if (url.pathname === "/status/broker-readiness" && req.method === "GET") {
       const [config,intents,reconciliation,observation,trades,sessions]=await Promise.all([
@@ -2998,7 +2998,7 @@ export default {
     if (!env.ADMIN_TOKEN || req.headers.get("authorization") !== `Bearer ${env.ADMIN_TOKEN}`) return Response.json({error:"Unauthorized"},{status:401});
     if ((url.pathname === "/control/pause" || url.pathname === "/control/reduce-only") && req.method === "POST") {
       if(env.LEADER_ONLY==='true'){
-        await env.MEDS_DB.prepare('UPDATE leader_control_state SET reduce_only=1 WHERE id=1').run();
+        await env.MEDS_DB.prepare('UPDATE leader_control_state SET reduce_only=MAX(reduce_only,1) WHERE id=1').run();
         return Response.json({ok:true,paused:false,reduce_only:true,risk_mode:'REDUCE_ONLY',message:'new entries blocked; position management and exits continue'});
       }
       if(url.pathname==='/control/reduce-only')return Response.json({error:'reduce-only is available only in Leader runtime'},{status:409});
@@ -3006,9 +3006,19 @@ export default {
       return Response.json({ok:true,paused:true,reduce_only:false,risk_mode:'HARD_HALTED'});
     }
     if (url.pathname === "/control/halt" && req.method === "POST") {
-      if(env.LEADER_ONLY==='true')await env.MEDS_DB.prepare('UPDATE leader_control_state SET reduce_only=1 WHERE id=1').run();
+      if(env.LEADER_ONLY==='true')await env.MEDS_DB.prepare('UPDATE leader_control_state SET reduce_only=MAX(reduce_only,1) WHERE id=1').run();
       await env.MEDS_DB.prepare('UPDATE service_state SET paused=1 WHERE id=1').run();
       return Response.json({ok:true,paused:true,reduce_only:env.LEADER_ONLY==='true',risk_mode:'HARD_HALTED',message:'all engine activity halted until resume'});
+    }
+    if (url.pathname === "/control/flatten" && req.method === "POST") {
+      // Kill switch: block entries and sell every position at the next fresh quotes.
+      // Unlike /control/halt the engine keeps running so the exits actually happen.
+      if(env.LEADER_ONLY!=='true')return Response.json({error:'flatten is available only in Leader runtime'},{status:409});
+      await env.MEDS_DB.batch([
+        env.MEDS_DB.prepare('UPDATE leader_control_state SET reduce_only=2 WHERE id=1'),
+        env.MEDS_DB.prepare('UPDATE service_state SET paused=0 WHERE id=1')]);
+      await postAlert(env,'MEDS KILL SWITCH: no new buys, selling every position. Use /control/resume to trade again.','kill-'+Date.now()).catch(()=>{});
+      return Response.json({ok:true,risk_mode:'FLATTENING',message:'no new entries; every open position is sold on the next cycles (paper exits feed the live mirror). /control/resume re-arms.'});
     }
     if (url.pathname === "/control/resume" && req.method === "POST") {
       await env.MEDS_DB.prepare('UPDATE service_state SET paused=0 WHERE id=1').run();

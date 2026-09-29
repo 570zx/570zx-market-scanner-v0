@@ -40,6 +40,8 @@ export const ACTIVE_LEADER_RISK_POLICY=Object.freeze({
   trail_activate_pct:null as number|null,
   trail_pct:null as number|null,
   take_profit_pct:null as number|null,
+  // Kill switch: sell every position at the next fresh quote (set by /control/flatten).
+  flatten_now:false as boolean,
 });
 export type LeaderPolicy=typeof ACTIVE_LEADER_RISK_POLICY;
 const ET_CLOCK=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour:'2-digit',minute:'2-digit',hour12:false});
@@ -191,6 +193,7 @@ export class LeaderPlan {
         if(!reason&&takeProfit!=null&&q.bp>=p.entry_price*(1+takeProfit))reason='take_profit';
         if(!reason&&(this.now.getTime()-Date.parse(p.opened_at))/60000>=preservedMaxHold(p.version,p.kind,p.features))reason='time';
       }
+      if(!reason&&this.policy.flatten_now)reason='kill_switch';
       if(!reason&&this.closingSoon)reason='session_close';
       if(!reason)continue;
       const qty=Math.min(p.remaining_qty,available),remaining=p.remaining_qty;
