@@ -17,9 +17,11 @@ const upsert=(columns:string[],keys:string[])=>'ON CONFLICT('+keys.join(',')+') 
 
 export async function runLeaderCycle(env:any,source:string,d:Dependencies){
   if(env.TRADING_MODE!=='shadow')throw Error('Only shadow mode is supported; no brokerage execution exists');
-  const db=new CycleDB(env.MEDS_DB),now=new Date(),bucket=cycleBucket(now),date=sessionDate(now),marketPhase=d.phase(now),policy=d.policy??ACTIVE_LEADER_RISK_POLICY;
+  const db=new CycleDB(env.MEDS_DB),now=new Date(),bucket=cycleBucket(now),date=sessionDate(now),marketPhase=d.phase(now),basePolicy=d.policy??ACTIVE_LEADER_RISK_POLICY;
   const cadence=env.ENGINE_CADENCE==='session'?plannedCadence(marketPhase):5,engineBucket=cadenceBucket(now,cadence||5),startedAt=now.toISOString();
   const state=(await db.all(`SELECT s.*,m.version AS schema_version,(SELECT completed_at FROM engine_cycles WHERE bucket=?) AS completed_at,COALESCE((SELECT reduce_only FROM leader_control_state WHERE id=1),0) AS reduce_only,(SELECT last_maintenance_date FROM leader_maintenance_state WHERE id=1) AS last_maintenance_date FROM service_state s JOIN paper_meta m ON m.id=s.id WHERE s.id=1`,[engineBucket],'state'))[0];
+  // reduce_only=2 is the kill switch: no entries, and every position is sold.
+  const policy=Number(state?.reduce_only)===2?{...basePolicy,flatten_now:true}:basePolicy;
   if(env.SCOUT_ENABLED!=='true'||state?.paused)return {ok:true,skipped:'disabled',version:CAPACITY_ENGINE};
   if(!d.active(now))return {ok:true,skipped:'outside scan window'};
   if(state?.schema_version!==13)return {ok:false,error:'DEPLOYMENT_MIGRATION_REQUIRED: expected schema 13'};

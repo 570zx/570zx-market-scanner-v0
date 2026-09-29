@@ -58,6 +58,20 @@ test('flat-before-close sells every position in the final minutes only', async (
   });
 });
 
+test('kill switch (flatten_now) sells a position at any time of day and is off by default', async () => {
+  assert.equal(ACTIVE_LEADER_RISK_POLICY.flatten_now, false);
+  await atMoment(et('11:00'), fetch, async () => {
+    const now = Date.now();
+    const quiet = plan(now, [held()], policy({}));
+    quiet.manage({HELD: snap(1.01, 1.02, now)}, {});
+    assert.equal(quiet.trades.length, 0);
+    const kill = plan(now, [held()], policy({flatten_now: true}));
+    kill.manage({HELD: snap(1.01, 1.02, now)}, {});
+    assert.equal(kill.trades.length, 1);
+    assert.equal(kill.trades[0].exit_reason, 'kill_switch');
+  });
+});
+
 test('trailing stop activates only after the gain threshold', () => atMoment(et('11:00'), fetch, async () => {
   const now = Date.now(), trail = policy({trail_activate_pct: 0.06, trail_pct: 0.04});
   const p = plan(now, [held({id: 1, symbol: 'UPUP', highest_price: 1.10}), held({id: 2, symbol: 'FLAT', highest_price: 1.04})], trail);
