@@ -1,0 +1,33 @@
+name: Actor publish
+
+# Uploads and builds the Vehicle Safety Intel Actor in the owner's Apify account.
+# Needs the APIFY_TOKEN repository secret. Manual trigger only. Making the Actor
+# public in Apify Store and setting its price are done once in Apify Console
+# (Publication tab), with the owner's approval.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: actors/vehicle-safety-intel
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check token
+        env:
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+        run: |
+          if [ -z "$APIFY_TOKEN" ]; then echo "::error::Add APIFY_TOKEN as a repository secret first."; exit 1; fi
+      - name: Unit tests
+        run: npm test
+      - name: Push and build on Apify
+        env:
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+        run: npx --yes apify-cli@latest push --force 2>&1 | tail -n 30

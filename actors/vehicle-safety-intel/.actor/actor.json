@@ -1,0 +1,36 @@
+{
+  "actorSpecification": 1,
+  "name": "vehicle-safety-intel",
+  "title": "VIN Decoder + Recalls + Complaints + Crash Ratings (NHTSA)",
+  "description": "Give it VINs, get specs, safety recalls, owner complaints and crash-test ratings from official US government data. Built for AI agents and repair, insurance and used-car workflows.",
+  "version": "0.1",
+  "buildTag": "latest",
+  "input": "./input_schema.json",
+  "dockerfile": "../Dockerfile",
+  "storages": {
+    "dataset": {
+      "actorSpecification": 1,
+      "views": {
+        "overview": {
+          "title": "Vehicles",
+          "transformation": {"fields": ["vin", "status", "year", "make", "model", "trim", "bodyClass", "recallCount", "complaintCount", "overallSafetyRating"]},
+          "display": {
+            "component": "table",
+            "properties": {
+              "vin": {"label": "VIN", "format": "text"},
+              "status": {"label": "Status", "format": "text"},
+              "year": {"label": "Year", "format": "number"},
+              "make": {"label": "Make", "format": "text"},
+              "model": {"label": "Model", "format": "text"},
+              "trim": {"label": "Trim", "format": "text"},
+              "bodyClass": {"label": "Body", "format": "text"},
+              "recallCount": {"label": "Recall campaigns", "format": "number"},
+              "complaintCount": {"label": "Complaints", "format": "number"},
+              "overallSafetyRating": {"label": "NCAP overall", "format": "text"}
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,66 @@
+name: Research scan
+
+# Market research for the Actor business: downloads the public Apify Store
+# catalog and a few reference pages, encrypts them with research/pub.pem
+# (the repository is public; only the holder of the private key can read the
+# result) and publishes the encrypted bundle to the research-data branch.
+# Runs when the research-scan branch is pushed, or by hand.
+
+on:
+  push:
+    branches: [research-scan]
+    paths: [research/**, .github/workflows/research-scan.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: research-scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download catalog and pages
+        run: python3 research/apify-scan.py 2>&1 | tee research/scan.log
+      - name: Encrypt
+        run: |
+          set -euo pipefail
+          cd research
+          cp scan.log out/
+          tar -czf bundle.tgz -C out .
+          openssl rand -hex 32 > key.txt
+          openssl enc -aes-256-cbc -pbkdf2 -salt -pass file:key.txt -in bundle.tgz -out bundle.tgz.enc
+          openssl pkeyutl -encrypt -pubin -inkey pub.pem -pkeyopt rsa_padding_mode:oaep -in key.txt -out key.enc
+          rm -f key.txt bundle.tgz
+          ls -la bundle.tgz.enc key.enc
+      - name: Publish to the research-data branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          dest="scans/$(date -u +%Y-%m-%dT%H%M)-${GITHUB_RUN_ID}"
+          for attempt in 1 2 3 4 5; do
+            work="$RUNNER_TEMP/data-$attempt"
+            if git ls-remote --exit-code --heads "$remote" research-data >/dev/null 2>&1; then
+              git clone --quiet --depth 1 --branch research-data "$remote" "$work"
+            else
+              git init --quiet -b research-data "$work"
+              git -C "$work" remote add origin "$remote"
+            fi
+            mkdir -p "$work/$dest"
+            cp research/bundle.tgz.enc research/key.enc "$work/$dest/"
+            echo "$dest" > "$work/LATEST"
+            git -C "$work" config user.name "research-scan"
+            git -C "$work" config user.email "research-scan@users.noreply.github.com"
+            git -C "$work" add -A
+            git -C "$work" commit --quiet -m "Research scan ${dest}"
+            if git -C "$work" push --quiet origin HEAD:research-data; then exit 0; fi
+            sleep $((attempt * 5))
+          done
+          echo "::error::Could not publish after 5 tries"; exit 1

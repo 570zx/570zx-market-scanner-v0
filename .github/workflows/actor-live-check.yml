@@ -1,0 +1,80 @@
+name: Actor live check
+
+# Runs the Vehicle Safety Intel Actor's unit tests, a live check against the real
+# NHTSA servers, and a full run through the Apify SDK against local storage.
+# Publishes the outcome to the actor-results branch. Runs when the branch is pushed.
+
+on:
+  push:
+    branches: [research-scan]
+    paths: [actors/**, .github/workflows/actor-live-check.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: actor-live-check
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: actors/vehicle-safety-intel
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Unit tests
+        run: npm test 2>&1 | tail -n 15 | tee ../../unit.log
+      - name: Live check against NHTSA
+        run: |
+          set -o pipefail
+          node tests/live.mjs 2>&1 | tee ../../live.md
+      - name: Install the Apify SDK
+        run: npm install --no-audit --no-fund 2>&1 | tail -n 5
+      - name: Full run through the SDK (local storage)
+        env:
+          APIFY_IS_AT_HOME: ""
+        run: |
+          set -eo pipefail
+          mkdir -p storage/key_value_stores/default
+          echo '{"vins":["1HGCM82633A004352","5YJ3E1EA7KF317000","1HGCM82633A004352","bad"],"maxComplaintsPerVehicle":2}' > storage/key_value_stores/default/INPUT.json
+          node src/main.js 2>&1 | tail -n 20 | tee ../../sdk.log
+          ls storage/datasets/default | head
+          python3 - <<'PY' | tee ../../sdk-items.md
+          import json,glob
+          for f in sorted(glob.glob('storage/datasets/default/*.json')):
+              d=json.load(open(f)); print(d['vin'], d['status'], d.get('year'), d.get('make'), d.get('model'), 'recalls', d.get('recallCount'), 'complaints', d.get('complaintCount'), 'ncap', d.get('overallSafetyRating'))
+          PY
+          cat storage/key_value_stores/default/SDK_STATUS 2>/dev/null || true
+      - name: Show the error
+        if: failure()
+        run: echo "::error::$(tail -n 12 ../../live.md ../../sdk.log ../../unit.log 2>/dev/null | cut -c1-250 | tr '\n' '|')"
+      - name: Publish results
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
+          { echo "# Actor live check $(date -u +%FT%TZ) (${GITHUB_SHA::7})"; echo; echo '## Unit tests'; echo '```'; cat unit.log 2>/dev/null || true; echo '```'; echo '## SDK run'; echo '```'; cat sdk.log 2>/dev/null || true; cat sdk-items.md 2>/dev/null || true; echo '```'; echo '## Live'; cat live.md 2>/dev/null || true; } > RESULT.md
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          for attempt in 1 2 3 4 5; do
+            work="$RUNNER_TEMP/r-$attempt"
+            if git ls-remote --exit-code --heads "$remote" actor-results >/dev/null 2>&1; then
+              git clone --quiet --depth 1 --branch actor-results "$remote" "$work"
+            else
+              git init --quiet -b actor-results "$work"; git -C "$work" remote add origin "$remote"
+            fi
+            cp RESULT.md "$work/RESULT.md"
+            git -C "$work" config user.name "actor-check"; git -C "$work" config user.email "actor-check@users.noreply.github.com"
+            git -C "$work" add -A; git -C "$work" commit --quiet -m "Actor live check ${GITHUB_SHA::7}" || true
+            if git -C "$work" push --quiet origin HEAD:actor-results; then exit 0; fi
+            sleep $((attempt * 5))
+          done
+          exit 1
