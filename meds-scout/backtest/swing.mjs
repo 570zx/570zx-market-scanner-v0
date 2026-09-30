@@ -48,7 +48,7 @@ const rows2bars = (rows, dateIndex, n) => {
 const pack = bar => Object.fromEntries(FIELDS.map(f => [f, Array.from(bar[f], x => Number.isFinite(x) ? Math.round(x * 1e4) / 1e4 : null)]));
 const unpack = raw => Object.fromEntries(FIELDS.map(f => [f, Float64Array.from(raw[f], x => x == null ? NaN : x)]));
 
-async function loadUniverse(alpaca, store, {start, end, batch, log}) {
+export async function loadUniverse(alpaca, store, {start, end, batch, log}) {
   const cal = await alpaca.calendar(start, end);
   const sessions = cal.map(c => c.date).filter(d => d >= start && d <= end);
   const dateIndex = new Map(sessions.map((d, i) => [d, i]));
