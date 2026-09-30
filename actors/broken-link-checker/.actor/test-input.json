@@ -1,0 +1,7 @@
+{
+  "urls": [
+    "https://www.python.org",
+    "https://example.com"
+  ],
+  "maxLinksPerPage": 25
+}

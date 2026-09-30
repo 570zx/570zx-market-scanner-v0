@@ -1,0 +1,43 @@
+{
+  "title": "Broken Link Checker",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "urls": {
+      "title": "Pages to check",
+      "type": "array",
+      "editor": "stringList",
+      "description": "Pages whose links should be checked (up to 1,000 per run). Tip: use a sitemap extractor's output to check a whole site.",
+      "prefill": [
+        "https://www.python.org"
+      ]
+    },
+    "onlyBroken": {
+      "title": "Only return broken links",
+      "type": "boolean",
+      "default": false,
+      "description": "Hide working links from the results (they are still checked and counted)."
+    },
+    "includeAssets": {
+      "title": "Also check images, scripts and stylesheets",
+      "type": "boolean",
+      "default": false
+    },
+    "maxLinksPerPage": {
+      "title": "Maximum links per page",
+      "type": "integer",
+      "default": 300,
+      "minimum": 1,
+      "maximum": 2000
+    },
+    "respectRobotsTxt": {
+      "title": "Respect robots.txt",
+      "type": "boolean",
+      "default": true,
+      "description": "Skip pages and links the site asks bots not to fetch. Turn off only for your own sites."
+    }
+  },
+  "required": [
+    "urls"
+  ]
+}

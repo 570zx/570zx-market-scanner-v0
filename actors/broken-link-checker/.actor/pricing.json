@@ -1,0 +1,9 @@
+{
+  "events": {
+    "link": {
+      "title": "Link checked",
+      "description": "One link checked. A link that appears on several pages is fetched once but charged per page it appears on. Links skipped by robots.txt and pages that fail to load are free.",
+      "price": 0.0005
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "broken-link-checker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Find broken links (404s, dead domains, server errors) on any list of pages. Checks every link on each page, follows redirects, retries temporary errors, and can include images, scripts and stylesheets. One row per link with status code and link text.",
+  "scripts": {
+    "start": "node src/main.js",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "apify": "^3.2.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
