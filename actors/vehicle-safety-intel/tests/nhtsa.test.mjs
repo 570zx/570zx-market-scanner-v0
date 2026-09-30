@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {NhtsaClient, buildReport, checkDigitOk, normalizeVin, VIN_RE, parseNhtsaDate, summarizeComplaints, decodeStatus} from '../src/nhtsa.js';
+import {NhtsaClient, buildReport, pickModel, checkDigitOk, normalizeVin, VIN_RE, parseNhtsaDate, summarizeComplaints, decodeStatus} from '../src/nhtsa.js';
 
 const jres = (obj, status = 200) => ({status, ok: status < 400, text: async () => JSON.stringify(obj)});
 
@@ -55,6 +55,7 @@ const fast = f => new NhtsaClient({fetchImpl: f, sleep: async () => {}, baseDela
 test('full report: specs, recalls, complaints, ratings; billable', async () => {
   const f = fakeFetch([
     ['DecodeVinValues', {Results: [{ErrorCode: '0', ErrorText: '0 - VIN decoded clean', Make: 'HONDA', Model: 'Accord', ModelYear: '2003', BodyClass: 'Sedan/Saloon', Doors: '4', DisplacementL: '2.4', EngineNumberofCylinders: '4', Trim: ''}]}],
+    ['products/vehicle/models', {results: [{model: 'Accord'}]}],
     ['recallsByVehicle', {Count: 1, results: [{NHTSACampaignNumber: '23V001000', Component: 'AIR BAGS', Summary: 's', Consequence: 'c', Remedy: 'r', ReportReceivedDate: '01/01/2023', parkIt: true}]}],
     ['complaintsByVehicle', {Count: 2, results: [{components: 'AIR BAGS', dateComplaintFiled: '01/01/2022', odiNumber: 9}, {components: 'ENGINE', dateComplaintFiled: '02/01/2022', odiNumber: 10}]}],
     ['SafetyRatings/modelyear', {Count: 1, Results: [{VehicleId: 555, VehicleDescription: '2003 Honda Accord 4-DR'}]}],
@@ -85,6 +86,7 @@ test('undecodable VIN is free', async () => {
 test('a failing side lookup gives a partial (still billable) report with a warning', async () => {
   const f = fakeFetch([
     ['DecodeVinValues', {Results: [{ErrorCode: '0', Make: 'HONDA', Model: 'Accord', ModelYear: '2003'}]}],
+    ['products/vehicle/models', {results: []}],
     ['recallsByVehicle', () => jres({}, 500)],
     ['complaintsByVehicle', {results: []}],
     ['SafetyRatings/modelyear', {Results: []}]
@@ -108,4 +110,27 @@ test('options switch off lookups', async () => {
   const {item} = await buildReport(fast(f), '1HGCM82633A004352', {includeRecalls: false, includeComplaints: false, includeRatings: false});
   assert.equal(f.calls.length, 1);
   assert.equal(item.recalls, undefined);
+});
+
+test('pickModel handles NHTSA spelling differences', () => {
+  assert.equal(pickModel(['F150', 'F250'], 'F-150'), 'F150');
+  assert.equal(pickModel(['NEW BEETLE', 'JETTA'], 'Beetle'), 'NEW BEETLE');
+  assert.equal(pickModel(['MODEL 3', 'MODEL S'], 'Model 3'), 'MODEL 3');
+  assert.equal(pickModel(['CIVIC'], 'Accord'), null);
+  assert.equal(pickModel([], 'Accord'), null);
+});
+
+test('resolved model name is used in the lookup and 400 means no records', async () => {
+  const f = fakeFetch([
+    ['DecodeVinValues', {Results: [{ErrorCode: '0', Make: 'FORD', Model: 'F-150', ModelYear: '2013'}]}],
+    ['products/vehicle/models', {results: [{model: 'F150'}]}],
+    ['recallsByVehicle', {results: [{NHTSACampaignNumber: 'X'}]}],
+    ['complaintsByVehicle', () => jres({}, 400)],
+    ['SafetyRatings/modelyear', {Results: []}]
+  ]);
+  const {item} = await buildReport(fast(f), '1HGCM82633A004352', {});
+  assert.ok(f.calls.some(u => u.includes('recallsByVehicle') && u.includes('model=F150')));
+  assert.equal(item.complaintCount, 0);
+  assert.equal(item.recallCount, 1);
+  assert.equal(item.status, 'ok');
 });

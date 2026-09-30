@@ -40,12 +40,12 @@ export class NhtsaClient {
     Object.assign(this, {fetchImpl, retries, baseDelayMs, timeoutMs, sleep});
   }
 
-  async getJson(url) {
+  async getJson(url, {emptyOn400 = false} = {}) {
     let last;
     for (let attempt = 0; attempt <= this.retries; attempt++) {
       try {
         const res = await this.fetchImpl(url, {headers: {accept: 'application/json'}, signal: AbortSignal.timeout(this.timeoutMs)});
-        if (res.status === 404) return {notFound: true};
+        if (res.status === 404 || (emptyOn400 && res.status === 400)) return {notFound: true};
         if (res.status === 429 || res.status >= 500) throw new Error(`HTTP ${res.status}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const text = await res.text();
@@ -64,16 +64,36 @@ export class NhtsaClient {
     return j?.Results?.[0] ?? null;
   }
 
+  // NHTSA spells the same model differently in each database (F-150 / F150, Beetle / NEW BEETLE),
+  // so ask which names it knows for this make and year and pick the closest one.
+  async modelNames(issueType, make, year) {
+    this.modelCache ??= new Map();
+    const key = `${issueType}|${make}|${year}`.toUpperCase();
+    if (!this.modelCache.has(key)) {
+      const j = await this.getJson(`${API}/products/vehicle/models?modelYear=${year}&make=${encodeURIComponent(make)}&issueType=${issueType}`, {emptyOn400: true});
+      this.modelCache.set(key, (j?.results ?? []).map(r => String(r.model ?? '')).filter(Boolean));
+    }
+    return this.modelCache.get(key);
+  }
+
+  async resolveModel(issueType, make, model, year) {
+    let names = [];
+    try { names = await this.modelNames(issueType, make, year); } catch { /* fall back to the decoded name */ }
+    return pickModel(names, model) ?? model;
+  }
+
   async recalls({make, model, year}) {
-    const q = `make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}&modelYear=${year}`;
-    const j = await this.getJson(`${API}/recalls/recallsByVehicle?${q}`);
-    return j?.results ?? [];
+    const m = await this.resolveModel('r', make, model, year);
+    const q = `make=${encodeURIComponent(make)}&model=${encodeURIComponent(m)}&modelYear=${year}`;
+    const j = await this.getJson(`${API}/recalls/recallsByVehicle?${q}`, {emptyOn400: true});
+    return {model: m, rows: j?.results ?? []};
   }
 
   async complaints({make, model, year}) {
-    const q = `make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}&modelYear=${year}`;
-    const j = await this.getJson(`${API}/complaints/complaintsByVehicle?${q}`);
-    return j?.results ?? [];
+    const m = await this.resolveModel('c', make, model, year);
+    const q = `make=${encodeURIComponent(make)}&model=${encodeURIComponent(m)}&modelYear=${year}`;
+    const j = await this.getJson(`${API}/complaints/complaintsByVehicle?${q}`, {emptyOn400: true});
+    return {model: m, rows: j?.results ?? []};
   }
 
   // Ratings are per "variant" (VehicleId); a model year can have several. Returns the variants that have ratings.
@@ -89,6 +109,19 @@ export class NhtsaClient {
     }
     return out;
   }
+}
+
+const squash = v => String(v ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+// Pick the database's spelling of a model: exact after ignoring punctuation and case, else the
+// shortest name that contains (or is contained in) the decoded name.
+export function pickModel(names, model) {
+  const want = squash(model);
+  if (!want || !names?.length) return null;
+  const exact = names.find(n => squash(n) === want);
+  if (exact) return exact;
+  const near = names.filter(n => squash(n).includes(want) || want.includes(squash(n))).sort((a, b) => a.length - b.length);
+  return near[0] ?? null;
 }
 
 export function specsFromDecode(d) {
@@ -224,14 +257,16 @@ export async function buildReport(client, rawVin, opts) {
   const veh = {make: specs.make, model: specs.model, year: specs.year};
 
   const tasks = [];
-  if (includeRecalls) tasks.push(client.recalls(veh).then(rows => {
+  if (includeRecalls) tasks.push(client.recalls(veh).then(({model, rows}) => {
     const list = summarizeRecalls(rows);
+    item.recallsModelName = model;
     item.recallCount = list.length;
     item.recallsNote = 'Recall campaigns that apply to this make, model and year. NHTSA does not publish whether this specific car was already repaired: check with the manufacturer or a dealer using the VIN.';
     item.recalls = list;
   }));
-  if (includeComplaints) tasks.push(client.complaints(veh).then(rows => {
+  if (includeComplaints) tasks.push(client.complaints(veh).then(({model, rows}) => {
     const s = summarizeComplaints(rows, maxComplaintsPerVehicle);
+    item.complaintsModelName = model;
     item.complaintCount = s.total;
     item.complaintSummary = {crashes: s.crashes, fires: s.fires, injuries: s.injuries, deaths: s.deaths, topComponents: s.topComponents};
     item.recentComplaints = s.recent;
