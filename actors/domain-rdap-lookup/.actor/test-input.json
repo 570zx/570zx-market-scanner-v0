@@ -1,0 +1,9 @@
+{
+  "domains": [
+    "apify.com",
+    "www.bbc.co.uk",
+    "google.dev",
+    "this-domain-should-not-exist-570zx.com",
+    "not a domain"
+  ]
+}

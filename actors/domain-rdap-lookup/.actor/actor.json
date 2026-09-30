@@ -1,0 +1,70 @@
+{
+  "actorSpecification": 1,
+  "name": "domain-rdap-lookup",
+  "title": "Domain WHOIS / RDAP Lookup: Age, Expiry, Registrar",
+  "description": "Look up domains in the registries' official RDAP service (the modern WHOIS): registration date and age, expiry date and days left, registrar, abuse contact, status codes, nameservers and DNSSEC. Also tells you when a domain is not registered.",
+  "version": "0.1",
+  "buildTag": "latest",
+  "input": "./input_schema.json",
+  "output": "./output_schema.json",
+  "dockerfile": "../Dockerfile",
+  "storages": {
+    "dataset": {
+      "actorSpecification": 1,
+      "views": {
+        "overview": {
+          "title": "Domains",
+          "transformation": {
+            "fields": [
+              "domain",
+              "registered",
+              "registrar",
+              "createdDate",
+              "expiryDate",
+              "daysUntilExpiry",
+              "ageYears",
+              "status"
+            ]
+          },
+          "display": {
+            "component": "table",
+            "properties": {
+              "domain": {
+                "label": "Domain",
+                "format": "text"
+              },
+              "registered": {
+                "label": "Registered",
+                "format": "boolean"
+              },
+              "registrar": {
+                "label": "Registrar",
+                "format": "text"
+              },
+              "createdDate": {
+                "label": "Created",
+                "format": "text"
+              },
+              "expiryDate": {
+                "label": "Expires",
+                "format": "text"
+              },
+              "daysUntilExpiry": {
+                "label": "Days left",
+                "format": "number"
+              },
+              "ageYears": {
+                "label": "Age (years)",
+                "format": "number"
+              },
+              "status": {
+                "label": "Status",
+                "format": "text"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

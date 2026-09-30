@@ -1,0 +1,17 @@
+{
+  "name": "domain-rdap-lookup",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Look up domains in the registries' official RDAP service (the modern WHOIS): registration date and age, expiry date and days left, registrar, abuse contact, status codes, nameservers and DNSSEC. Also tells you when a domain is not registered.",
+  "scripts": {
+    "start": "node src/main.js",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "apify": "^3.2.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
