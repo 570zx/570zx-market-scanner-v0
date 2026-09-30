@@ -1,9 +1,9 @@
-# sitemap-urls  2026-09-30T16:11:11Z fd9933d
+# sitemap-urls  2026-09-30T16:12:19Z a5308d5
 ## install
 ```
 npm warn deprecated lodash.isequal@4.5.0: This package is deprecated. Use require('node:util').isDeepStrictEqual instead.
 
-added 187 packages in 2s
+added 187 packages in 3s
 ```
 ## unit tests
 ```
@@ -13,17 +13,14 @@ added 187 packages in 2s
 ```
 ## local run on test input
 ```
-[32mINFO[39m  [Status message]: Sites done 1/3, URLs found 0
 [33mWARN[39m  Ignored attempt to charge for an event - the Actor does not use the pay-per-event pricing
+[32mINFO[39m  [Status message]: Sites done 1/3, URLs found 40
 [32mINFO[39m  [Status message]: Sites done 2/3, URLs found 40
 [32mINFO[39m  [Status message]: Sites done 3/3, URLs found 40
 [32mINFO[39m  [Status message]: Read 3 of 3 sites and found 40 URLs.
 ```
 ## items
 42 items
-```json
-{"site": "https://example.com/", "domain": "example.com", "status": "no_sitemap_found", "sitemapsTried": ["https://example.com/sitemap.xml", "https://example.com/sitemap_index.xml", "https://example.com/wp-sitemap.xml", "https://example.com/sitemap.txt"], "errors": ["https://example.com/sitemap.xml: HTTP 404", "https://example.com/sitemap_index.xml: HTTP 404", "https://example.com/wp-sitemap.xml: HTTP 404", "https://example.com/sitemap.txt: HTTP 404"]}
-```
 ```json
 {"site": "https://apify.com/sitemap.xml", "domain": "apify.com", "status": "ok", "url": "https://apify.com/", "lastmod": null, "changefreq": null, "priority": null, "images": 0, "sitemap": "https://apify.com/sitemap/pages.xml"}
 ```
@@ -56,4 +53,7 @@ added 187 packages in 2s
 ```
 ```json
 {"site": "https://apify.com/sitemap.xml", "domain": "apify.com", "status": "ok", "url": "https://apify.com/alternatives/crawl4ai-alternatives", "lastmod": null, "changefreq": null, "priority": null, "images": 0, "sitemap": "https://apify.com/sitemap/pages.xml"}
+```
+```json
+{"site": "https://apify.com/sitemap.xml", "domain": "apify.com", "status": "ok", "url": "https://apify.com/alternatives/diffbot-alternative", "lastmod": null, "changefreq": null, "priority": null, "images": 0, "sitemap": "https://apify.com/sitemap/pages.xml"}
 ```
