@@ -20,6 +20,7 @@ import {STRATEGIES, simulate, statsFor, indicators, everLiquid, WARMUP} from './
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 const FIELDS = ['o', 'h', 'l', 'c', 'v'];
+export const LARGE = {minAdv: 300e6, minPrice: 20};
 const STRESS = 2.5; // cost multiple for the "if fills are worse than I think" column
 
 export function parseArgs(argv) {
@@ -78,10 +79,15 @@ export async function loadUniverse(alpaca, store, {start, end, batch, log}) {
 export function runAll({sessions, bars, benchmark = 'SPY'}) {
   const ind = Object.fromEntries(Object.keys(bars).map(s => [s, indicators(bars[s])]));
   const results = [];
-  for (const strategy of STRATEGIES) {
-    const base = simulate({sessions, bars, ind, strategy});
-    const stress = simulate({sessions, bars, ind, strategy, costPct: (strategy.cost ?? 0.001) * STRESS});
-    results.push({strategy, base, stress, stats: statsFor(base, sessions), stressStats: statsFor(stress, sessions)});
+  const universes = [
+    {suffix: '', universe: null, note: ''},
+    {suffix: '_large', universe: LARGE, note: ' Restricted to large, heavily traded stocks and ETFs: at least $300M traded per day and priced $20 or more.'},
+  ];
+  for (const {suffix, universe, note} of universes) for (const base0 of STRATEGIES) {
+    const strategy = suffix ? {...base0, id: base0.id + suffix, label: base0.label + '.' + note} : base0;
+    const base = simulate({sessions, bars, ind, strategy, universe});
+    const stress = simulate({sessions, bars, ind, strategy, universe, costPct: (strategy.cost ?? 0.001) * STRESS});
+    results.push({strategy, base, stress, stats: {...statsFor(base, sessions), id: strategy.id}, stressStats: statsFor(stress, sessions)});
   }
   if (bars[benchmark]) {
     const run = simulate({sessions, bars, ind, strategy: {maxPositions: 1}, benchmark, costPct: 0.0002});

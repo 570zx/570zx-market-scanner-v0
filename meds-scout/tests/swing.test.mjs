@@ -47,12 +47,13 @@ test('indicators at day d do not change when later bars change', () => {
 });
 
 test('the pullback strategy only looks at data up to the signal day', () => {
-  const a = flatBar(100); for (let i = 0; i < N; i++) { a.c[i] = 100 + i * 0.2; a.o[i] = a.c[i]; a.h[i] = a.c[i] + 1; a.l[i] = a.c[i] - 1; a.v[i] = 5e6; }
-  const d = WARMUP + 10; a.c[d] = a.c[d] * 0.9; // sharp one-day dip in an uptrend
+  const a = flatBar(100); for (let i = 0; i < N; i++) { a.c[i] = 100 + i * 0.5; a.o[i] = a.c[i]; a.h[i] = a.c[i] + 1; a.l[i] = a.c[i] - 1; a.v[i] = 5e6; }
+  const d = WARMUP + 10; a.c[d] = a.c[d] * 0.96; // sharp one-day dip in an uptrend
   const b = {o: a.o.slice(), h: a.h.slice(), l: a.l.slice(), c: a.c.slice(), v: a.v.slice()};
   for (let i = d + 1; i < N; i++) { b.c[i] = 1; b.o[i] = 1; b.h[i] = 1; b.l[i] = 1; }
   const ctxA = {sessions, bars: {A: a}, ind: {A: indicators(a)}, symbols: ['A'], firstOfMonth: () => false};
   const ctxB = {sessions, bars: {A: b}, ind: {A: indicators(b)}, symbols: ['A'], firstOfMonth: () => false};
+  assert.equal(pullback.entries(ctxA, d).length, 1); // the setup really produces a signal
   assert.deepEqual(pullback.entries(ctxA, d), pullback.entries(ctxB, d));
 });
 
@@ -62,4 +63,14 @@ test('statistics: equity curve, drawdown and win rate', () => {
   const s = statsFor(r, sessions);
   assert.equal(s.trades, 1); assert.equal(s.winRatePct, 100); assert.ok(s.returnPct > 9 && s.returnPct < 10.1);
   assert.equal(s.maxDrawdownPct, 0);
+});
+
+test('a universe filter can only tighten the liquidity floor', () => {
+  const a = flatBar(100); for (let i = 0; i < N; i++) { a.c[i] = 100 + i * 0.5; a.o[i] = a.c[i]; a.h[i] = a.c[i] + 1; a.l[i] = a.c[i] - 1; a.v[i] = 5e6; }
+  const d = WARMUP + 10; a.c[d] = a.c[d] * 0.96;
+  const base = {sessions, bars: {A: a}, ind: {A: indicators(a)}, symbols: ['A'], firstOfMonth: () => false};
+  assert.equal(pullback.entries(base, d).length, 1);
+  assert.equal(pullback.entries({...base, universe: {minAdv: 5e9, minPrice: 0}}, d).length, 0);
+  assert.equal(pullback.entries({...base, universe: {minAdv: 0, minPrice: 1e6}}, d).length, 0);
+  assert.equal(pullback.entries({...base, universe: {minAdv: 0, minPrice: 0}}, d).length, 1);
 });
