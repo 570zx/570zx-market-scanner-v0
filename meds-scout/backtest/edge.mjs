@@ -24,7 +24,7 @@ const ETFS = [...new Set(['SPY', 'QQQ', 'TQQQ', 'BIL', 'SH', ...ROTATION_UNIVERS
 const WARMUP = 260; // sessions of history before the first trade (12-month lookbacks)
 const STRESS = 2;
 // ETFs and other funds are left out of the stock-momentum universe.
-const FUND_RE = /\b(ETF|ETN|ETP|Fund|Trust|Index|Portfolio|ProShares|Direxion|iShares|SPDR|Invesco|Vanguard|GraniteShares|MicroSectors|Leverage[d]?|Ultra\w*|Bull|Bear|[1-4](\.\d)?[Xx])\b/;
+export const FUND_RE = /\b(ETF|ETN|ETP|Fund|Trust|Index|Portfolio|ProShares|Direxion|iShares|SPDR|Invesco|Vanguard|GraniteShares|MicroSectors|Leverage[d]?|Ultra\w*|Bull|Bear|[1-4](\.\d)?[Xx])\b/;
 
 export function parseArgs(argv) {
   const a = {start: '2016-01-04', rpm: 150, data: join(HERE, 'data'), out: join(HERE, 'out-edge'), stocks: true};
@@ -108,7 +108,7 @@ async function loadMinuteSessions(alpaca, store, {calendar, log}) {
   return out;
 }
 
-async function loadFundNames(alpaca, store) {
+export async function loadFundNames(alpaca, store) {
   const name = `asset-names-${etDate(realNow())}.json.gz`;
   if (store.has(name)) return store.read(name);
   const names = {};
