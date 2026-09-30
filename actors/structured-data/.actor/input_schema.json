@@ -1,5 +1,5 @@
 {
-  "title": "Structured Data Extractor (Schema.org JSON-LD, Open Graph, Product Prices)",
+  "title": "Structured Data Extractor: JSON-LD, Open Graph, Prices",
   "type": "object",
   "schemaVersion": 1,
   "properties": {

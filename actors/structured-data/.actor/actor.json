@@ -1,7 +1,7 @@
 {
   "actorSpecification": 1,
   "name": "structured-data",
-  "title": "Structured Data Extractor (Schema.org JSON-LD, Open Graph, Product Prices)",
+  "title": "Structured Data Extractor: JSON-LD, Open Graph, Prices",
   "description": "Pull the machine-readable data out of any web page: schema.org JSON-LD, microdata types, Open Graph and Twitter cards, product name/price/stock/rating, organisation contact details, articles, breadcrumbs and FAQs. Bulk URLs, errors free.",
   "version": "0.1",
   "buildTag": "latest",

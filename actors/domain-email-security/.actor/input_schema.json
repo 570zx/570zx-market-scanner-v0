@@ -1,0 +1,21 @@
+{
+  "title": "Domain Email Security Checker: SPF, DMARC, DKIM, MX",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "domains": {
+      "title": "Domains",
+      "type": "array",
+      "editor": "stringList",
+      "description": "Domains, URLs or email addresses (the domain is taken from each). Up to 20,000 per run.",
+      "prefill": [
+        "google.com",
+        "apify.com",
+        "example.com"
+      ]
+    }
+  },
+  "required": [
+    "domains"
+  ]
+}

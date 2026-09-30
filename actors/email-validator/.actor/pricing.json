@@ -1,0 +1,9 @@
+{
+  "events": {
+    "email": {
+      "title": "Email checked",
+      "description": "One address checked (including ones found invalid). Temporary DNS failures are free.",
+      "price": 0.001
+    }
+  }
+}

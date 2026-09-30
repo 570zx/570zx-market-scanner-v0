@@ -1,0 +1,75 @@
+{
+  "actorSpecification": 1,
+  "name": "domain-email-security",
+  "title": "Domain Email Security Checker: SPF, DMARC, DKIM, MX",
+  "description": "Check any list of domains for email authentication and spoofing protection: SPF (including +all and the 10-lookup limit), DMARC policy and reporting, DKIM keys on 30 common selectors, MX and mail provider, MTA-STS, TLS-RPT and BIMI. A-F grade and a plain list of issues per domain.",
+  "version": "0.1",
+  "buildTag": "latest",
+  "input": "./input_schema.json",
+  "output": "./output_schema.json",
+  "dockerfile": "../Dockerfile",
+  "storages": {
+    "dataset": {
+      "actorSpecification": 1,
+      "views": {
+        "overview": {
+          "title": "Domains",
+          "transformation": {
+            "fields": [
+              "domain",
+              "grade",
+              "mailProvider",
+              "spfAll",
+              "dmarcPolicy",
+              "dkimSelectorsFound",
+              "errors",
+              "warnings",
+              "status"
+            ]
+          },
+          "display": {
+            "component": "table",
+            "properties": {
+              "domain": {
+                "label": "Domain",
+                "format": "text"
+              },
+              "grade": {
+                "label": "Grade",
+                "format": "text"
+              },
+              "mailProvider": {
+                "label": "Mail provider",
+                "format": "text"
+              },
+              "spfAll": {
+                "label": "SPF policy",
+                "format": "text"
+              },
+              "dmarcPolicy": {
+                "label": "DMARC policy",
+                "format": "text"
+              },
+              "dkimSelectorsFound": {
+                "label": "DKIM selectors",
+                "format": "array"
+              },
+              "errors": {
+                "label": "Errors",
+                "format": "number"
+              },
+              "warnings": {
+                "label": "Warnings",
+                "format": "number"
+              },
+              "status": {
+                "label": "Status",
+                "format": "text"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "events": {
+    "domain": {
+      "title": "Domain checked",
+      "description": "One domain checked (a domain that does not exist is a valid result). Invalid input and DNS outages are free.",
+      "price": 0.003
+    }
+  }
+}

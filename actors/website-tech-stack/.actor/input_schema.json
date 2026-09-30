@@ -1,5 +1,5 @@
 {
-  "title": "Website Tech Stack Detector (Wappalyzer / BuiltWith alternative)",
+  "title": "Website Tech Stack Detector",
   "type": "object",
   "schemaVersion": 1,
   "properties": {

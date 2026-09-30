@@ -1,0 +1,22 @@
+{
+  "title": "Email Validator: Syntax, MX, Disposable & Role Check",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "emails": {
+      "title": "Email addresses",
+      "type": "array",
+      "editor": "stringList",
+      "description": "One address per line, up to 100,000 per run. Duplicates are removed.",
+      "prefill": [
+        "jane.doe@gmail.com",
+        "info@apify.com",
+        "someone@mailinator.com",
+        "bob@gmial.com"
+      ]
+    }
+  },
+  "required": [
+    "emails"
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "emails": [
+    "jane.doe@gmail.com",
+    "info@apify.com",
+    "someone@mailinator.com",
+    "bob@gmial.com",
+    "no-at-sign.com",
+    "x@this-domain-should-not-exist-570zx.com"
+  ]
+}

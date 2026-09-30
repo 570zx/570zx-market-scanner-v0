@@ -1,0 +1,75 @@
+{
+  "actorSpecification": 1,
+  "name": "email-validator",
+  "title": "Email Validator: Syntax, MX, Disposable & Role Check",
+  "description": "Clean an email list in bulk: syntax check, does the domain exist and accept mail (MX records), disposable/throwaway providers, role addresses like info@, free providers like Gmail, and typo suggestions (gmial.com). No emails are sent and mailboxes are not probed.",
+  "version": "0.1",
+  "buildTag": "latest",
+  "input": "./input_schema.json",
+  "output": "./output_schema.json",
+  "dockerfile": "../Dockerfile",
+  "storages": {
+    "dataset": {
+      "actorSpecification": 1,
+      "views": {
+        "overview": {
+          "title": "Emails",
+          "transformation": {
+            "fields": [
+              "input",
+              "email",
+              "verdict",
+              "reasons",
+              "mailServer",
+              "disposable",
+              "roleAccount",
+              "freeProvider",
+              "typoSuggestion"
+            ]
+          },
+          "display": {
+            "component": "table",
+            "properties": {
+              "input": {
+                "label": "Input",
+                "format": "text"
+              },
+              "email": {
+                "label": "Email",
+                "format": "text"
+              },
+              "verdict": {
+                "label": "Verdict",
+                "format": "text"
+              },
+              "reasons": {
+                "label": "Reasons",
+                "format": "array"
+              },
+              "mailServer": {
+                "label": "Accepts mail",
+                "format": "boolean"
+              },
+              "disposable": {
+                "label": "Disposable",
+                "format": "boolean"
+              },
+              "roleAccount": {
+                "label": "Role address",
+                "format": "boolean"
+              },
+              "freeProvider": {
+                "label": "Free provider",
+                "format": "boolean"
+              },
+              "typoSuggestion": {
+                "label": "Did you mean",
+                "format": "text"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

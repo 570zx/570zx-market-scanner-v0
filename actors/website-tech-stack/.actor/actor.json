@@ -1,7 +1,7 @@
 {
   "actorSpecification": 1,
   "name": "website-tech-stack",
-  "title": "Website Tech Stack Detector (Wappalyzer / BuiltWith alternative)",
+  "title": "Website Tech Stack Detector",
   "description": "Find the CMS, e-commerce platform, frameworks, analytics, ad pixels, hosting, CDN, payments and chat tools behind any website. Bulk domains, version numbers, evidence for each match.",
   "version": "0.1",
   "buildTag": "latest",

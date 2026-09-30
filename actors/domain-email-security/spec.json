@@ -1,0 +1,13 @@
+{
+  "title": "Domain Email Security Checker: SPF, DMARC, DKIM, MX",
+  "description": "Check any list of domains for email authentication and spoofing protection: SPF (including +all and the 10-lookup limit), DMARC policy and reporting, DKIM keys on 30 common selectors, MX and mail provider, MTA-STS, TLS-RPT and BIMI. A-F grade and a plain list of issues per domain.",
+  "viewTitle": "Domains",
+  "view": [["domain", "Domain"], ["grade", "Grade"], ["mailProvider", "Mail provider"], ["spfAll", "SPF policy"], ["dmarcPolicy", "DMARC policy"], ["dkimSelectorsFound", "DKIM selectors", "array"], ["errors", "Errors", "number"], ["warnings", "Warnings", "number"], ["status", "Status"]],
+  "input": {
+    "domains": {"title": "Domains", "type": "array", "editor": "stringList", "description": "Domains, URLs or email addresses (the domain is taken from each). Up to 20,000 per run.", "prefill": ["google.com", "apify.com", "example.com"]}
+  },
+  "required": ["domains"],
+  "pricing": {"events": {"domain": {"title": "Domain checked", "description": "One domain checked (a domain that does not exist is a valid result). Invalid input and DNS outages are free.", "price": 0.003}}},
+  "store": {"seoTitle": "SPF, DMARC & DKIM Checker for Domains in Bulk", "seoDescription": "Check SPF, DMARC, DKIM, MX, MTA-STS and BIMI for many domains at once. A-F grade and issue list per domain. Deliverability and spoofing audits.", "categories": ["DEVELOPER_TOOLS", "LEAD_GENERATION"]},
+  "testInput": {"domains": ["google.com", "apify.com", "example.com", "this-domain-should-not-exist-570zx.com", "not a domain"]}
+}
