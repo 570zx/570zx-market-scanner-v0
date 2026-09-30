@@ -1,0 +1,53 @@
+name: Government award scan
+
+# Reads public federal contract award data (USAspending.gov, no key needed) and publishes
+# a plain report to the gov-data branch. Runs when the gov-scan branch is pushed, or by hand.
+# Read-only research: it never registers, logs in, or bids on anything.
+
+on:
+  push:
+    branches: [gov-scan]
+    paths: [research/gov-scan.py, .github/workflows/gov-scan.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gov-scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Query USAspending
+        run: python3 research/gov-scan.py
+      - name: Publish to the gov-data branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          dest="scans/$(date -u +%Y-%m-%dT%H%M)-${GITHUB_RUN_ID}"
+          for attempt in 1 2 3 4 5; do
+            work="$RUNNER_TEMP/data-$attempt"
+            if git ls-remote --exit-code --heads "$remote" gov-data >/dev/null 2>&1; then
+              git clone --quiet --depth 1 --branch gov-data "$remote" "$work"
+            else
+              git init --quiet -b gov-data "$work"
+              git -C "$work" remote add origin "$remote"
+            fi
+            mkdir -p "$work/$dest"
+            cp gov-out/report.md gov-out/raw.json "$work/$dest/"
+            cp gov-out/report.md "$work/LATEST.md"
+            git -C "$work" config user.name "gov-scan"
+            git -C "$work" config user.email "gov-scan@users.noreply.github.com"
+            git -C "$work" add -A
+            git -C "$work" commit --quiet -m "Government scan ${dest}"
+            if git -C "$work" push --quiet origin HEAD:gov-data; then exit 0; fi
+            sleep $((attempt * 5))
+          done
+          echo "::error::Could not publish after 5 tries"; exit 1
