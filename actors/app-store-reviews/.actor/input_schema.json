@@ -1,0 +1,43 @@
+{
+  "title": "App Store Reviews & App Details",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "apps": {
+      "title": "Apps",
+      "type": "array",
+      "editor": "stringList",
+      "description": "App Store links, numeric app IDs, or app names (the top search match is used). Up to 500 per run.",
+      "prefill": [
+        "https://apps.apple.com/us/app/spotify-music-and-podcasts/id324684580",
+        "Duolingo"
+      ]
+    },
+    "countries": {
+      "title": "Countries",
+      "type": "array",
+      "editor": "stringList",
+      "description": "Two-letter App Store country codes such as us, gb, de (reviews are per country). Default: the country in the link, otherwise us. Up to 20.",
+      "prefill": [
+        "us"
+      ]
+    },
+    "maxReviewsPerApp": {
+      "title": "Maximum reviews per app and country",
+      "type": "integer",
+      "default": 100,
+      "minimum": 0,
+      "maximum": 500,
+      "description": "Most recent first. Apple's feed provides at most 500 per country. 0 = app details only."
+    },
+    "includeAppDetails": {
+      "title": "Include app details",
+      "type": "boolean",
+      "default": true,
+      "description": "Also return one row of app details (rating, version, price, description...) per app and country."
+    }
+  },
+  "required": [
+    "apps"
+  ]
+}

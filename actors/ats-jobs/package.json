@@ -1,0 +1,17 @@
+{
+  "name": "ats-jobs",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Get every open job from company career pages that run on Greenhouse, Lever, Ashby, Workable, SmartRecruiters or Recruitee, in one clean format: title, location, remote, department, type, salary where published, posted date, apply link and full description. Paste careers URLs or just company names.",
+  "scripts": {
+    "start": "node src/main.js",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "apify": "^3.2.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

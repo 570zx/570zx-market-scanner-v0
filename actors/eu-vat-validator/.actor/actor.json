@@ -1,0 +1,65 @@
+{
+  "actorSpecification": 1,
+  "name": "eu-vat-validator",
+  "title": "EU VAT Number Validator (VIES) with Company Name",
+  "description": "Check EU VAT numbers in bulk against VIES, the European Commission's official system: valid or not, plus the registered company name and address where the country publishes them. Format check for all 27 EU countries and Northern Ireland (XI). Retries busy national systems.",
+  "version": "0.1",
+  "buildTag": "latest",
+  "input": "./input_schema.json",
+  "output": "./output_schema.json",
+  "dockerfile": "../Dockerfile",
+  "storages": {
+    "dataset": {
+      "actorSpecification": 1,
+      "views": {
+        "overview": {
+          "title": "VAT numbers",
+          "transformation": {
+            "fields": [
+              "input",
+              "fullVatNumber",
+              "valid",
+              "companyName",
+              "companyAddress",
+              "reason",
+              "status"
+            ]
+          },
+          "display": {
+            "component": "table",
+            "properties": {
+              "input": {
+                "label": "Input",
+                "format": "text"
+              },
+              "fullVatNumber": {
+                "label": "VAT number",
+                "format": "text"
+              },
+              "valid": {
+                "label": "Valid",
+                "format": "boolean"
+              },
+              "companyName": {
+                "label": "Company",
+                "format": "text"
+              },
+              "companyAddress": {
+                "label": "Address",
+                "format": "text"
+              },
+              "reason": {
+                "label": "Reason",
+                "format": "text"
+              },
+              "status": {
+                "label": "Status",
+                "format": "text"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -43,35 +43,7 @@ jobs:
           set -u
           [ -n "$APIFY_TOKEN" ] || { echo "::error::APIFY_TOKEN secret missing"; exit 1; }
           npx --yes apify-cli@latest login --token "$APIFY_TOKEN" >/dev/null 2>&1 || { echo "::error::Apify login failed"; exit 1; }
-          mkdir -p "$RUNNER_TEMP/ship"; failed=0
-          for a in $ACTORS; do
-            rep="$RUNNER_TEMP/ship/$a.md"
-            (
-              echo "# ship $a $(date -u +%FT%TZ) ${GITHUB_SHA::7}"
-              if ! [[ "$a" =~ ^[a-z0-9-]+$ ]] || [ ! -f "actors/$a/.actor/actor.json" ]; then echo "No Actor folder actors/$a"; exit 1; fi
-              cd "actors/$a"
-              [ -s README.md ] || { echo "README.md missing (it is the Store listing)"; exit 1; }
-              echo '## unit tests'; echo '```'
-              npm install --no-audit --no-fund >/dev/null 2>&1
-              npm test 2>&1 | grep -E '^# (tests|pass|fail)|^not ok' ; test_ok=${PIPESTATUS[0]}
-              echo '```'
-              [ "$test_ok" = 0 ] || { echo "Unit tests failed"; exit 1; }
-              rm -rf node_modules storage
-              echo '## push'; echo '```'
-              npx --yes apify-cli@latest push --force > "$RUNNER_TEMP/push.log" 2>&1
-              grep -vE '^[0-9TZ:.-]+ #' "$RUNNER_TEMP/push.log" | tail -n 10 | sed 's/apify_api_[A-Za-z0-9]*/***/g'
-              echo '```'
-              grep -q "Build: SUCCEEDED" "$RUNNER_TEMP/push.log" || { echo "Build failed"; exit 1; }
-              cd "$GITHUB_WORKSPACE"
-              echo '## Apify setup and test run'; echo '```'
-              python3 actors/ship.py "$a" 2>&1 | sed 's/apify_api_[A-Za-z0-9]*/***/g'; st=${PIPESTATUS[0]}
-              echo '```'
-              exit $st
-            ) > "$rep" 2>&1 || { failed=1; echo "::error::ship failed for $a (see actor-results/ship/$a.md)"; }
-            cd "$GITHUB_WORKSPACE"
-            echo "done $a"
-          done
-          exit $failed
+          OUT="$RUNNER_TEMP/ship" actors/ship.sh $ACTORS
       - name: Publish reports
         if: always()
         env:

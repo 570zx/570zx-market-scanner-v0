@@ -1,0 +1,8 @@
+{
+  "seoTitle": "RSS Feed Reader API - RSS, Atom, JSON Feed to JSON",
+  "seoDescription": "Read RSS, Atom and JSON feeds as clean JSON: titles, links, dates, authors, summaries, images, podcast audio. Auto-finds a site's feed. Date filter.",
+  "categories": [
+    "NEWS",
+    "AUTOMATION"
+  ]
+}

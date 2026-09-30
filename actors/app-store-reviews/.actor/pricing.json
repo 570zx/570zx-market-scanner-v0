@@ -1,0 +1,14 @@
+{
+  "events": {
+    "app": {
+      "title": "App details",
+      "description": "One app's details for one country.",
+      "price": 0.002
+    },
+    "review": {
+      "title": "Review",
+      "description": "One customer review.",
+      "price": 0.0002
+    }
+  }
+}

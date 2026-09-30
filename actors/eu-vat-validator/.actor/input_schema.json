@@ -1,0 +1,26 @@
+{
+  "title": "EU VAT Number Validator (VIES) with Company Name",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "vatNumbers": {
+      "title": "VAT numbers",
+      "type": "array",
+      "editor": "stringList",
+      "description": "VAT numbers with their country prefix (DE123456789, FR..., NL...B01). Spaces, dots and dashes are fine. Up to 20,000 per run.",
+      "prefill": [
+        "IE6388047V",
+        "DE811569869"
+      ]
+    },
+    "defaultCountry": {
+      "title": "Default country",
+      "type": "string",
+      "editor": "textfield",
+      "description": "Two-letter code used for numbers without a prefix (optional), for example DE."
+    }
+  },
+  "required": [
+    "vatNumbers"
+  ]
+}

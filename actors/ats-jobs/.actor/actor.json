@@ -1,0 +1,85 @@
+{
+  "actorSpecification": 1,
+  "name": "ats-jobs",
+  "title": "Company Jobs API: Greenhouse, Lever, Ashby, Workable",
+  "description": "Get every open job from company career pages that run on Greenhouse, Lever, Ashby, Workable, SmartRecruiters or Recruitee, in one clean format: title, location, remote, department, type, salary where published, posted date, apply link and full description. Paste careers URLs or just company names.",
+  "version": "0.1",
+  "buildTag": "latest",
+  "input": "./input_schema.json",
+  "output": "./output_schema.json",
+  "dockerfile": "../Dockerfile",
+  "storages": {
+    "dataset": {
+      "actorSpecification": 1,
+      "views": {
+        "overview": {
+          "title": "Jobs",
+          "transformation": {
+            "fields": [
+              "companyName",
+              "company",
+              "title",
+              "location",
+              "remote",
+              "department",
+              "employmentType",
+              "salary",
+              "postedAt",
+              "url",
+              "ats"
+            ]
+          },
+          "display": {
+            "component": "table",
+            "properties": {
+              "companyName": {
+                "label": "Company name",
+                "format": "text"
+              },
+              "company": {
+                "label": "Company",
+                "format": "text"
+              },
+              "title": {
+                "label": "Title",
+                "format": "text"
+              },
+              "location": {
+                "label": "Location",
+                "format": "text"
+              },
+              "remote": {
+                "label": "Remote",
+                "format": "boolean"
+              },
+              "department": {
+                "label": "Department",
+                "format": "text"
+              },
+              "employmentType": {
+                "label": "Type",
+                "format": "text"
+              },
+              "salary": {
+                "label": "Salary",
+                "format": "text"
+              },
+              "postedAt": {
+                "label": "Posted",
+                "format": "text"
+              },
+              "url": {
+                "label": "Job URL",
+                "format": "link"
+              },
+              "ats": {
+                "label": "Source",
+                "format": "text"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

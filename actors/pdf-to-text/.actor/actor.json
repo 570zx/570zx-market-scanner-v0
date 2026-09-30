@@ -1,0 +1,70 @@
+{
+  "actorSpecification": 1,
+  "name": "pdf-to-text",
+  "title": "PDF to Text: Extract Text and Metadata from PDF URLs",
+  "description": "Extract the text and metadata (title, author, dates, page count) from PDFs at any URL: reports, filings, papers, manuals, invoices. Whole-document text or text per page, ready for search, AI and RAG. Pay per page, failures free.",
+  "version": "0.1",
+  "buildTag": "latest",
+  "input": "./input_schema.json",
+  "output": "./output_schema.json",
+  "dockerfile": "../Dockerfile",
+  "storages": {
+    "dataset": {
+      "actorSpecification": 1,
+      "views": {
+        "overview": {
+          "title": "PDFs",
+          "transformation": {
+            "fields": [
+              "url",
+              "status",
+              "title",
+              "author",
+              "pageCount",
+              "wordCount",
+              "createdAt",
+              "text"
+            ]
+          },
+          "display": {
+            "component": "table",
+            "properties": {
+              "url": {
+                "label": "URL",
+                "format": "text"
+              },
+              "status": {
+                "label": "Status",
+                "format": "text"
+              },
+              "title": {
+                "label": "Title",
+                "format": "text"
+              },
+              "author": {
+                "label": "Author",
+                "format": "text"
+              },
+              "pageCount": {
+                "label": "Pages",
+                "format": "number"
+              },
+              "wordCount": {
+                "label": "Words",
+                "format": "number"
+              },
+              "createdAt": {
+                "label": "Created",
+                "format": "text"
+              },
+              "text": {
+                "label": "Text",
+                "format": "text"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

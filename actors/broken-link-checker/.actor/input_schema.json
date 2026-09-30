@@ -21,14 +21,16 @@
     "includeAssets": {
       "title": "Also check images, scripts and stylesheets",
       "type": "boolean",
-      "default": false
+      "default": false,
+      "description": "Also check the page's images, scripts and stylesheets, not just links."
     },
     "maxLinksPerPage": {
       "title": "Maximum links per page",
       "type": "integer",
       "default": 300,
       "minimum": 1,
-      "maximum": 2000
+      "maximum": 2000,
+      "description": "Check at most this many unique links on each page."
     },
     "respectRobotsTxt": {
       "title": "Respect robots.txt",

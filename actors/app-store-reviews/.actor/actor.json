@@ -1,0 +1,75 @@
+{
+  "actorSpecification": 1,
+  "name": "app-store-reviews",
+  "title": "App Store Reviews & App Details",
+  "description": "Get iPhone and iPad app details (rating, rating count, version history, price, size, genre, description, screenshots) and the most recent customer reviews (rating, title, text, app version, date) from Apple's App Store, in any country. Paste App Store links, app IDs or app names.",
+  "version": "0.1",
+  "buildTag": "latest",
+  "input": "./input_schema.json",
+  "output": "./output_schema.json",
+  "dockerfile": "../Dockerfile",
+  "storages": {
+    "dataset": {
+      "actorSpecification": 1,
+      "views": {
+        "overview": {
+          "title": "Apps and reviews",
+          "transformation": {
+            "fields": [
+              "type",
+              "appName",
+              "name",
+              "country",
+              "rating",
+              "title",
+              "text",
+              "appVersion",
+              "date"
+            ]
+          },
+          "display": {
+            "component": "table",
+            "properties": {
+              "type": {
+                "label": "Type",
+                "format": "text"
+              },
+              "appName": {
+                "label": "App",
+                "format": "text"
+              },
+              "name": {
+                "label": "App name",
+                "format": "text"
+              },
+              "country": {
+                "label": "Country",
+                "format": "text"
+              },
+              "rating": {
+                "label": "Rating",
+                "format": "number"
+              },
+              "title": {
+                "label": "Review title",
+                "format": "text"
+              },
+              "text": {
+                "label": "Review",
+                "format": "text"
+              },
+              "appVersion": {
+                "label": "Version",
+                "format": "text"
+              },
+              "date": {
+                "label": "Date",
+                "format": "text"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "title": "EU VAT Number Validator (VIES) with Company Name",
+  "description": "Check EU VAT numbers in bulk against VIES, the European Commission's official system: valid or not, plus the registered company name and address where the country publishes them. Format check for all 27 EU countries and Northern Ireland (XI). Retries busy national systems.",
+  "viewTitle": "VAT numbers",
+  "view": [["input", "Input"], ["fullVatNumber", "VAT number"], ["valid", "Valid", "boolean"], ["companyName", "Company"], ["companyAddress", "Address"], ["reason", "Reason"], ["status", "Status"]],
+  "input": {
+    "vatNumbers": {"title": "VAT numbers", "type": "array", "editor": "stringList", "description": "VAT numbers with their country prefix (DE123456789, FR..., NL...B01). Spaces, dots and dashes are fine. Up to 20,000 per run.", "prefill": ["IE6388047V", "DE811569869"]},
+    "defaultCountry": {"title": "Default country", "type": "string", "editor": "textfield", "description": "Two-letter code used for numbers without a prefix (optional), for example DE."}
+  },
+  "required": ["vatNumbers"],
+  "pricing": {"events": {"vat-check": {"title": "VAT number checked", "description": "One number checked, including numbers found invalid or badly formatted. Numbers VIES can't answer (national system down) are free.", "price": 0.002}}},
+  "store": {"seoTitle": "EU VAT Number Validator - Bulk VIES Check", "seoDescription": "Validate EU VAT numbers in bulk with VIES: valid or invalid, company name and address. All EU countries plus Northern Ireland. Busy systems retried.", "categories": ["BUSINESS", "ECOMMERCE"]},
+  "testInput": {"vatNumbers": ["IE6388047V", "DE811569869", "NL000000000B00", "GB123456789", "DE12"]}
+}

@@ -1,0 +1,16 @@
+{
+  "actorOutputSchemaVersion": 1,
+  "title": "Apps and reviews",
+  "properties": {
+    "overview": {
+      "type": "string",
+      "title": "Apps and reviews (table)",
+      "template": "{{links.apiDefaultDatasetUrl}}/items?view=overview"
+    },
+    "results": {
+      "type": "string",
+      "title": "All fields (JSON)",
+      "template": "{{links.apiDefaultDatasetUrl}}/items"
+    }
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "title": "RSS & Atom Feed Reader: News, Blogs, Podcasts to JSON",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "feeds": {
+      "title": "Feeds or websites",
+      "type": "array",
+      "editor": "stringList",
+      "description": "RSS/Atom/JSON feed URLs, or website pages that link to a feed. Up to 2,000 per run.",
+      "prefill": [
+        "https://feeds.bbci.co.uk/news/rss.xml",
+        "https://blog.apify.com"
+      ]
+    },
+    "maxItemsPerFeed": {
+      "title": "Maximum items per feed",
+      "type": "integer",
+      "default": 50,
+      "minimum": 1,
+      "maximum": 1000,
+      "description": "Newest items as ordered by the feed."
+    },
+    "publishedWithinDays": {
+      "title": "Published within (days)",
+      "type": "integer",
+      "default": 0,
+      "minimum": 0,
+      "description": "0 = no date filter. Items without a date are kept."
+    },
+    "includeContent": {
+      "title": "Include full HTML content",
+      "type": "boolean",
+      "default": false,
+      "description": "Adds the item's full HTML content when the feed provides it (content:encoded or Atom content)."
+    },
+    "respectRobotsTxt": {
+      "title": "Respect robots.txt",
+      "type": "boolean",
+      "default": true,
+      "description": "Skip feeds the site asks bots not to fetch. Recommended."
+    }
+  },
+  "required": [
+    "feeds"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "events": {
+    "page": {
+      "title": "PDF page read",
+      "description": "One PDF page's text extracted. Unreachable files, non-PDFs, scanned PDFs without a text layer and unreadable files are free.",
+      "price": 0.0005
+    }
+  }
+}

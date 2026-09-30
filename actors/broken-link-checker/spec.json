@@ -2,16 +2,106 @@
   "title": "Broken Link Checker",
   "description": "Find broken links (404s, dead domains, server errors) on any list of pages. Checks every link on each page, follows redirects, retries temporary errors, and can include images, scripts and stylesheets. One row per link with status code and link text.",
   "viewTitle": "Links",
-  "view": [["page", "Page"], ["link", "Link"], ["linkText", "Link text"], ["httpStatus", "HTTP status", "number"], ["broken", "Broken", "boolean"], ["redirected", "Redirected", "boolean"], ["internal", "Internal", "boolean"], ["error", "Error"]],
+  "view": [
+    [
+      "page",
+      "Page"
+    ],
+    [
+      "link",
+      "Link"
+    ],
+    [
+      "linkText",
+      "Link text"
+    ],
+    [
+      "httpStatus",
+      "HTTP status",
+      "number"
+    ],
+    [
+      "broken",
+      "Broken",
+      "boolean"
+    ],
+    [
+      "redirected",
+      "Redirected",
+      "boolean"
+    ],
+    [
+      "internal",
+      "Internal",
+      "boolean"
+    ],
+    [
+      "error",
+      "Error"
+    ]
+  ],
   "input": {
-    "urls": {"title": "Pages to check", "type": "array", "editor": "stringList", "description": "Pages whose links should be checked (up to 1,000 per run). Tip: use a sitemap extractor's output to check a whole site.", "prefill": ["https://www.python.org"]},
-    "onlyBroken": {"title": "Only return broken links", "type": "boolean", "default": false, "description": "Hide working links from the results (they are still checked and counted)."},
-    "includeAssets": {"title": "Also check images, scripts and stylesheets", "type": "boolean", "default": false},
-    "maxLinksPerPage": {"title": "Maximum links per page", "type": "integer", "default": 300, "minimum": 1, "maximum": 2000},
-    "respectRobotsTxt": {"title": "Respect robots.txt", "type": "boolean", "default": true, "description": "Skip pages and links the site asks bots not to fetch. Turn off only for your own sites."}
+    "urls": {
+      "title": "Pages to check",
+      "type": "array",
+      "editor": "stringList",
+      "description": "Pages whose links should be checked (up to 1,000 per run). Tip: use a sitemap extractor's output to check a whole site.",
+      "prefill": [
+        "https://www.python.org"
+      ]
+    },
+    "onlyBroken": {
+      "title": "Only return broken links",
+      "type": "boolean",
+      "default": false,
+      "description": "Hide working links from the results (they are still checked and counted)."
+    },
+    "includeAssets": {
+      "title": "Also check images, scripts and stylesheets",
+      "type": "boolean",
+      "default": false,
+      "description": "Also check the page's images, scripts and stylesheets, not just links."
+    },
+    "maxLinksPerPage": {
+      "title": "Maximum links per page",
+      "type": "integer",
+      "default": 300,
+      "minimum": 1,
+      "maximum": 2000,
+      "description": "Check at most this many unique links on each page."
+    },
+    "respectRobotsTxt": {
+      "title": "Respect robots.txt",
+      "type": "boolean",
+      "default": true,
+      "description": "Skip pages and links the site asks bots not to fetch. Turn off only for your own sites."
+    }
   },
-  "required": ["urls"],
-  "pricing": {"events": {"link": {"title": "Link checked", "description": "One link checked. A link that appears on several pages is fetched once but charged per page it appears on. Links skipped by robots.txt and pages that fail to load are free.", "price": 0.0005}}},
-  "store": {"seoTitle": "Broken Link Checker - Find 404s on Any Website", "seoDescription": "Check every link on your pages for 404s, dead domains and server errors. Follows redirects, retries temporary errors, optional images and scripts.", "categories": ["SEO_TOOLS", "DEVELOPER_TOOLS"]},
-  "testInput": {"urls": ["https://www.python.org", "https://example.com"], "maxLinksPerPage": 25}
+  "required": [
+    "urls"
+  ],
+  "pricing": {
+    "events": {
+      "link": {
+        "title": "Link checked",
+        "description": "One link checked. A link that appears on several pages is fetched once but charged per page it appears on. Links skipped by robots.txt and pages that fail to load are free.",
+        "price": 0.0005
+      }
+    }
+  },
+  "store": {
+    "seoTitle": "Broken Link Checker - Find 404s on Any Website",
+    "seoDescription": "Check every link on your pages for 404s, dead domains and server errors. Follows redirects, retries temporary errors, optional images and scripts.",
+    "categories": [
+      "SEO_TOOLS",
+      "DEVELOPER_TOOLS"
+    ]
+  },
+  "testInput": {
+    "urls": [
+      "https://www.python.org",
+      "https://example.com"
+    ],
+    "maxLinksPerPage": 25
+  }
 }

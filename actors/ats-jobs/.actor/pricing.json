@@ -1,0 +1,9 @@
+{
+  "events": {
+    "job": {
+      "title": "Job returned",
+      "description": "One job posting returned after your filters. Companies with no board found are free.",
+      "price": 0.001
+    }
+  }
+}

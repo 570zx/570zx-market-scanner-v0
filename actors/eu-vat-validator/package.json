@@ -1,0 +1,17 @@
+{
+  "name": "eu-vat-validator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Check EU VAT numbers in bulk against VIES, the European Commission's official system: valid or not, plus the registered company name and address where the country publishes them. Format check for all 27 EU countries and Northern Ireland (XI). Retries busy national systems.",
+  "scripts": {
+    "start": "node src/main.js",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "apify": "^3.2.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

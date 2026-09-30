@@ -1,0 +1,65 @@
+{
+  "actorSpecification": 1,
+  "name": "rss-feed-reader",
+  "title": "RSS & Atom Feed Reader: News, Blogs, Podcasts to JSON",
+  "description": "Turn any RSS, Atom or JSON feed into clean JSON: title, link, date, author, categories, summary, full content, images, and podcast audio links with durations. Give it feed URLs or just website addresses (the feed is found automatically). Filter by date, many feeds per run.",
+  "version": "0.1",
+  "buildTag": "latest",
+  "input": "./input_schema.json",
+  "output": "./output_schema.json",
+  "dockerfile": "../Dockerfile",
+  "storages": {
+    "dataset": {
+      "actorSpecification": 1,
+      "views": {
+        "overview": {
+          "title": "Feed items",
+          "transformation": {
+            "fields": [
+              "feedTitle",
+              "title",
+              "published",
+              "author",
+              "link",
+              "summary",
+              "status"
+            ]
+          },
+          "display": {
+            "component": "table",
+            "properties": {
+              "feedTitle": {
+                "label": "Feed",
+                "format": "text"
+              },
+              "title": {
+                "label": "Title",
+                "format": "text"
+              },
+              "published": {
+                "label": "Published",
+                "format": "text"
+              },
+              "author": {
+                "label": "Author",
+                "format": "text"
+              },
+              "link": {
+                "label": "Link",
+                "format": "link"
+              },
+              "summary": {
+                "label": "Summary",
+                "format": "text"
+              },
+              "status": {
+                "label": "Status",
+                "format": "text"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

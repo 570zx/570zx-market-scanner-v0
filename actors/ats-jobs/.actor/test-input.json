@@ -1,0 +1,13 @@
+{
+  "companies": [
+    "https://jobs.ashbyhq.com/openai",
+    "https://boards.greenhouse.io/airbnb",
+    "lever:spotify",
+    "huggingface",
+    "nosuchcompany570zx"
+  ],
+  "titleKeywords": [
+    "engineer"
+  ],
+  "includeDescription": false
+}
