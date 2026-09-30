@@ -1,6 +1,6 @@
 # Vehicle Safety Intel: operating plan
 
-Owner: Dodge. Operator: Claude. Status: built, tested, NOT published (needs the Apify account, see "Setup needed").
+Owner: Dodge. Operator: Claude. Status: PUBLISHED on Apify Store 2026-09-30 (account Dodge_Bot, Actor IFgedzUMAOip8F0co), $0.01 per vehicle report, pay per event, owner approved scope: publish at this price, no spending, no outreach.
 
 ## The business in one paragraph
 A paid Apify Actor. A stranger (a person or an AI agent) submits VINs and pays per vehicle report. Apify handles discovery, checkout, billing and payouts. Data comes from free US government APIs, so there is no scraping fragility, no proxy cost and almost no compute cost. Delivery is fully automatic.
@@ -34,7 +34,9 @@ Each has a spending cap of $0 (only time), a time limit, and a kill rule.
 ## Ledger (actuals only; forecasts stay in this file's text)
 | Date | Collected revenue | Apify fees | Refunds/compensation | AI + tool costs | Net | Owner time (min) |
 |---|---:|---:|---:|---:|---:|---:|
-| 2026-09-30 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | setup only |
+| 2026-09-30 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | ~45 (account, token, billing info, publish) |
+
+Measured platform cost: about $0.00004-0.00006 per report (2-VIN test runs cost $0.00009-0.00012).
 
 ## Monitoring and control
 - Apify Console shows runs, success rate, revenue and cost per Actor (Development > Insights > Analytics).
