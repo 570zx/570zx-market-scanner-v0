@@ -1,0 +1,70 @@
+{
+  "actorSpecification": 1,
+  "name": "sitemap-urls",
+  "title": "Sitemap URL Extractor",
+  "description": "Get every page URL a website lists in its XML sitemaps, with last-modified date, change frequency, priority and image count. Finds sitemaps via robots.txt, follows sitemap indexes, reads .xml.gz and text sitemaps.",
+  "version": "0.1",
+  "buildTag": "latest",
+  "input": "./input_schema.json",
+  "output": "./output_schema.json",
+  "dockerfile": "../Dockerfile",
+  "storages": {
+    "dataset": {
+      "actorSpecification": 1,
+      "views": {
+        "overview": {
+          "title": "URLs",
+          "transformation": {
+            "fields": [
+              "domain",
+              "url",
+              "lastmod",
+              "changefreq",
+              "priority",
+              "images",
+              "sitemap",
+              "status"
+            ]
+          },
+          "display": {
+            "component": "table",
+            "properties": {
+              "domain": {
+                "label": "Site",
+                "format": "text"
+              },
+              "url": {
+                "label": "URL",
+                "format": "text"
+              },
+              "lastmod": {
+                "label": "Last modified",
+                "format": "text"
+              },
+              "changefreq": {
+                "label": "Change frequency",
+                "format": "text"
+              },
+              "priority": {
+                "label": "Priority",
+                "format": "number"
+              },
+              "images": {
+                "label": "Images",
+                "format": "number"
+              },
+              "sitemap": {
+                "label": "Found in sitemap",
+                "format": "text"
+              },
+              "status": {
+                "label": "Status",
+                "format": "text"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

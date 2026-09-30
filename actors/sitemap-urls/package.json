@@ -1,0 +1,17 @@
+{
+  "name": "sitemap-urls",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Get every page URL a website lists in its XML sitemaps, with last-modified date, change frequency, priority and image count. Finds sitemaps via robots.txt, follows sitemap indexes, reads .xml.gz and text sitemaps.",
+  "scripts": {
+    "start": "node src/main.js",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "apify": "^3.2.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

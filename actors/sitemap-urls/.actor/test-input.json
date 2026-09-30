@@ -1,0 +1,8 @@
+{
+  "websites": [
+    "https://www.python.org",
+    "https://apify.com/sitemap.xml",
+    "https://example.com"
+  ],
+  "maxUrlsPerSite": 40
+}

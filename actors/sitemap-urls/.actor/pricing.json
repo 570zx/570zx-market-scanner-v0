@@ -1,0 +1,9 @@
+{
+  "events": {
+    "url": {
+      "title": "URL found",
+      "description": "One page URL returned from a sitemap. Sites with no sitemap are free.",
+      "price": 0.0003
+    }
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "actorSpecification": 1,
+  "name": "seo-page-audit",
+  "title": "SEO Page Audit (On-Page SEO Checker)",
+  "description": "Audit web pages for on-page SEO in bulk: title and meta description length, headings, canonical, noindex, mobile viewport, image alt text, links, word count, Open Graph, schema.org, HTTPS and speed. Each page gets a 0-100 score and a plain list of issues to fix.",
+  "version": "0.1",
+  "buildTag": "latest",
+  "input": "./input_schema.json",
+  "output": "./output_schema.json",
+  "dockerfile": "../Dockerfile",
+  "storages": {
+    "dataset": {
+      "actorSpecification": 1,
+      "views": {
+        "overview": {
+          "title": "Pages",
+          "transformation": {
+            "fields": [
+              "url",
+              "score",
+              "errors",
+              "warnings",
+              "title",
+              "titleLength",
+              "metaDescriptionLength",
+              "wordCount",
+              "imagesMissingAlt",
+              "status"
+            ]
+          },
+          "display": {
+            "component": "table",
+            "properties": {
+              "url": {
+                "label": "URL",
+                "format": "text"
+              },
+              "score": {
+                "label": "Score",
+                "format": "number"
+              },
+              "errors": {
+                "label": "Errors",
+                "format": "number"
+              },
+              "warnings": {
+                "label": "Warnings",
+                "format": "number"
+              },
+              "title": {
+                "label": "Title",
+                "format": "text"
+              },
+              "titleLength": {
+                "label": "Title length",
+                "format": "number"
+              },
+              "metaDescriptionLength": {
+                "label": "Description length",
+                "format": "number"
+              },
+              "wordCount": {
+                "label": "Words",
+                "format": "number"
+              },
+              "imagesMissingAlt": {
+                "label": "Images without alt",
+                "format": "number"
+              },
+              "status": {
+                "label": "Status",
+                "format": "text"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

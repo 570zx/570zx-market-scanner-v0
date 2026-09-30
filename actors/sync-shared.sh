@@ -6,11 +6,13 @@ bad=0
 for d in */; do
   d=${d%/}; [ "$d" = _shared ] && continue
   [ -d "$d/src/shared" ] || continue
-  for f in web.js kit.js; do
+  for f in web.js kit.js html.js; do
     if [ "${1:-}" = --check ]; then cmp -s "_shared/$f" "$d/src/shared/$f" || { echo "out of date: $d/src/shared/$f"; bad=1; }
     else cp "_shared/$f" "$d/src/shared/$f"; fi
   done
-  if [ "${1:-}" = --check ]; then cmp -s _shared/web.test.mjs "$d/tests/shared-web.test.mjs" || { echo "out of date: $d/tests/shared-web.test.mjs"; bad=1; }
-  else cp _shared/web.test.mjs "$d/tests/shared-web.test.mjs"; fi
+  for t in web html; do
+    if [ "${1:-}" = --check ]; then cmp -s "_shared/$t.test.mjs" "$d/tests/shared-$t.test.mjs" || { echo "out of date: $d/tests/shared-$t.test.mjs"; bad=1; }
+    else cp "_shared/$t.test.mjs" "$d/tests/shared-$t.test.mjs"; fi
+  done
 done
 exit $bad

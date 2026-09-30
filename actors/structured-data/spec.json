@@ -1,0 +1,15 @@
+{
+  "title": "Structured Data Extractor (Schema.org JSON-LD, Open Graph, Product Prices)",
+  "description": "Pull the machine-readable data out of any web page: schema.org JSON-LD, microdata types, Open Graph and Twitter cards, product name/price/stock/rating, organisation contact details, articles, breadcrumbs and FAQs. Bulk URLs, errors free.",
+  "viewTitle": "Pages",
+  "view": [["url", "URL"], ["status", "Status"], ["title", "Title"], ["schemaTypes", "Schema types", "array"], ["productName", "Product"], ["price", "Price", "number"], ["currency", "Currency"], ["availability", "Availability"], ["faqQuestions", "FAQ questions", "number"]],
+  "input": {
+    "urls": {"title": "Page URLs", "type": "array", "editor": "stringList", "description": "Pages to read, one per line (up to 10,000 per run).", "prefill": ["https://www.python.org", "https://apify.com"]},
+    "includeRawJsonLd": {"title": "Include raw JSON-LD", "type": "boolean", "default": true, "description": "Also return every JSON-LD node as found on the page (up to 50 per page)."},
+    "respectRobotsTxt": {"title": "Respect robots.txt", "type": "boolean", "default": true, "description": "Skip pages the site asks bots not to fetch. Recommended."}
+  },
+  "required": ["urls"],
+  "pricing": {"events": {"page": {"title": "Page read", "description": "One page fetched and its structured data extracted. Unreachable, blocked, non-HTML or error pages are free.", "price": 0.002}}},
+  "store": {"seoTitle": "Schema.org JSON-LD & Open Graph Extractor", "seoDescription": "Extract JSON-LD, schema.org types, Open Graph, product prices, stock, ratings and organisation details from any URL in bulk.", "categories": ["DEVELOPER_TOOLS", "ECOMMERCE"]},
+  "testInput": {"urls": ["https://www.python.org", "https://www.bbc.co.uk/news", "https://github.com/apify/crawlee", "https://example.com/does-not-exist-404"]}
+}

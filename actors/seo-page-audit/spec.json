@@ -1,0 +1,14 @@
+{
+  "title": "SEO Page Audit (On-Page SEO Checker)",
+  "description": "Audit web pages for on-page SEO in bulk: title and meta description length, headings, canonical, noindex, mobile viewport, image alt text, links, word count, Open Graph, schema.org, HTTPS and speed. Each page gets a 0-100 score and a plain list of issues to fix.",
+  "viewTitle": "Pages",
+  "view": [["url", "URL"], ["score", "Score", "number"], ["errors", "Errors", "number"], ["warnings", "Warnings", "number"], ["title", "Title"], ["titleLength", "Title length", "number"], ["metaDescriptionLength", "Description length", "number"], ["wordCount", "Words", "number"], ["imagesMissingAlt", "Images without alt", "number"], ["status", "Status"]],
+  "input": {
+    "urls": {"title": "Page URLs", "type": "array", "editor": "stringList", "description": "Pages to audit, one per line (up to 10,000 per run). Tip: feed it the output of a sitemap extractor to audit a whole site.", "prefill": ["https://www.python.org", "https://example.com"]},
+    "respectRobotsTxt": {"title": "Respect robots.txt", "type": "boolean", "default": true, "description": "Skip pages the site asks bots not to fetch. Turn off only for your own sites."}
+  },
+  "required": ["urls"],
+  "pricing": {"events": {"page": {"title": "Page audited", "description": "One page fetched and audited (including 404 and 500 pages, which the audit reports). Unreachable, blocked or non-HTML URLs are free.", "price": 0.003}}},
+  "store": {"seoTitle": "SEO Page Audit - Bulk On-Page SEO Checker", "seoDescription": "Bulk on-page SEO audit: titles, meta descriptions, headings, canonical, noindex, alt text, links, schema, speed. Score and issue list per page.", "categories": ["SEO_TOOLS", "DEVELOPER_TOOLS"]},
+  "testInput": {"urls": ["https://www.python.org", "https://example.com", "https://www.bbc.co.uk/news", "http://neverssl.com"]}
+}

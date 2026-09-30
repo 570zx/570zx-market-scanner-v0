@@ -1,0 +1,9 @@
+{
+  "events": {
+    "page": {
+      "title": "Page audited",
+      "description": "One page fetched and audited (including 404 and 500 pages, which the audit reports). Unreachable, blocked or non-HTML URLs are free.",
+      "price": 0.003
+    }
+  }
+}

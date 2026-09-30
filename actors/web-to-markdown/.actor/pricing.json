@@ -1,0 +1,9 @@
+{
+  "events": {
+    "page": {
+      "title": "Page converted",
+      "description": "One page fetched and converted to Markdown. Unreachable, blocked, empty or error pages are free.",
+      "price": 0.001
+    }
+  }
+}
