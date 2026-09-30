@@ -79,8 +79,9 @@ export class NhtsaClient {
   async resolveModels(issueType, make, model, year) {
     let names = [];
     try { names = await this.modelNames(issueType, make, year); } catch { /* fall back to the decoded name */ }
-    const picked = pickModels(names, model);
-    return picked.length ? picked : [model];
+    // Always ask for the decoded name too: the model list and the lookup endpoints do not always agree.
+    const out = [model, ...pickModels(names, model)];
+    return [...new Map(out.map(n => [squash(n) + '|' + n.toUpperCase(), n])).values()].filter((n, i, a) => a.findIndex(x => x.toUpperCase() === n.toUpperCase()) === i);
   }
 
   async byModels(path, issueType, {make, model, year}, keyOf) {
@@ -125,6 +126,7 @@ const squash = v => String(v ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 export function pickModels(names, model) {
   const want = squash(model);
   if (!want || !names?.length) return [];
+  names = [...new Set(names)];
   const exact = names.filter(n => squash(n) === want);
   if (exact.length) return exact;
   return names.filter(n => squash(n).includes(want) || (squash(n).length >= 3 && want.includes(squash(n)))).sort((a, b) => a.length - b.length || (a < b ? -1 : 1)).slice(0, 5);

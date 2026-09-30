@@ -119,6 +119,7 @@ test('pickModels handles NHTSA spelling differences', () => {
   assert.deepEqual(pickModels(['MODEL 3', 'MODEL S'], 'Model 3'), ['MODEL 3']);
   assert.deepEqual(pickModels(['CIVIC'], 'Accord'), []);
   assert.deepEqual(pickModels([], 'Accord'), []);
+  assert.deepEqual(pickModels(['ACCORD', 'ACCORD'], 'Accord'), ['ACCORD']);
 });
 
 test('resolved model name is used in the lookup and 400 means no records', async () => {
@@ -146,5 +147,5 @@ test('several matching model names are merged without duplicates', async () => {
   ]);
   const {item} = await buildReport(fast(f), '1HGCM82633A004352', {});
   assert.equal(item.recallCount, 3);
-  assert.deepEqual(item.recallsMatchedModels, ['F-150 SUPERCAB', 'F-150 SUPERCREW']);
+  assert.deepEqual(item.recallsMatchedModels, ['F-150', 'F-150 SUPERCAB', 'F-150 SUPERCREW']);
 });
