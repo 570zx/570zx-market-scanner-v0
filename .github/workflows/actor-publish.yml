@@ -8,6 +8,9 @@ name: Actor publish
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write # writes the outcome to the actor-results branch
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -30,4 +33,51 @@ jobs:
       - name: Push and build on Apify
         env:
           APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
-        run: npx --yes apify-cli@latest push --force 2>&1 | tail -n 30
+        run: |
+          set -o pipefail
+          npx --yes apify-cli@latest push --force 2>&1 | tail -n 30 | tee "$GITHUB_WORKSPACE/push.log"
+      - name: Check the Actor on Apify with a real run
+        if: always()
+        env:
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+        run: |
+          set -u
+          api=https://api.apify.com/v2
+          auth="Authorization: Bearer $APIFY_TOKEN"
+          user=$(curl -s -H "$auth" $api/users/me | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['username'])")
+          {
+            echo "# Actor publish $(date -u +%FT%TZ)"
+            echo "Apify user: $user"
+            echo; echo '## Push'; echo '```'; sed 's/apify_api_[A-Za-z0-9]*/***/g' "$GITHUB_WORKSPACE/push.log"; echo '```'
+            echo '## Actor'; echo '```'
+            curl -s -H "$auth" "$api/acts/$user~vehicle-safety-intel" | python3 -c "import sys,json;d=json.load(sys.stdin).get('data',{});print({k:d.get(k) for k in ['id','name','title','isPublic','pricingInfos']}); print('builds',d.get('taggedBuilds'))"
+            echo '```'
+            echo '## Test run on Apify (2 VINs)'; echo '```'
+            curl -s -X POST -H "$auth" -H "Content-Type: application/json" "$api/acts/$user~vehicle-safety-intel/run-sync-get-dataset-items?timeout=120&memory=256" -d '{"vins":["1HGCM82633A004352","5YJ3E1EA7KF317000"],"maxComplaintsPerVehicle":1}' | python3 -c "
+          import sys,json
+          d=json.load(sys.stdin)
+          if isinstance(d,dict): print('ERROR',d); sys.exit()
+          for x in d: print(x.get('vin'),x.get('status'),x.get('year'),x.get('make'),x.get('model'),'recalls',x.get('recallCount'),'complaints',x.get('complaintCount'),'ncap',x.get('overallSafetyRating'))"
+            curl -s -H "$auth" "$api/acts/$user~vehicle-safety-intel/runs/last" | python3 -c "import sys,json;d=json.load(sys.stdin).get('data',{});u=d.get('usageTotalUsd');print('last run',d.get('status'),'secs',(d.get('stats') or {}).get('runTimeSecs'),'usd',u,'statusMessage',d.get('statusMessage'))"
+            echo '```'
+          } > "$GITHUB_WORKSPACE/PUBLISH.md"
+          cat "$GITHUB_WORKSPACE/PUBLISH.md"
+      - name: Save the outcome to the actor-results branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
+          [ -f PUBLISH.md ] || echo "No report" > PUBLISH.md
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          for attempt in 1 2 3 4 5; do
+            work="$RUNNER_TEMP/p-$attempt"
+            git clone --quiet --depth 1 --branch actor-results "$remote" "$work"
+            cp PUBLISH.md "$work/PUBLISH.md"
+            git -C "$work" config user.name "actor-publish"; git -C "$work" config user.email "actor-publish@users.noreply.github.com"
+            git -C "$work" add -A; git -C "$work" commit --quiet -m "Actor publish report" || true
+            if git -C "$work" push --quiet origin HEAD:actor-results; then exit 0; fi
+            sleep $((attempt * 5))
+          done
+          exit 1
