@@ -1,0 +1,36 @@
+{
+  "title": "PDF to Text: Extract Text and Metadata from PDF URLs",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "urls": {
+      "title": "PDF URLs",
+      "type": "array",
+      "editor": "stringList",
+      "description": "Direct links to PDF files, up to 2,000 per run (60 MB each at most).",
+      "prefill": [
+        "https://arxiv.org/pdf/1706.03762"
+      ]
+    },
+    "includePageTexts": {
+      "title": "Also return text per page",
+      "type": "boolean",
+      "default": false
+    },
+    "maxPagesPerPdf": {
+      "title": "Maximum pages per PDF",
+      "type": "integer",
+      "default": 500,
+      "minimum": 1,
+      "maximum": 2000
+    },
+    "respectRobotsTxt": {
+      "title": "Respect robots.txt",
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "urls"
+  ]
+}

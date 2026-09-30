@@ -1,0 +1,18 @@
+{
+  "name": "pdf-to-text",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Extract the text and metadata (title, author, dates, page count) from PDFs at any URL: reports, filings, papers, manuals, invoices. Whole-document text or text per page, ready for search, AI and RAG. Pay per page, failures free.",
+  "scripts": {
+    "start": "node src/main.js",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "apify": "^3.2.0",
+    "unpdf": "^0.12.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

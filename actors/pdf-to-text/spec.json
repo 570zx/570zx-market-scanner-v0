@@ -1,0 +1,17 @@
+{
+  "title": "PDF to Text: Extract Text and Metadata from PDF URLs",
+  "description": "Extract the text and metadata (title, author, dates, page count) from PDFs at any URL: reports, filings, papers, manuals, invoices. Whole-document text or text per page, ready for search, AI and RAG. Pay per page, failures free.",
+  "deps": {"unpdf": "^0.12.1"},
+  "viewTitle": "PDFs",
+  "view": [["url", "URL"], ["status", "Status"], ["title", "Title"], ["author", "Author"], ["pageCount", "Pages", "number"], ["wordCount", "Words", "number"], ["createdAt", "Created"], ["text", "Text"]],
+  "input": {
+    "urls": {"title": "PDF URLs", "type": "array", "editor": "stringList", "description": "Direct links to PDF files, up to 2,000 per run (60 MB each at most).", "prefill": ["https://arxiv.org/pdf/1706.03762"]},
+    "includePageTexts": {"title": "Also return text per page", "type": "boolean", "default": false},
+    "maxPagesPerPdf": {"title": "Maximum pages per PDF", "type": "integer", "default": 500, "minimum": 1, "maximum": 2000},
+    "respectRobotsTxt": {"title": "Respect robots.txt", "type": "boolean", "default": true}
+  },
+  "required": ["urls"],
+  "pricing": {"events": {"page": {"title": "PDF page read", "description": "One PDF page's text extracted. Unreachable files, non-PDFs, scanned PDFs without a text layer and unreadable files are free.", "price": 0.0005}}},
+  "store": {"seoTitle": "PDF to Text API - Extract Text from PDF URLs", "seoDescription": "Extract text and metadata from PDF links in bulk: per-page text, title, author, dates, page count. For AI, RAG and search. $0.50 per 1,000 pages.", "categories": ["AI", "DEVELOPER_TOOLS"]},
+  "testInput": {"urls": ["https://arxiv.org/pdf/1706.03762", "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf", "https://example.com/"], "maxPagesPerPdf": 3}
+}
