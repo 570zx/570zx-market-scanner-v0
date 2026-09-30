@@ -90,7 +90,7 @@ def main():
           f'Source: USAspending.gov public API. Federal contract awards with start dates {START} to {END}.',
           'Micro-purchases under the card threshold are often not reported individually, so every count below undercounts real buying.', '']
 
-    bands = {'micro (up to $15,000)': (0.01, 15000), 'simplified ($15,000–$350,000)': (15000, 350000)}
+    bands = {'micro (up to $15,000)': (1, 15000), 'simplified ($15,000–$350,000)': (15000, 350000)}
     md += ['## How much is bought, by size', '', '| Band | Awards | Total obligated | Average |', '| --- | ---: | ---: | ---: |']
     raw['bands'] = {}
     for name, (lo, hi) in bands.items():
@@ -98,7 +98,7 @@ def main():
         c, t = count(f), total(f)
         raw['bands'][name] = {'count': c, 'total': t}
         md.append(f'| {name} | {c if c is not None else "—"} | {money(t)} | {money(t / c) if c and t else "—"} |')
-    f_nc = filters(0.01, 15000, state='NC')
+    f_nc = filters(1, 15000, state='NC')
     c, t = count(f_nc), total(f_nc)
     raw['nc_micro'] = {'count': c, 'total': t}
     md += ['', f'North Carolina micro awards (place of performance NC): {c} awards, {money(t)}.', '']
@@ -108,19 +108,19 @@ def main():
     raw['digital'] = {}
     rows = []
     for code, label in DIGITAL.items():
-        f = filters(0.01, 15000, naics=code)
+        f = filters(1, 15000, naics=code)
         c, t = count(f), total(f)
         raw['digital'][code] = {'label': label, 'count': c, 'total': t}
         rows.append((c or 0, code, label, c, t))
     for _, code, label, c, t in sorted(rows, reverse=True):
         md.append(f'| {code} | {label} | {c if c is not None else "—"} | {money(t)} | {money(t / c) if c and t else "—"} |')
-    all_digital = filters(0.01, 15000, naics=list(DIGITAL))
+    all_digital = filters(1, 15000, naics=list(DIGITAL))
     dc, dt = count(all_digital), total(all_digital)
     raw['digital_all'] = {'count': dc, 'total': dt}
     md += ['', f'All digital categories together: {dc} awards, {money(dt)}.', '']
 
     md += ['## Who wins the digital micro awards', '']
-    rec = category('recipient', all_digital, 20)
+    rec = category('recipient', all_digital, 100)
     raw['digital_recipients'] = rec
     if rec and dt:
         top10 = sum(x.get('amount', 0) for x in rec[:10])
@@ -128,6 +128,8 @@ def main():
         md.append('')
         for x in rec[:10]:
             md.append(f'- {x.get("name")}: {money(x.get("amount"))}')
+        md.append('')
+        md.append(f'Vendors in the top-100 list: {len(rec)}. The 100th vendor won {money(rec[-1].get("amount"))}; the 50th won {money(rec[min(49, len(rec)-1)].get("amount"))}.')
         md.append('')
     md += ['## Which agencies buy it', '']
     ag = category('awarding_agency', all_digital, 10)
@@ -140,19 +142,21 @@ def main():
     for r in s:
         md.append(f'- {money(r.get("Award Amount"))} · {r.get("Awarding Agency")} · {r.get("NAICS") if isinstance(r.get("NAICS"), str) else (r.get("NAICS") or {}).get("description")} · {(r.get("Description") or "")[:140]}')
 
-    md += ['', '## Small-business set-asides among digital micro awards', '']
-    sa = filters(0.01, 15000, naics=list(DIGITAL), setaside=['SBA'])
-    sc, st = count(sa), total(sa)
-    raw['digital_sba'] = {'count': sc, 'total': st}
-    md.append(f'Small-business set-aside awards: {sc} awards, {money(st)}.')
-
+    nc_dig = filters(1, 15000, naics=list(DIGITAL), state='NC')
+    ncc, nct = count(nc_dig), total(nc_dig)
+    raw['nc_digital'] = {'count': ncc, 'total': nct}
+    md += ['', f'North Carolina digital micro awards: {ncc} awards, {money(nct)}.', '']
+    ns = sample(nc_dig, 15)
+    raw['nc_digital_sample'] = ns
+    for r in ns:
+        md.append(f'- {money(r.get("Award Amount"))} · {r.get("Awarding Agency")} · {(r.get("Description") or "")[:140]}')
     md += ['', '## Goods: what product categories dominate micro awards', '']
-    psc = category('psc', filters(0.01, 15000), 15)
+    psc = category('psc', filters(1, 15000), 15)
     raw['psc'] = psc
     for x in psc:
         md.append(f'- {x.get("code")} {x.get("name")}: {money(x.get("amount"))}')
     md += ['', '## Top awarding agencies for all micro awards', '']
-    ag2 = category('awarding_agency', filters(0.01, 15000), 10)
+    ag2 = category('awarding_agency', filters(1, 15000), 10)
     raw['agencies'] = ag2
     for x in ag2:
         md.append(f'- {x.get("name")}: {money(x.get("amount"))}')
