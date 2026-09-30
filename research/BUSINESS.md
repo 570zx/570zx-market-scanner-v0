@@ -48,3 +48,28 @@ Measured platform cost: about $0.00004-0.00006 per report (2-VIN test runs cost 
 1. Create a free Apify account (owner-controlled) and complete identity verification (KYC) when payouts are wanted (PayPal minimum $20/month, otherwise $100).
 2. Send an Apify API token to GitHub as a repository secret named APIFY_TOKEN (never paste it in chat). Then Claude can publish through a workflow.
 3. Approve the operating scope: publish the Actor at $0.01 per report; no other spending; no outreach to people.
+
+
+## Portfolio (updated 2026-09-30)
+Apify allows 5 publications per account per day. The workflow `actor-publish-daily` publishes up to 5 pending tools each day at 17:17 UTC (order in actors/publish-order.txt). Disable that workflow in GitHub Actions to pause publishing.
+
+| Tool | Price | State |
+|---|---|---|
+| vehicle-safety-intel (VIN, recalls) | $0.01 / vehicle | public |
+| web-to-markdown | $1 / 1k pages | public |
+| sitemap-urls | $0.30 / 1k URLs | public |
+| seo-page-audit | $3 / 1k pages | public |
+| website-tech-stack | $2 / 1k sites | public |
+| structured-data | $2 / 1k pages | built, priced, tested; publishing queue |
+| email-validator | $1 / 1k emails | queue |
+| domain-email-security | $3 / 1k domains | queue |
+| broken-link-checker | $0.50 / 1k links | queue |
+| ats-jobs | $1 / 1k jobs | queue |
+| pdf-to-text | $0.50 / 1k pages | queue |
+| ssl-certificate-checker | $1 / 1k hosts | queue |
+| domain-rdap-lookup | $2 / 1k domains | queue |
+| app-store-reviews | $2 / 1k apps, $0.20 / 1k reviews | queue |
+| rss-feed-reader | $0.30 / 1k items | queue |
+| eu-vat-validator | $2 / 1k checks | queue |
+
+Measured platform cost per test run: $0.0001-0.003, far below revenue per run. Owner is US-based (North Carolina): payouts need a W-9 at KYC; income is self-employment income.
