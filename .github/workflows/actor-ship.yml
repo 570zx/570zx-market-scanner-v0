@@ -1,19 +1,19 @@
 name: Actor ship
 
-# Ships one Actor to the owner's Apify account: unit tests, push + build, price and Store
-# details from .actor/pricing.json and .actor/store.json, a real test run on Apify with
-# .actor/test-input.json, and (if asked and the test run delivered results) makes it public.
-# Owner-approved scope: publish at the prices in pricing.json, no spending, no outreach.
-# Reports to actor-results/ship/<actor>.md.
+# Ships Actors to the owner's Apify account, one after another: README check, unit tests,
+# push + build, price and Store details (.actor/pricing.json, .actor/store.json), a real test
+# run on Apify with .actor/test-input.json, and (if asked and the test run delivered results)
+# makes each public. Owner-approved scope: publish at the prices in pricing.json, no spending,
+# no outreach. Reports to actor-results/ship/<actor>.md.
 
 on:
   workflow_dispatch:
     inputs:
-      actor:
-        description: "Actor folder under actors/"
+      actors:
+        description: "Actor folders under actors/, separated by spaces"
         required: true
       public:
-        description: "Make it public in Apify Store if the test run passes"
+        description: "Make each public in Apify Store if its test run passes"
         required: true
         default: "true"
 
@@ -21,60 +21,71 @@ permissions:
   contents: write
 
 concurrency:
-  group: actor-ship-${{ inputs.actor }}
+  group: actor-ship
   cancel-in-progress: false
 
 jobs:
   ship:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Check inputs and token
+      - name: Ship each Actor
         env:
           APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
-          ACTOR: ${{ inputs.actor }}
-        run: |
-          [ -n "$APIFY_TOKEN" ] || { echo "::error::APIFY_TOKEN secret missing"; exit 1; }
-          [[ "$ACTOR" =~ ^[a-z0-9-]+$ ]] && [ -f "actors/$ACTOR/.actor/actor.json" ] || { echo "::error::No Actor folder actors/$ACTOR"; exit 1; }
-      - name: Unit tests
-        working-directory: actors/${{ inputs.actor }}
-        run: npm install --no-audit --no-fund >/dev/null 2>&1 && npm test 2>&1 | tail -n 8 | tee "$RUNNER_TEMP/unit.txt"
-      - name: Push and build
-        working-directory: actors/${{ inputs.actor }}
-        env:
-          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          ACTORS: ${{ inputs.actors }}
+          PUBLIC: ${{ inputs.public }}
           APIFY_CLI_DISABLE_TELEMETRY: "1"
         run: |
-          set -o pipefail
-          rm -rf node_modules storage
-          npx --yes apify-cli@latest login --token "$APIFY_TOKEN" >/dev/null 2>&1 || { echo "Apify login failed" > "$RUNNER_TEMP/push.txt"; exit 1; }
-          npx --yes apify-cli@latest push --force 2>&1 | grep -vE '^[0-9TZ:.-]+ #' | tail -n 14 | tee "$RUNNER_TEMP/push.txt"
-          grep -q "Build: SUCCEEDED" "$RUNNER_TEMP/push.txt"
-      - name: Price, Store details, platform test run, visibility
-        env:
-          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
-          ACTOR: ${{ inputs.actor }}
-          PUBLIC: ${{ inputs.public }}
-        run: python3 actors/ship.py "$ACTOR" 2>&1 | tee "$RUNNER_TEMP/ship.txt"
-      - name: Publish report
+          set -u
+          [ -n "$APIFY_TOKEN" ] || { echo "::error::APIFY_TOKEN secret missing"; exit 1; }
+          npx --yes apify-cli@latest login --token "$APIFY_TOKEN" >/dev/null 2>&1 || { echo "::error::Apify login failed"; exit 1; }
+          mkdir -p "$RUNNER_TEMP/ship"; failed=0
+          for a in $ACTORS; do
+            rep="$RUNNER_TEMP/ship/$a.md"
+            (
+              echo "# ship $a $(date -u +%FT%TZ) ${GITHUB_SHA::7}"
+              if ! [[ "$a" =~ ^[a-z0-9-]+$ ]] || [ ! -f "actors/$a/.actor/actor.json" ]; then echo "No Actor folder actors/$a"; exit 1; fi
+              cd "actors/$a"
+              [ -s README.md ] || { echo "README.md missing (it is the Store listing)"; exit 1; }
+              echo '## unit tests'; echo '```'
+              npm install --no-audit --no-fund >/dev/null 2>&1
+              npm test 2>&1 | grep -E '^# (tests|pass|fail)|^not ok' ; test_ok=${PIPESTATUS[0]}
+              echo '```'
+              [ "$test_ok" = 0 ] || { echo "Unit tests failed"; exit 1; }
+              rm -rf node_modules storage
+              echo '## push'; echo '```'
+              npx --yes apify-cli@latest push --force > "$RUNNER_TEMP/push.log" 2>&1
+              grep -vE '^[0-9TZ:.-]+ #' "$RUNNER_TEMP/push.log" | tail -n 10 | sed 's/apify_api_[A-Za-z0-9]*/***/g'
+              echo '```'
+              grep -q "Build: SUCCEEDED" "$RUNNER_TEMP/push.log" || { echo "Build failed"; exit 1; }
+              cd "$GITHUB_WORKSPACE"
+              echo '## Apify setup and test run'; echo '```'
+              python3 actors/ship.py "$a" 2>&1 | sed 's/apify_api_[A-Za-z0-9]*/***/g'; st=${PIPESTATUS[0]}
+              echo '```'
+              exit $st
+            ) > "$rep" 2>&1 || { failed=1; echo "::error::ship failed for $a (see actor-results/ship/$a.md)"; }
+            cd "$GITHUB_WORKSPACE"
+            echo "done $a"
+          done
+          exit $failed
+      - name: Publish reports
         if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ACTOR: ${{ inputs.actor }}
         run: |
-          set -euo pipefail
-          { echo "# ship $ACTOR $(date -u +%FT%TZ) ${GITHUB_SHA::7}"; for f in unit push ship; do echo "## $f"; echo '```'; cat "$RUNNER_TEMP/$f.txt" 2>/dev/null | sed 's/apify_api_[A-Za-z0-9]*/***/g'; echo '```'; done; } > "$RUNNER_TEMP/report.md"
+          set -eu
+          ls "$RUNNER_TEMP/ship"/*.md >/dev/null 2>&1 || exit 0
           remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           for attempt in 1 2 3 4 5; do
             work="$RUNNER_TEMP/r-$attempt"
             git clone --quiet --depth 1 --branch actor-results "$remote" "$work"
-            mkdir -p "$work/ship"; cp "$RUNNER_TEMP/report.md" "$work/ship/$ACTOR.md"
+            mkdir -p "$work/ship"; cp "$RUNNER_TEMP"/ship/*.md "$work/ship/"
             git -C "$work" config user.name "actor-ship"; git -C "$work" config user.email "actor-ship@users.noreply.github.com"
-            git -C "$work" add -A; git -C "$work" commit --quiet -m "ship $ACTOR" || true
+            git -C "$work" add -A; git -C "$work" commit --quiet -m "ship reports" || true
             if git -C "$work" push --quiet origin HEAD:actor-results; then exit 0; fi
             sleep $((attempt * 5))
           done
