@@ -1,0 +1,9 @@
+{
+  "hosts": [
+    "apify.com",
+    "expired.badssl.com",
+    "wrong.host.badssl.com",
+    "self-signed.badssl.com",
+    "this-domain-should-not-exist-570zx.com"
+  ]
+}

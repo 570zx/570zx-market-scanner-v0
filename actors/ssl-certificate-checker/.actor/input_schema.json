@@ -1,0 +1,29 @@
+{
+  "title": "SSL Certificate Checker: Expiry, Issuer, Chain, TLS",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "hosts": {
+      "title": "Hosts",
+      "type": "array",
+      "editor": "stringList",
+      "description": "Domains or URLs (a port like example.com:8443 is allowed). Up to 20,000 per run.",
+      "prefill": [
+        "apify.com",
+        "expired.badssl.com",
+        "wrong.host.badssl.com"
+      ]
+    },
+    "warnDays": {
+      "title": "Warn when expiring within (days)",
+      "type": "integer",
+      "default": 30,
+      "minimum": 1,
+      "maximum": 365,
+      "description": "Certificates expiring within this many days get an 'expires_soon' warning."
+    }
+  },
+  "required": [
+    "hosts"
+  ]
+}

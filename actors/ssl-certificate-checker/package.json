@@ -1,0 +1,17 @@
+{
+  "name": "ssl-certificate-checker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Check SSL/TLS certificates for any list of domains: days until expiry, issuer, whether it covers the host name, trusted chain, self-signed, TLS version, cipher, key type and all subject alternative names. Great for expiry monitoring on a schedule.",
+  "scripts": {
+    "start": "node src/main.js",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "apify": "^3.2.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
