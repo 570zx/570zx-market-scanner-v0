@@ -1,11 +1,11 @@
-# Actor live check 2026-09-30T13:30:47Z (6986a94)
+# Actor live check 2026-09-30T13:31:14Z (a3b9617)
 
 ## Unit tests
 ```
 # Subtest: several matching model names are merged without duplicates
 ok 14 - several matching model names are merged without duplicates
   ---
-  duration_ms: 0.404704
+  duration_ms: 0.626817
   type: 'test'
   ...
 1..14
@@ -16,7 +16,7 @@ ok 14 - several matching model names are merged without duplicates
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 54.19122
+# duration_ms 82.781542
 ```
 ## SDK run
 ```
@@ -29,17 +29,17 @@ ok 14 - several matching model names are merged without duplicates
 BAD invalid_vin None None None recalls None complaints None ncap None
 ```
 ## Live
-## 1HGCM82633A004352  status=ok billable=true (6821 ms)
+## 1HGCM82633A004352  status=ok billable=true (862 ms)
 2003 HONDA Accord | recalls 24 (["ACCORD","ACCORD","ACCORD","ACCORD"]) | complaints 2013 (["ACCORD","ACCORD","ACCORD","ACCORD"]) | NCAP null | warnings: []
-## 5YJ3E1EA7KF317000  status=partial billable=true (1215 ms)
+## 5YJ3E1EA7KF317000  status=partial billable=true (1009 ms)
 2019 TESLA Model 3 | recalls 22 (["MODEL 3","MODEL 3"]) | complaints 614 (["MODEL 3","MODEL 3"]) | NCAP 5 | warnings: ["Check digit (position 9) does not match. Normal for some non-North-American vehicles; otherwise the VIN may contain a typo."]
-## 1FTFW1ET5DFC10312  status=partial billable=true (27413 ms)
+## 1FTFW1ET5DFC10312  status=partial billable=true (694 ms)
 2013 FORD F-150 | recalls 0 (["F-150 SUPERCAB","F-150 SUPERCAB","F-150 SUPER CREW","F-150 SUPER CREW","F-150 REGULAR CAB"]) | complaints 2796 (["F-150 SUPERCAB","F-150 SUPERCAB","F-150 SUPER CREW","F-150 SUPER CREW","F-150 REGULAR CAB"]) | NCAP null | warnings: ["Check digit (position 9) does not match. Normal for some non-North-American vehicles; otherwise the VIN may contain a typo."]
-## 3VWFE21C04M000001  status=ok billable=true (2310 ms)
+## 3VWFE21C04M000001  status=ok billable=true (237 ms)
 2004 VOLKSWAGEN Beetle | recalls 2 (["NEW BEETLE","NEW BEETLE"]) | complaints 361 (["NEW BEETLE","NEW BEETLE"]) | NCAP null | warnings: []
-## 1G1YY22G965109876  status=partial billable=true (2132 ms)
+## 1G1YY22G965109876  status=partial billable=true (1134 ms)
 2006 CHEVROLET Corvette | recalls 5 (["CORVETTE"]) | complaints 413 (["CORVETTE"]) | NCAP null | warnings: ["Check digit (position 9) does not match. Normal for some non-North-American vehicles; otherwise the VIN may contain a typo."]
-## WBAVB13506PT12345  status=ok billable=true (1721 ms)
+## WBAVB13506PT12345  status=ok billable=true (1499 ms)
 2006 BMW 325i | recalls 7 (["325i"]) | complaints 0 (["325i"]) | NCAP null | warnings: []
 ## NOTAVIN  status=invalid_vin billable=false (0 ms)
 undefined undefined undefined | recalls undefined (undefined) | complaints undefined (undefined) | NCAP undefined | warnings: undefined
