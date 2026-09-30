@@ -1,0 +1,34 @@
+{
+  "title": "Sitemap URL Extractor",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "websites": {
+      "title": "Websites or sitemap URLs",
+      "type": "array",
+      "editor": "stringList",
+      "description": "A domain (sitemaps are found through robots.txt and common locations) or a direct sitemap URL. Up to 500 per run.",
+      "prefill": [
+        "https://apify.com",
+        "https://www.python.org/sitemap.xml"
+      ]
+    },
+    "maxUrlsPerSite": {
+      "title": "Maximum URLs per site",
+      "type": "integer",
+      "default": 5000,
+      "minimum": 1,
+      "maximum": 200000,
+      "description": "Stop collecting a site after this many URLs."
+    },
+    "respectRobotsTxt": {
+      "title": "Respect robots.txt",
+      "type": "boolean",
+      "default": true,
+      "description": "Skip sitemaps the site asks bots not to fetch. Recommended."
+    }
+  },
+  "required": [
+    "websites"
+  ]
+}

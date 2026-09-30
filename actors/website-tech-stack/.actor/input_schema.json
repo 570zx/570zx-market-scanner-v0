@@ -1,0 +1,26 @@
+{
+  "title": "Website Tech Stack Detector (Wappalyzer / BuiltWith alternative)",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "urls": {
+      "title": "Websites",
+      "type": "array",
+      "editor": "stringList",
+      "description": "Domains or URLs, one per line (up to 5,000 per run). Example: shopify.com",
+      "prefill": [
+        "https://www.shopify.com",
+        "wordpress.org"
+      ]
+    },
+    "respectRobotsTxt": {
+      "title": "Respect robots.txt",
+      "type": "boolean",
+      "default": true,
+      "description": "Skip pages the site asks bots not to fetch. Recommended."
+    }
+  },
+  "required": [
+    "urls"
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "actorSpecification": 1,
+  "name": "web-to-markdown",
+  "title": "Web Page to Markdown for AI & RAG",
+  "description": "Turn any web page into clean Markdown for LLMs, RAG and AI agents: main content only (no menus, ads or footers), absolute links and images, tables kept, title/author/date metadata, word and token counts, optional chunks. Respects robots.txt. Pay per page, errors free.",
+  "version": "0.1",
+  "buildTag": "latest",
+  "input": "./input_schema.json",
+  "output": "./output_schema.json",
+  "dockerfile": "../Dockerfile",
+  "storages": {
+    "dataset": {
+      "actorSpecification": 1,
+      "views": {
+        "overview": {
+          "title": "Pages",
+          "transformation": {
+            "fields": [
+              "url",
+              "status",
+              "title",
+              "extraction",
+              "wordCount",
+              "approxTokens",
+              "markdown"
+            ]
+          },
+          "display": {
+            "component": "table",
+            "properties": {
+              "url": {
+                "label": "URL",
+                "format": "text"
+              },
+              "status": {
+                "label": "Status",
+                "format": "text"
+              },
+              "title": {
+                "label": "Title",
+                "format": "text"
+              },
+              "extraction": {
+                "label": "Extraction",
+                "format": "text"
+              },
+              "wordCount": {
+                "label": "Words",
+                "format": "number"
+              },
+              "approxTokens": {
+                "label": "\u2248 Tokens",
+                "format": "number"
+              },
+              "markdown": {
+                "label": "Markdown",
+                "format": "text"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

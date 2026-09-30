@@ -1,0 +1,62 @@
+{
+  "title": "Web Page to Markdown for AI & RAG",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "urls": {
+      "title": "Page URLs",
+      "type": "array",
+      "editor": "stringList",
+      "description": "Pages to convert, one per line (up to 10,000 per run).",
+      "prefill": [
+        "https://docs.apify.com/platform/actors",
+        "https://en.wikipedia.org/wiki/Markdown"
+      ]
+    },
+    "extractMode": {
+      "title": "What to keep",
+      "type": "string",
+      "editor": "select",
+      "enum": [
+        "article",
+        "full"
+      ],
+      "enumTitles": [
+        "Main content only (recommended)",
+        "Whole page body"
+      ],
+      "default": "article",
+      "description": "Main content removes menus, footers, cookie banners and sidebars."
+    },
+    "chunkTokens": {
+      "title": "Chunk size for RAG (tokens)",
+      "type": "integer",
+      "default": 0,
+      "minimum": 0,
+      "maximum": 8000,
+      "description": "0 = no chunks. Otherwise also split the Markdown into chunks of about this many tokens on paragraph boundaries, each with its section heading."
+    },
+    "maxCharacters": {
+      "title": "Maximum characters per page",
+      "type": "integer",
+      "default": 0,
+      "minimum": 0,
+      "description": "0 = no limit."
+    },
+    "includeLinks": {
+      "title": "Include list of links",
+      "type": "boolean",
+      "default": false,
+      "description": "Also return every absolute link found on the page."
+    },
+    "respectRobotsTxt": {
+      "title": "Respect robots.txt",
+      "type": "boolean",
+      "default": true,
+      "description": "Skip pages the site asks bots not to fetch. Recommended."
+    }
+  },
+  "required": [
+    "urls"
+  ]
+}

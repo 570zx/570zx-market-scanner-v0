@@ -1,0 +1,75 @@
+{
+  "actorSpecification": 1,
+  "name": "structured-data",
+  "title": "Structured Data Extractor (Schema.org JSON-LD, Open Graph, Product Prices)",
+  "description": "Pull the machine-readable data out of any web page: schema.org JSON-LD, microdata types, Open Graph and Twitter cards, product name/price/stock/rating, organisation contact details, articles, breadcrumbs and FAQs. Bulk URLs, errors free.",
+  "version": "0.1",
+  "buildTag": "latest",
+  "input": "./input_schema.json",
+  "output": "./output_schema.json",
+  "dockerfile": "../Dockerfile",
+  "storages": {
+    "dataset": {
+      "actorSpecification": 1,
+      "views": {
+        "overview": {
+          "title": "Pages",
+          "transformation": {
+            "fields": [
+              "url",
+              "status",
+              "title",
+              "schemaTypes",
+              "productName",
+              "price",
+              "currency",
+              "availability",
+              "faqQuestions"
+            ]
+          },
+          "display": {
+            "component": "table",
+            "properties": {
+              "url": {
+                "label": "URL",
+                "format": "text"
+              },
+              "status": {
+                "label": "Status",
+                "format": "text"
+              },
+              "title": {
+                "label": "Title",
+                "format": "text"
+              },
+              "schemaTypes": {
+                "label": "Schema types",
+                "format": "array"
+              },
+              "productName": {
+                "label": "Product",
+                "format": "text"
+              },
+              "price": {
+                "label": "Price",
+                "format": "number"
+              },
+              "currency": {
+                "label": "Currency",
+                "format": "text"
+              },
+              "availability": {
+                "label": "Availability",
+                "format": "text"
+              },
+              "faqQuestions": {
+                "label": "FAQ questions",
+                "format": "number"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

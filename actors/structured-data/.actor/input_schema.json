@@ -1,0 +1,32 @@
+{
+  "title": "Structured Data Extractor (Schema.org JSON-LD, Open Graph, Product Prices)",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "urls": {
+      "title": "Page URLs",
+      "type": "array",
+      "editor": "stringList",
+      "description": "Pages to read, one per line (up to 10,000 per run).",
+      "prefill": [
+        "https://www.python.org",
+        "https://apify.com"
+      ]
+    },
+    "includeRawJsonLd": {
+      "title": "Include raw JSON-LD",
+      "type": "boolean",
+      "default": true,
+      "description": "Also return every JSON-LD node as found on the page (up to 50 per page)."
+    },
+    "respectRobotsTxt": {
+      "title": "Respect robots.txt",
+      "type": "boolean",
+      "default": true,
+      "description": "Skip pages the site asks bots not to fetch. Recommended."
+    }
+  },
+  "required": [
+    "urls"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "name": "structured-data",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Pull the machine-readable data out of any web page: schema.org JSON-LD, microdata types, Open Graph and Twitter cards, product name/price/stock/rating, organisation contact details, articles, breadcrumbs and FAQs. Bulk URLs, errors free.",
+  "scripts": {
+    "start": "node src/main.js",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "apify": "^3.2.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

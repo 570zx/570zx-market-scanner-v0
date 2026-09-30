@@ -1,0 +1,15 @@
+{
+  "title": "Sitemap URL Extractor",
+  "description": "Get every page URL a website lists in its XML sitemaps, with last-modified date, change frequency, priority and image count. Finds sitemaps via robots.txt, follows sitemap indexes, reads .xml.gz and text sitemaps.",
+  "viewTitle": "URLs",
+  "view": [["domain", "Site"], ["url", "URL"], ["lastmod", "Last modified"], ["changefreq", "Change frequency"], ["priority", "Priority", "number"], ["images", "Images", "number"], ["sitemap", "Found in sitemap"], ["status", "Status"]],
+  "input": {
+    "websites": {"title": "Websites or sitemap URLs", "type": "array", "editor": "stringList", "description": "A domain (sitemaps are found through robots.txt and common locations) or a direct sitemap URL. Up to 500 per run.", "prefill": ["https://apify.com", "https://www.python.org/sitemap.xml"]},
+    "maxUrlsPerSite": {"title": "Maximum URLs per site", "type": "integer", "default": 5000, "minimum": 1, "maximum": 200000, "description": "Stop collecting a site after this many URLs."},
+    "respectRobotsTxt": {"title": "Respect robots.txt", "type": "boolean", "default": true, "description": "Skip sitemaps the site asks bots not to fetch. Recommended."}
+  },
+  "required": ["websites"],
+  "pricing": {"events": {"url": {"title": "URL found", "description": "One page URL returned from a sitemap. Sites with no sitemap are free.", "price": 0.0003}}},
+  "store": {"seoTitle": "Sitemap URL Extractor - All Pages of Any Website", "seoDescription": "Extract every URL from a site's XML sitemaps with lastmod, priority and change frequency. Auto-discovers sitemaps, follows indexes, reads .gz.", "categories": ["DEVELOPER_TOOLS", "AUTOMATION"]},
+  "testInput": {"websites": ["https://www.python.org", "https://apify.com/sitemap.xml", "https://example.com"], "maxUrlsPerSite": 40}
+}

@@ -1,0 +1,17 @@
+{
+  "name": "seo-page-audit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Audit web pages for on-page SEO in bulk: title and meta description length, headings, canonical, noindex, mobile viewport, image alt text, links, word count, Open Graph, schema.org, HTTPS and speed. Each page gets a 0-100 score and a plain list of issues to fix.",
+  "scripts": {
+    "start": "node src/main.js",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "apify": "^3.2.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

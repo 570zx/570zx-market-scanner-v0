@@ -1,0 +1,9 @@
+{
+  "events": {
+    "page": {
+      "title": "Page read",
+      "description": "One page fetched and its structured data extracted. Unreachable, blocked, non-HTML or error pages are free.",
+      "price": 0.002
+    }
+  }
+}

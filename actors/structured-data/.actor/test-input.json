@@ -1,0 +1,8 @@
+{
+  "urls": [
+    "https://www.python.org",
+    "https://www.bbc.co.uk/news",
+    "https://github.com/apify/crawlee",
+    "https://example.com/does-not-exist-404"
+  ]
+}
