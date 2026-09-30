@@ -1,4 +1,4 @@
-# sitemap-urls  2026-09-30T16:20:14Z 31850e3
+# sitemap-urls  2026-09-30T16:21:51Z 57b464c
 ## install
 ```
 npm warn deprecated lodash.isequal@4.5.0: This package is deprecated. Use require('node:util').isDeepStrictEqual instead.
@@ -14,13 +14,16 @@ added 187 packages in 3s
 ## local run on test input
 ```
 [32mINFO[39m  [Status message]: Sites done 1/3, URLs found 0
+[32mINFO[39m  [Status message]: Sites done 2/3, URLs found 0
 [33mWARN[39m  Ignored attempt to charge for an event - the Actor does not use the pay-per-event pricing
-[32mINFO[39m  [Status message]: Sites done 2/3, URLs found 40
 [32mINFO[39m  [Status message]: Sites done 3/3, URLs found 40
 [32mINFO[39m  [Status message]: Read 3 of 3 sites and found 40 URLs.
 ```
 ## items
 42 items
+```json
+{"site": "https://www.python.org/", "domain": "www.python.org", "status": "no_sitemap_found", "sitemapsTried": ["https://www.python.org/sitemap.xml", "https://www.python.org/sitemap_index.xml", "https://www.python.org/wp-sitemap.xml", "https://www.python.org/sitemap.txt"], "errors": ["https://www.python.org/sitemap.xml: HTTP 404", "https://www.python.org/sitemap_index.xml: HTTP 404", "https://www.python.org/wp-sitemap.xml: HTTP 404", "https://www.python.org/sitemap.txt: HTTP 404"]}
+```
 ```json
 {"site": "https://apify.com/sitemap.xml", "domain": "apify.com", "status": "ok", "url": "https://apify.com/", "lastmod": null, "changefreq": null, "priority": null, "images": 0, "sitemap": "https://apify.com/sitemap/pages.xml"}
 ```
@@ -53,7 +56,4 @@ added 187 packages in 3s
 ```
 ```json
 {"site": "https://apify.com/sitemap.xml", "domain": "apify.com", "status": "ok", "url": "https://apify.com/alternatives/browseai-alternatives", "lastmod": null, "changefreq": null, "priority": null, "images": 0, "sitemap": "https://apify.com/sitemap/pages.xml"}
-```
-```json
-{"site": "https://apify.com/sitemap.xml", "domain": "apify.com", "status": "ok", "url": "https://apify.com/alternatives/crawl4ai-alternatives", "lastmod": null, "changefreq": null, "priority": null, "images": 0, "sitemap": "https://apify.com/sitemap/pages.xml"}
 ```

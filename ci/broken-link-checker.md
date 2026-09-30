@@ -1,4 +1,4 @@
-# broken-link-checker  2026-09-30T16:19:40Z 31850e3
+# broken-link-checker  2026-09-30T16:21:19Z 57b464c
 ## install
 ```
 npm warn deprecated lodash.isequal@4.5.0: This package is deprecated. Use require('node:util').isDeepStrictEqual instead.
@@ -14,7 +14,7 @@ added 187 packages in 3s
 ## local run on test input
 ```
 [33mWARN[39m  Ignored attempt to charge for an event - the Actor does not use the pay-per-event pricing
-[32mINFO[39m  [Status message]: Pages 1/2, links checked 23, broken 0
+[32mINFO[39m  [Status message]: Pages 1/2, links checked 11, broken 0
 [32mINFO[39m  [Status message]: Pages 2/2, links checked 24, broken 0
 [32mINFO[39m  [Status message]: Checked 24 links on 2 pages: 0 broken.
 ```
@@ -42,17 +42,17 @@ added 187 packages in 3s
 {"page": "https://www.python.org/", "status": "skipped_robots_txt", "link": "https://www.linkedin.com/company/python-software-foundation/", "linkText": "LinkedIn", "kind": "link", "internal": false}
 ```
 ```json
+{"page": "https://www.python.org/", "status": "ok", "link": "https://www.python.org/community/irc/", "linkText": "Chat on IRC", "kind": "link", "internal": true, "httpStatus": 200, "finalUrl": "https://www.python.org/community/irc/", "redirected": false, "broken": false, "error": null}
+```
+```json
 {"page": "https://www.python.org/", "status": "ok", "link": "https://www.python.org/about/", "linkText": "About", "kind": "link", "internal": true, "httpStatus": 200, "finalUrl": "https://www.python.org/about/", "redirected": false, "broken": false, "error": null}
 ```
 ```json
-{"page": "https://www.python.org/", "status": "ok", "link": "https://www.python.org/community/irc/", "linkText": "Chat on IRC", "kind": "link", "internal": true, "httpStatus": 200, "finalUrl": "https://www.python.org/community/irc/", "redirected": false, "broken": false, "error": null}
+{"page": "https://www.python.org/", "status": "ok", "link": "https://fosstodon.org/@ThePSF", "linkText": "Mastodon", "kind": "link", "internal": false, "httpStatus": 200, "finalUrl": "https://fosstodon.org/@ThePSF", "redirected": false, "broken": false, "error": null}
 ```
 ```json
 {"page": "https://www.python.org/", "status": "ok", "link": "https://www.python.org/about/quotes/", "linkText": "Quotes", "kind": "link", "internal": true, "httpStatus": 200, "finalUrl": "https://www.python.org/about/quotes/", "redirected": false, "broken": false, "error": null}
 ```
 ```json
-{"page": "https://www.python.org/", "status": "ok", "link": "https://www.python.org/about/apps/", "linkText": "Applications", "kind": "link", "internal": true, "httpStatus": 200, "finalUrl": "https://www.python.org/about/apps/", "redirected": false, "broken": false, "error": null}
-```
-```json
-{"page": "https://www.python.org/", "status": "skipped_robots_txt", "link": "https://twitter.com/ThePSF", "linkText": "Twitter", "kind": "link", "internal": false}
+{"page": "https://example.com/", "status": "ok", "link": "https://iana.org/help/example-domains", "linkText": "Learn more", "kind": "link", "internal": false, "httpStatus": 200, "finalUrl": "https://www.iana.org/help/example-domains", "redirected": true, "broken": false, "error": null}
 ```
