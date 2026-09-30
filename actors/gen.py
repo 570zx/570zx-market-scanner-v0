@@ -38,6 +38,8 @@ w('.actor/output_schema.json', {'actorOutputSchemaVersion': 1, 'title': spec.get
     'results': {'type': 'string', 'title': 'All fields (JSON)', 'template': '{{links.apiDefaultDatasetUrl}}/items'}}})
 w('.actor/pricing.json', spec['pricing'])
 assert len(spec['title']) <= 63, 'title over 63 characters'
+for k, v in spec['input'].items():
+    assert v.get('description'), f'input {k} needs a description (Apify requires it)'
 assert len(spec['store']['seoTitle']) <= 60, 'seoTitle too long'
 assert len(spec['store']['seoDescription']) <= 160, 'seoDescription too long'
 w('.actor/store.json', spec['store'])

@@ -33,7 +33,8 @@
     "includeAppDetails": {
       "title": "Include app details",
       "type": "boolean",
-      "default": true
+      "default": true,
+      "description": "Also return one row of app details (rating, version, price, description...) per app and country."
     }
   },
   "required": [

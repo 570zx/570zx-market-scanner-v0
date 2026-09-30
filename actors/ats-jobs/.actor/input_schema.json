@@ -29,7 +29,8 @@
     "remoteOnly": {
       "title": "Remote jobs only",
       "type": "boolean",
-      "default": false
+      "default": false,
+      "description": "Only return jobs marked remote (or with Remote in the location)."
     },
     "postedWithinDays": {
       "title": "Posted within (days)",

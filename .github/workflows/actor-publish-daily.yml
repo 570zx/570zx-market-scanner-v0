@@ -1,0 +1,60 @@
+name: Actor publish daily
+
+# Apify allows 5 Actor publications per account per day. Every day this ships (build, price,
+# real test run) and publishes the next unpublished Actors in actors/publish-order.txt, up to 5,
+# and writes actor-results/STATUS.md. Owner-approved scope: publish at the prices in each
+# pricing.json, no spending, no outreach. Disable this workflow to pause publishing.
+
+on:
+  schedule:
+    - cron: "17 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: actor-ship
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Ship and publish up to 5 pending Actors
+        env:
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          APIFY_CLI_DISABLE_TELEMETRY: "1"
+        run: |
+          set -u
+          [ -n "$APIFY_TOKEN" ] || { echo "::error::APIFY_TOKEN secret missing"; exit 1; }
+          npx --yes apify-cli@latest login --token "$APIFY_TOKEN" >/dev/null 2>&1 || { echo "::error::Apify login failed"; exit 1; }
+          pending=$(python3 actors/pending.py)
+          todo=$(echo $pending | tr ' ' '\n' | head -n 5 | tr '\n' ' ')
+          echo "pending: $pending"; echo "today: $todo"
+          [ -n "$todo" ] || { echo "Nothing to publish"; exit 0; }
+          OUT="$RUNNER_TEMP/ship" PUBLIC=true actors/ship.sh $todo || true
+          STATUS="$RUNNER_TEMP/STATUS.md" python3 actors/pending.py >/dev/null
+      - name: Publish reports
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          for attempt in 1 2 3 4 5; do
+            work="$RUNNER_TEMP/r-$attempt"
+            git clone --quiet --depth 1 --branch actor-results "$remote" "$work"
+            mkdir -p "$work/ship"; cp "$RUNNER_TEMP"/ship/*.md "$work/ship/" 2>/dev/null || true
+            cp "$RUNNER_TEMP/STATUS.md" "$work/STATUS.md" 2>/dev/null || true
+            git -C "$work" config user.name "actor-publish"; git -C "$work" config user.email "actor-publish@users.noreply.github.com"
+            git -C "$work" add -A; git -C "$work" commit --quiet -m "daily publish $(date -u +%F)" || true
+            if git -C "$work" push --quiet origin HEAD:actor-results; then exit 0; fi
+            sleep $((attempt * 5))
+          done
+          exit 1

@@ -1,0 +1,10 @@
+# Publish order when the daily limit (5 per day) applies: likeliest earners first.
+structured-data
+email-validator
+domain-email-security
+broken-link-checker
+ats-jobs
+pdf-to-text
+ssl-certificate-checker
+domain-rdap-lookup
+app-store-reviews

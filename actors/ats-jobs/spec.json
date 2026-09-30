@@ -2,17 +2,129 @@
   "title": "Company Jobs API: Greenhouse, Lever, Ashby, Workable",
   "description": "Get every open job from company career pages that run on Greenhouse, Lever, Ashby, Workable, SmartRecruiters or Recruitee, in one clean format: title, location, remote, department, type, salary where published, posted date, apply link and full description. Paste careers URLs or just company names.",
   "viewTitle": "Jobs",
-  "view": [["companyName", "Company name"], ["company", "Company"], ["title", "Title"], ["location", "Location"], ["remote", "Remote", "boolean"], ["department", "Department"], ["employmentType", "Type"], ["salary", "Salary"], ["postedAt", "Posted"], ["url", "Job URL", "link"], ["ats", "Source"]],
+  "view": [
+    [
+      "companyName",
+      "Company name"
+    ],
+    [
+      "company",
+      "Company"
+    ],
+    [
+      "title",
+      "Title"
+    ],
+    [
+      "location",
+      "Location"
+    ],
+    [
+      "remote",
+      "Remote",
+      "boolean"
+    ],
+    [
+      "department",
+      "Department"
+    ],
+    [
+      "employmentType",
+      "Type"
+    ],
+    [
+      "salary",
+      "Salary"
+    ],
+    [
+      "postedAt",
+      "Posted"
+    ],
+    [
+      "url",
+      "Job URL",
+      "link"
+    ],
+    [
+      "ats",
+      "Source"
+    ]
+  ],
   "input": {
-    "companies": {"title": "Companies", "type": "array", "editor": "stringList", "description": "Careers page URLs (for example https://boards.greenhouse.io/airbnb, https://jobs.lever.co/spotify, https://jobs.ashbyhq.com/openai) or plain company names (each board is tried). Up to 1,000 per run.", "prefill": ["https://jobs.ashbyhq.com/openai", "https://boards.greenhouse.io/airbnb", "lever:spotify"]},
-    "titleKeywords": {"title": "Title keywords", "type": "array", "editor": "stringList", "description": "Only jobs whose title contains any of these (optional)."},
-    "locations": {"title": "Locations", "type": "array", "editor": "stringList", "description": "Only jobs whose location contains any of these, for example London or Remote (optional)."},
-    "remoteOnly": {"title": "Remote jobs only", "type": "boolean", "default": false},
-    "postedWithinDays": {"title": "Posted within (days)", "type": "integer", "default": 0, "minimum": 0, "description": "0 = any date. Boards that do not publish a date are kept."},
-    "includeDescription": {"title": "Include job description", "type": "boolean", "default": true, "description": "Plain-text description (up to 20,000 characters). Switch off for smaller output."}
+    "companies": {
+      "title": "Companies",
+      "type": "array",
+      "editor": "stringList",
+      "description": "Careers page URLs (for example https://boards.greenhouse.io/airbnb, https://jobs.lever.co/spotify, https://jobs.ashbyhq.com/openai) or plain company names (each board is tried). Up to 1,000 per run.",
+      "prefill": [
+        "https://jobs.ashbyhq.com/openai",
+        "https://boards.greenhouse.io/airbnb",
+        "lever:spotify"
+      ]
+    },
+    "titleKeywords": {
+      "title": "Title keywords",
+      "type": "array",
+      "editor": "stringList",
+      "description": "Only jobs whose title contains any of these (optional)."
+    },
+    "locations": {
+      "title": "Locations",
+      "type": "array",
+      "editor": "stringList",
+      "description": "Only jobs whose location contains any of these, for example London or Remote (optional)."
+    },
+    "remoteOnly": {
+      "title": "Remote jobs only",
+      "type": "boolean",
+      "default": false,
+      "description": "Only return jobs marked remote (or with Remote in the location)."
+    },
+    "postedWithinDays": {
+      "title": "Posted within (days)",
+      "type": "integer",
+      "default": 0,
+      "minimum": 0,
+      "description": "0 = any date. Boards that do not publish a date are kept."
+    },
+    "includeDescription": {
+      "title": "Include job description",
+      "type": "boolean",
+      "default": true,
+      "description": "Plain-text description (up to 20,000 characters). Switch off for smaller output."
+    }
   },
-  "required": ["companies"],
-  "pricing": {"events": {"job": {"title": "Job returned", "description": "One job posting returned after your filters. Companies with no board found are free.", "price": 0.001}}},
-  "store": {"seoTitle": "Company Jobs API - Greenhouse, Lever, Ashby, Workable", "seoDescription": "All open jobs from company career pages on Greenhouse, Lever, Ashby, Workable, SmartRecruiters and Recruitee. Clean JSON, filters, $1 per 1,000 jobs.", "categories": ["JOBS", "LEAD_GENERATION"]},
-  "testInput": {"companies": ["https://jobs.ashbyhq.com/openai", "https://boards.greenhouse.io/airbnb", "lever:spotify", "huggingface", "nosuchcompany570zx"], "titleKeywords": ["engineer"], "includeDescription": false}
+  "required": [
+    "companies"
+  ],
+  "pricing": {
+    "events": {
+      "job": {
+        "title": "Job returned",
+        "description": "One job posting returned after your filters. Companies with no board found are free.",
+        "price": 0.001
+      }
+    }
+  },
+  "store": {
+    "seoTitle": "Company Jobs API - Greenhouse, Lever, Ashby, Workable",
+    "seoDescription": "All open jobs from company career pages on Greenhouse, Lever, Ashby, Workable, SmartRecruiters and Recruitee. Clean JSON, filters, $1 per 1,000 jobs.",
+    "categories": [
+      "JOBS",
+      "LEAD_GENERATION"
+    ]
+  },
+  "testInput": {
+    "companies": [
+      "https://jobs.ashbyhq.com/openai",
+      "https://boards.greenhouse.io/airbnb",
+      "lever:spotify",
+      "huggingface",
+      "nosuchcompany570zx"
+    ],
+    "titleKeywords": [
+      "engineer"
+    ],
+    "includeDescription": false
+  }
 }

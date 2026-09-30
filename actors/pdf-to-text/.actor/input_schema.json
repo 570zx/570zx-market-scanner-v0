@@ -15,19 +15,22 @@
     "includePageTexts": {
       "title": "Also return text per page",
       "type": "boolean",
-      "default": false
+      "default": false,
+      "description": "Adds pageTexts: one text per page, in addition to the whole-document text."
     },
     "maxPagesPerPdf": {
       "title": "Maximum pages per PDF",
       "type": "integer",
       "default": 500,
       "minimum": 1,
-      "maximum": 2000
+      "maximum": 2000,
+      "description": "Read at most this many pages of each PDF (you pay only for pages read)."
     },
     "respectRobotsTxt": {
       "title": "Respect robots.txt",
       "type": "boolean",
-      "default": true
+      "default": true,
+      "description": "Skip files the site asks bots not to fetch. Recommended."
     }
   },
   "required": [
