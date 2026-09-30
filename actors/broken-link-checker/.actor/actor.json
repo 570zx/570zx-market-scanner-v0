@@ -1,0 +1,70 @@
+{
+  "actorSpecification": 1,
+  "name": "broken-link-checker",
+  "title": "Broken Link Checker",
+  "description": "Find broken links (404s, dead domains, server errors) on any list of pages. Checks every link on each page, follows redirects, retries temporary errors, and can include images, scripts and stylesheets. One row per link with status code and link text.",
+  "version": "0.1",
+  "buildTag": "latest",
+  "input": "./input_schema.json",
+  "output": "./output_schema.json",
+  "dockerfile": "../Dockerfile",
+  "storages": {
+    "dataset": {
+      "actorSpecification": 1,
+      "views": {
+        "overview": {
+          "title": "Links",
+          "transformation": {
+            "fields": [
+              "page",
+              "link",
+              "linkText",
+              "httpStatus",
+              "broken",
+              "redirected",
+              "internal",
+              "error"
+            ]
+          },
+          "display": {
+            "component": "table",
+            "properties": {
+              "page": {
+                "label": "Page",
+                "format": "text"
+              },
+              "link": {
+                "label": "Link",
+                "format": "text"
+              },
+              "linkText": {
+                "label": "Link text",
+                "format": "text"
+              },
+              "httpStatus": {
+                "label": "HTTP status",
+                "format": "number"
+              },
+              "broken": {
+                "label": "Broken",
+                "format": "boolean"
+              },
+              "redirected": {
+                "label": "Redirected",
+                "format": "boolean"
+              },
+              "internal": {
+                "label": "Internal",
+                "format": "boolean"
+              },
+              "error": {
+                "label": "Error",
+                "format": "text"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

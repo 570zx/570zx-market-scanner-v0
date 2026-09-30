@@ -1,0 +1,9 @@
+{
+  "domains": [
+    "google.com",
+    "apify.com",
+    "example.com",
+    "this-domain-should-not-exist-570zx.com",
+    "not a domain"
+  ]
+}

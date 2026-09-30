@@ -1,0 +1,21 @@
+{
+  "title": "Domain WHOIS / RDAP Lookup: Age, Expiry, Registrar",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "domains": {
+      "title": "Domains",
+      "type": "array",
+      "editor": "stringList",
+      "description": "Domains, URLs or email addresses (subdomains are reduced to the registered domain). Up to 20,000 per run.",
+      "prefill": [
+        "apify.com",
+        "google.com",
+        "example.org"
+      ]
+    }
+  },
+  "required": [
+    "domains"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "name": "domain-email-security",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Check any list of domains for email authentication and spoofing protection: SPF (including +all and the 10-lookup limit), DMARC policy and reporting, DKIM keys on 30 common selectors, MX and mail provider, MTA-STS, TLS-RPT and BIMI. A-F grade and a plain list of issues per domain.",
+  "scripts": {
+    "start": "node src/main.js",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "apify": "^3.2.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

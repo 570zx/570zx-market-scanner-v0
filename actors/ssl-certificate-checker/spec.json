@@ -1,0 +1,14 @@
+{
+  "title": "SSL Certificate Checker: Expiry, Issuer, Chain, TLS",
+  "description": "Check SSL/TLS certificates for any list of domains: days until expiry, issuer, whether it covers the host name, trusted chain, self-signed, TLS version, cipher, key type and all subject alternative names. Great for expiry monitoring on a schedule.",
+  "viewTitle": "Certificates",
+  "view": [["host", "Host"], ["valid", "Valid", "boolean"], ["daysLeft", "Days left", "number"], ["validTo", "Expires"], ["issuer", "Issuer"], ["coversHost", "Covers host", "boolean"], ["protocol", "TLS"], ["status", "Status"]],
+  "input": {
+    "hosts": {"title": "Hosts", "type": "array", "editor": "stringList", "description": "Domains or URLs (a port like example.com:8443 is allowed). Up to 20,000 per run.", "prefill": ["apify.com", "expired.badssl.com", "wrong.host.badssl.com"]},
+    "warnDays": {"title": "Warn when expiring within (days)", "type": "integer", "default": 30, "minimum": 1, "maximum": 365, "description": "Certificates expiring within this many days get an 'expires_soon' warning."}
+  },
+  "required": ["hosts"],
+  "pricing": {"events": {"host": {"title": "Certificate checked", "description": "One host's certificate read and checked. Hosts that do not exist or refuse the connection are free.", "price": 0.001}}},
+  "store": {"seoTitle": "SSL Certificate Checker & Expiry Monitor (Bulk)", "seoDescription": "Check SSL certificates for many domains: expiry date, days left, issuer, hostname match, chain trust, TLS version. Schedule it for expiry alerts.", "categories": ["DEVELOPER_TOOLS", "AUTOMATION"]},
+  "testInput": {"hosts": ["apify.com", "expired.badssl.com", "wrong.host.badssl.com", "self-signed.badssl.com", "this-domain-should-not-exist-570zx.com"]}
+}

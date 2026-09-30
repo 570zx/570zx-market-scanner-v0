@@ -1,0 +1,9 @@
+{
+  "events": {
+    "domain": {
+      "title": "Domain looked up",
+      "description": "One domain looked up (a 'not registered' answer counts). Registries without RDAP, invalid input and failed lookups are free.",
+      "price": 0.002
+    }
+  }
+}

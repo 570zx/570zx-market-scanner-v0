@@ -1,0 +1,8 @@
+{
+  "seoTitle": "SSL Certificate Checker & Expiry Monitor (Bulk)",
+  "seoDescription": "Check SSL certificates for many domains: expiry date, days left, issuer, hostname match, chain trust, TLS version. Schedule it for expiry alerts.",
+  "categories": [
+    "DEVELOPER_TOOLS",
+    "AUTOMATION"
+  ]
+}

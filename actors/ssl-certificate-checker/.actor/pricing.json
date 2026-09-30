@@ -1,0 +1,9 @@
+{
+  "events": {
+    "host": {
+      "title": "Certificate checked",
+      "description": "One host's certificate read and checked. Hosts that do not exist or refuse the connection are free.",
+      "price": 0.001
+    }
+  }
+}

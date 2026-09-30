@@ -1,15 +1,92 @@
 {
-  "title": "Website Tech Stack Detector (Wappalyzer / BuiltWith alternative)",
+  "title": "Website Tech Stack Detector",
   "description": "Find the CMS, e-commerce platform, frameworks, analytics, ad pixels, hosting, CDN, payments and chat tools behind any website. Bulk domains, version numbers, evidence for each match.",
   "deps": {},
   "viewTitle": "Websites",
-  "view": [["inputUrl", "Website"], ["status", "Status"], ["cms", "CMS / builder"], ["ecommerce", "E-commerce"], ["framework", "Framework"], ["hosting", "Hosting"], ["cdn", "CDN"], ["technologyCount", "Technologies", "number"], ["technologyNames", "All technologies", "array"]],
+  "view": [
+    [
+      "inputUrl",
+      "Website"
+    ],
+    [
+      "status",
+      "Status"
+    ],
+    [
+      "cms",
+      "CMS / builder"
+    ],
+    [
+      "ecommerce",
+      "E-commerce"
+    ],
+    [
+      "framework",
+      "Framework"
+    ],
+    [
+      "hosting",
+      "Hosting"
+    ],
+    [
+      "cdn",
+      "CDN"
+    ],
+    [
+      "technologyCount",
+      "Technologies",
+      "number"
+    ],
+    [
+      "technologyNames",
+      "All technologies",
+      "array"
+    ]
+  ],
   "input": {
-    "urls": {"title": "Websites", "type": "array", "editor": "stringList", "description": "Domains or URLs, one per line (up to 5,000 per run). Example: shopify.com", "prefill": ["https://www.shopify.com", "wordpress.org"]},
-    "respectRobotsTxt": {"title": "Respect robots.txt", "type": "boolean", "default": true, "description": "Skip pages the site asks bots not to fetch. Recommended."}
+    "urls": {
+      "title": "Websites",
+      "type": "array",
+      "editor": "stringList",
+      "description": "Domains or URLs, one per line (up to 5,000 per run). Example: shopify.com",
+      "prefill": [
+        "https://www.shopify.com",
+        "wordpress.org"
+      ]
+    },
+    "respectRobotsTxt": {
+      "title": "Respect robots.txt",
+      "type": "boolean",
+      "default": true,
+      "description": "Skip pages the site asks bots not to fetch. Recommended."
+    }
   },
-  "required": ["urls"],
-  "pricing": {"events": {"website": {"title": "Website analysed", "description": "One website fetched and analysed. Unreachable, blocked or error pages are free.", "price": 0.002}}},
-  "store": {"seoTitle": "Website Tech Stack Detector - BuiltWith Alternative", "seoDescription": "Detect the CMS, e-commerce platform, frameworks, analytics, pixels, hosting and CDN of any website in bulk. Pay per site, errors free.", "categories": ["LEAD_GENERATION", "DEVELOPER_TOOLS"]},
-  "testInput": {"urls": ["https://www.shopify.com", "https://wordpress.org", "https://nextjs.org", "not a url"]}
+  "required": [
+    "urls"
+  ],
+  "pricing": {
+    "events": {
+      "website": {
+        "title": "Website analysed",
+        "description": "One website fetched and analysed. Unreachable, blocked or error pages are free.",
+        "price": 0.002
+      }
+    }
+  },
+  "store": {
+    "seoTitle": "Website Tech Stack Detector - BuiltWith Alternative",
+    "seoDescription": "Detect the CMS, e-commerce platform, frameworks, analytics, pixels, hosting and CDN of any website in bulk. Pay per site, errors free.",
+    "categories": [
+      "LEAD_GENERATION",
+      "DEVELOPER_TOOLS"
+    ]
+  },
+  "testInput": {
+    "urls": [
+      "https://www.shopify.com",
+      "https://wordpress.org",
+      "https://nextjs.org",
+      "not a url"
+    ]
+  }
 }

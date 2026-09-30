@@ -11,7 +11,7 @@ Get every page URL a website publishes in its XML sitemaps, with last-modified d
 - Spotting new or recently changed pages (sort by `lastmod`)
 - Checking that your own sitemaps are found and valid
 
-## Output (one row per URL)
+## Output (one row per URL; real result)
 
 ```json
 {
@@ -19,7 +19,7 @@ Get every page URL a website publishes in its XML sitemaps, with last-modified d
   "domain": "apify.com",
   "status": "ok",
   "url": "https://apify.com/about",
-  "lastmod": "2026-09-12",
+  "lastmod": null,
   "changefreq": null,
   "priority": null,
   "images": 0,

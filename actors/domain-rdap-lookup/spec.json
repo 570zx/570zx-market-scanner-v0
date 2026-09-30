@@ -1,0 +1,13 @@
+{
+  "title": "Domain WHOIS / RDAP Lookup: Age, Expiry, Registrar",
+  "description": "Look up domains in the registries' official RDAP service (the modern WHOIS): registration date and age, expiry date and days left, registrar, abuse contact, status codes, nameservers and DNSSEC. Also tells you when a domain is not registered.",
+  "viewTitle": "Domains",
+  "view": [["domain", "Domain"], ["registered", "Registered", "boolean"], ["registrar", "Registrar"], ["createdDate", "Created"], ["expiryDate", "Expires"], ["daysUntilExpiry", "Days left", "number"], ["ageYears", "Age (years)", "number"], ["status", "Status"]],
+  "input": {
+    "domains": {"title": "Domains", "type": "array", "editor": "stringList", "description": "Domains, URLs or email addresses (subdomains are reduced to the registered domain). Up to 20,000 per run.", "prefill": ["apify.com", "google.com", "example.org"]}
+  },
+  "required": ["domains"],
+  "pricing": {"events": {"domain": {"title": "Domain looked up", "description": "One domain looked up (a 'not registered' answer counts). Registries without RDAP, invalid input and failed lookups are free.", "price": 0.002}}},
+  "store": {"seoTitle": "Bulk WHOIS & RDAP Lookup: Domain Age and Expiry", "seoDescription": "Bulk domain lookup from official registry RDAP: creation date, age, expiry, registrar, abuse contact, nameservers, DNSSEC, availability.", "categories": ["DEVELOPER_TOOLS", "LEAD_GENERATION"]},
+  "testInput": {"domains": ["apify.com", "www.bbc.co.uk", "google.dev", "this-domain-should-not-exist-570zx.com", "not a domain"]}
+}

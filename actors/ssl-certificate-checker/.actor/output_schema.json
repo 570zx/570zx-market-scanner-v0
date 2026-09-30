@@ -1,0 +1,16 @@
+{
+  "actorOutputSchemaVersion": 1,
+  "title": "Certificates",
+  "properties": {
+    "overview": {
+      "type": "string",
+      "title": "Certificates (table)",
+      "template": "{{links.apiDefaultDatasetUrl}}/items?view=overview"
+    },
+    "results": {
+      "type": "string",
+      "title": "All fields (JSON)",
+      "template": "{{links.apiDefaultDatasetUrl}}/items"
+    }
+  }
+}

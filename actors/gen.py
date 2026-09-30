@@ -37,6 +37,7 @@ w('.actor/output_schema.json', {'actorOutputSchemaVersion': 1, 'title': spec.get
     'overview': {'type': 'string', 'title': spec.get('viewTitle', 'Results') + ' (table)', 'template': '{{links.apiDefaultDatasetUrl}}/items?view=overview'},
     'results': {'type': 'string', 'title': 'All fields (JSON)', 'template': '{{links.apiDefaultDatasetUrl}}/items'}}})
 w('.actor/pricing.json', spec['pricing'])
+assert len(spec['title']) <= 63, 'title over 63 characters'
 assert len(spec['store']['seoTitle']) <= 60, 'seoTitle too long'
 assert len(spec['store']['seoDescription']) <= 160, 'seoDescription too long'
 w('.actor/store.json', spec['store'])

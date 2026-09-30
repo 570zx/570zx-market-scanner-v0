@@ -1,0 +1,17 @@
+{
+  "name": "email-validator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Clean an email list in bulk: syntax check, does the domain exist and accept mail (MX records), disposable/throwaway providers, role addresses like info@, free providers like Gmail, and typo suggestions (gmial.com). No emails are sent and mailboxes are not probed.",
+  "scripts": {
+    "start": "node src/main.js",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "apify": "^3.2.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

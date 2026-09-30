@@ -1,0 +1,13 @@
+{
+  "title": "Email Validator: Syntax, MX, Disposable & Role Check",
+  "description": "Clean an email list in bulk: syntax check, does the domain exist and accept mail (MX records), disposable/throwaway providers, role addresses like info@, free providers like Gmail, and typo suggestions (gmial.com). No emails are sent and mailboxes are not probed.",
+  "viewTitle": "Emails",
+  "view": [["input", "Input"], ["email", "Email"], ["verdict", "Verdict"], ["reasons", "Reasons", "array"], ["mailServer", "Accepts mail", "boolean"], ["disposable", "Disposable", "boolean"], ["roleAccount", "Role address", "boolean"], ["freeProvider", "Free provider", "boolean"], ["typoSuggestion", "Did you mean"]],
+  "input": {
+    "emails": {"title": "Email addresses", "type": "array", "editor": "stringList", "description": "One address per line, up to 100,000 per run. Duplicates are removed.", "prefill": ["jane.doe@gmail.com", "info@apify.com", "someone@mailinator.com", "bob@gmial.com"]}
+  },
+  "required": ["emails"],
+  "pricing": {"events": {"email": {"title": "Email checked", "description": "One address checked (including ones found invalid). Temporary DNS failures are free.", "price": 0.001}}},
+  "store": {"seoTitle": "Bulk Email Validator - MX, Disposable, Role Check", "seoDescription": "Validate email lists in bulk: syntax, MX records, disposable and role addresses, free providers, typo fixes. No emails sent. $1 per 1,000.", "categories": ["LEAD_GENERATION", "MARKETING"]},
+  "testInput": {"emails": ["jane.doe@gmail.com", "info@apify.com", "someone@mailinator.com", "bob@gmial.com", "no-at-sign.com", "x@this-domain-should-not-exist-570zx.com"]}
+}

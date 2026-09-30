@@ -1,0 +1,70 @@
+{
+  "actorSpecification": 1,
+  "name": "ssl-certificate-checker",
+  "title": "SSL Certificate Checker: Expiry, Issuer, Chain, TLS",
+  "description": "Check SSL/TLS certificates for any list of domains: days until expiry, issuer, whether it covers the host name, trusted chain, self-signed, TLS version, cipher, key type and all subject alternative names. Great for expiry monitoring on a schedule.",
+  "version": "0.1",
+  "buildTag": "latest",
+  "input": "./input_schema.json",
+  "output": "./output_schema.json",
+  "dockerfile": "../Dockerfile",
+  "storages": {
+    "dataset": {
+      "actorSpecification": 1,
+      "views": {
+        "overview": {
+          "title": "Certificates",
+          "transformation": {
+            "fields": [
+              "host",
+              "valid",
+              "daysLeft",
+              "validTo",
+              "issuer",
+              "coversHost",
+              "protocol",
+              "status"
+            ]
+          },
+          "display": {
+            "component": "table",
+            "properties": {
+              "host": {
+                "label": "Host",
+                "format": "text"
+              },
+              "valid": {
+                "label": "Valid",
+                "format": "boolean"
+              },
+              "daysLeft": {
+                "label": "Days left",
+                "format": "number"
+              },
+              "validTo": {
+                "label": "Expires",
+                "format": "text"
+              },
+              "issuer": {
+                "label": "Issuer",
+                "format": "text"
+              },
+              "coversHost": {
+                "label": "Covers host",
+                "format": "boolean"
+              },
+              "protocol": {
+                "label": "TLS",
+                "format": "text"
+              },
+              "status": {
+                "label": "Status",
+                "format": "text"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
