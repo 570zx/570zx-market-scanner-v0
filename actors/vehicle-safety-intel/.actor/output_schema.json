@@ -1,0 +1,16 @@
+{
+  "actorOutputSchemaVersion": 1,
+  "title": "Vehicle reports",
+  "properties": {
+    "overview": {
+      "type": "string",
+      "title": "Vehicles (table)",
+      "template": "{{links.apiDefaultDatasetUrl}}/items?view=overview"
+    },
+    "results": {
+      "type": "string",
+      "title": "Full vehicle reports (JSON)",
+      "template": "{{links.apiDefaultDatasetUrl}}/items"
+    }
+  }
+}
