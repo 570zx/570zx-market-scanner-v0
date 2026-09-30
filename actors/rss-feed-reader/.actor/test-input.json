@@ -1,0 +1,9 @@
+{
+  "feeds": [
+    "https://feeds.bbci.co.uk/news/rss.xml",
+    "https://blog.apify.com",
+    "https://github.blog/feed/",
+    "https://example.com"
+  ],
+  "maxItemsPerFeed": 3
+}

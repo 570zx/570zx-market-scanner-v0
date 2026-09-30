@@ -1,0 +1,17 @@
+{
+  "title": "RSS & Atom Feed Reader: News, Blogs, Podcasts to JSON",
+  "description": "Turn any RSS, Atom or JSON feed into clean JSON: title, link, date, author, categories, summary, full content, images, and podcast audio links with durations. Give it feed URLs or just website addresses (the feed is found automatically). Filter by date, many feeds per run.",
+  "viewTitle": "Feed items",
+  "view": [["feedTitle", "Feed"], ["title", "Title"], ["published", "Published"], ["author", "Author"], ["link", "Link", "link"], ["summary", "Summary"], ["status", "Status"]],
+  "input": {
+    "feeds": {"title": "Feeds or websites", "type": "array", "editor": "stringList", "description": "RSS/Atom/JSON feed URLs, or website pages that link to a feed. Up to 2,000 per run.", "prefill": ["https://feeds.bbci.co.uk/news/rss.xml", "https://blog.apify.com"]},
+    "maxItemsPerFeed": {"title": "Maximum items per feed", "type": "integer", "default": 50, "minimum": 1, "maximum": 1000, "description": "Newest items as ordered by the feed."},
+    "publishedWithinDays": {"title": "Published within (days)", "type": "integer", "default": 0, "minimum": 0, "description": "0 = no date filter. Items without a date are kept."},
+    "includeContent": {"title": "Include full HTML content", "type": "boolean", "default": false, "description": "Adds the item's full HTML content when the feed provides it (content:encoded or Atom content)."},
+    "respectRobotsTxt": {"title": "Respect robots.txt", "type": "boolean", "default": true, "description": "Skip feeds the site asks bots not to fetch. Recommended."}
+  },
+  "required": ["feeds"],
+  "pricing": {"events": {"item": {"title": "Feed item", "description": "One feed item returned. Feeds that fail, are empty or are not found are free.", "price": 0.0003}}},
+  "store": {"seoTitle": "RSS Feed Reader API - RSS, Atom, JSON Feed to JSON", "seoDescription": "Read RSS, Atom and JSON feeds as clean JSON: titles, links, dates, authors, summaries, images, podcast audio. Auto-finds a site's feed. Date filter.", "categories": ["NEWS", "AUTOMATION"]},
+  "testInput": {"feeds": ["https://feeds.bbci.co.uk/news/rss.xml", "https://blog.apify.com", "https://github.blog/feed/", "https://example.com"], "maxItemsPerFeed": 3}
+}

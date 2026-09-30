@@ -1,0 +1,9 @@
+{
+  "events": {
+    "item": {
+      "title": "Feed item",
+      "description": "One feed item returned. Feeds that fail, are empty or are not found are free.",
+      "price": 0.0003
+    }
+  }
+}
