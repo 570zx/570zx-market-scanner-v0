@@ -31,7 +31,7 @@ pricing = [{
     }},
 }]
 st, r = call('PUT', act, {'pricingInfos': pricing, 'categories': ['AUTOMATION', 'DEVELOPER_TOOLS'],
-                          'seoTitle': 'VIN Decoder API with Recalls, Complaints and Crash Ratings (NHTSA)',
+                          'seoTitle': 'VIN Decoder API: Recalls, Complaints, Crash Ratings',
                           'seoDescription': 'Decode VINs in bulk and get NHTSA safety recalls, owner complaints and 5-star crash ratings. Pay per vehicle, invalid VINs free.'})
 print(f'\nset pricing/categories: HTTP {st}')
 print(json.dumps(r.get('error') or {k: r.get('data', {}).get(k) for k in ['categories', 'pricingInfos']}, indent=1)[:2500])
