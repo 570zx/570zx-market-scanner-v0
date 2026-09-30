@@ -1,0 +1,51 @@
+{
+  "title": "Company Jobs API: Greenhouse, Lever, Ashby, Workable",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "companies": {
+      "title": "Companies",
+      "type": "array",
+      "editor": "stringList",
+      "description": "Careers page URLs (for example https://boards.greenhouse.io/airbnb, https://jobs.lever.co/spotify, https://jobs.ashbyhq.com/openai) or plain company names (each board is tried). Up to 1,000 per run.",
+      "prefill": [
+        "https://jobs.ashbyhq.com/openai",
+        "https://boards.greenhouse.io/airbnb",
+        "lever:spotify"
+      ]
+    },
+    "titleKeywords": {
+      "title": "Title keywords",
+      "type": "array",
+      "editor": "stringList",
+      "description": "Only jobs whose title contains any of these (optional)."
+    },
+    "locations": {
+      "title": "Locations",
+      "type": "array",
+      "editor": "stringList",
+      "description": "Only jobs whose location contains any of these, for example London or Remote (optional)."
+    },
+    "remoteOnly": {
+      "title": "Remote jobs only",
+      "type": "boolean",
+      "default": false
+    },
+    "postedWithinDays": {
+      "title": "Posted within (days)",
+      "type": "integer",
+      "default": 0,
+      "minimum": 0,
+      "description": "0 = any date. Boards that do not publish a date are kept."
+    },
+    "includeDescription": {
+      "title": "Include job description",
+      "type": "boolean",
+      "default": true,
+      "description": "Plain-text description (up to 20,000 characters). Switch off for smaller output."
+    }
+  },
+  "required": [
+    "companies"
+  ]
+}
