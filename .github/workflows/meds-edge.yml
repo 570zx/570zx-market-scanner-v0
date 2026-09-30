@@ -1,0 +1,111 @@
+name: MEDS edge hunt
+
+# One backtest for every idea still standing (index mean reversion, leveraged-ETF
+# trend switch, ETF rotation, stock momentum, intraday SPY strategies) on ~10
+# years of real data against buy-and-hold. Manual trigger.
+# Needs ALPACA_API_KEY and ALPACA_API_SECRET (same as MEDS backtest).
+
+on:
+  workflow_dispatch:
+    inputs:
+      start:
+        description: "First day of data, YYYY-MM-DD (the first 260 sessions are history only)"
+        required: true
+        default: "2016-01-04"
+      stocks:
+        description: "Include the stock-momentum test (downloads every US stock; slower)"
+        required: true
+        default: "true"
+
+permissions:
+  contents: write # publishes the report to the backtest-results branch
+
+concurrency:
+  group: meds-edge
+  cancel-in-progress: false
+
+jobs:
+  edge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    defaults:
+      run:
+        working-directory: meds-scout
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check Alpaca secrets
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
+        run: |
+          if [ -z "$ALPACA_API_KEY" ] || [ -z "$ALPACA_API_SECRET" ]; then
+            echo "::error::Add ALPACA_API_KEY and ALPACA_API_SECRET as repository secrets first."
+            exit 1
+          fi
+      - name: Restore cached market data
+        uses: actions/cache/restore@v4
+        with:
+          path: meds-scout/backtest/data
+          key: meds-edge-data-v1-${{ github.run_id }}
+          restore-keys: meds-edge-data-v1-
+      - name: Run edge hunt
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
+          START: ${{ inputs.start }}
+          STOCKS: ${{ inputs.stocks }}
+        run: |
+          set -euo pipefail
+          args=(--start "$START" --rpm 150)
+          if [ "$STOCKS" != "true" ]; then args+=(--no-stocks); fi
+          node --max-old-space-size=5500 --disable-warning=ExperimentalWarning backtest/edge.mjs "${args[@]}" 2>&1 | tee edge-run.log
+      - name: Show the error
+        if: failure()
+        run: echo "::error::$(tail -n 12 edge-run.log 2>/dev/null | cut -c1-300 | tr '\n' '|')"
+      - name: Save market data for the next run
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: meds-scout/backtest/data
+          key: meds-edge-data-v1-${{ github.run_id }}
+      - name: Write job summary
+        if: always()
+        run: |
+          if [ -f backtest/out-edge/summary.md ]; then cat backtest/out-edge/summary.md >> "$GITHUB_STEP_SUMMARY"; else echo "No report was produced; see the Run step." >> "$GITHUB_STEP_SUMMARY"; fi
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: meds-edge-${{ github.run_id }}
+          path: meds-scout/backtest/out-edge
+          if-no-files-found: ignore
+      - name: Publish report to the backtest-results branch
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          dest="runs/edge-$(date -u +%Y-%m-%d)-${GITHUB_RUN_ID}"
+          for attempt in 1 2 3 4 5; do
+            work="$RUNNER_TEMP/results-$attempt"
+            if git ls-remote --exit-code --heads "$remote" backtest-results >/dev/null 2>&1; then
+              git clone --quiet --depth 1 --branch backtest-results "$remote" "$work"
+            else
+              git init --quiet -b backtest-results "$work"
+              git -C "$work" remote add origin "$remote"
+            fi
+            mkdir -p "$work/$dest"
+            cp -r backtest/out-edge/. "$work/$dest/"
+            cp backtest/out-edge/summary.md "$work/EDGE.md"
+            git -C "$work" config user.name "meds-backtest"
+            git -C "$work" config user.email "meds-backtest@users.noreply.github.com"
+            git -C "$work" add -A
+            git -C "$work" commit --quiet -m "MEDS edge hunt ${dest}"
+            if git -C "$work" push --quiet origin HEAD:backtest-results; then exit 0; fi
+            sleep $((attempt * 5))
+          done
+          echo "::error::Could not publish the report after 5 tries"; exit 1
