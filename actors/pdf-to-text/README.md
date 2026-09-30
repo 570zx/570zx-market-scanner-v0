@@ -4,23 +4,25 @@ Give it links to PDF files and get back their text and metadata: title, author, 
 
 **$0.50 per 1,000 pages.** Unreachable files, links that are not PDFs, scanned PDFs without a text layer and unreadable files are free.
 
-## Output (one row per PDF, shortened)
+## Output (one row per PDF; real result from 30 Sep 2026, text shortened)
 
 ```json
 {
   "url": "https://arxiv.org/pdf/1706.03762",
   "status": "ok",
+  "bytes": 2215244,
   "pageCount": 15,
   "pagesRead": 3,
   "title": null,
   "author": null,
-  "createdAt": null,
-  "wordCount": 1500,
-  "text": "Provided proper attribution is provided, Google hereby grants permission to reproduce ..."
+  "creator": "LaTeX with hyperref",
+  "producer": "pdfTeX-1.40.25",
+  "createdAt": "2024-04-10T21:11:43.000Z",
+  "text": "Provided proper attribution is provided, Google hereby grants permission to\nreproduce the tables and figures in this paper solely for use in journalistic or\nscholarly works.\nAttention Is All You Need\n..."
 }
 ```
 
-(Example values are illustrative; the exact numbers depend on the file.)
+That run used "Maximum pages per PDF" = 3, so 3 pages were read and charged. Many PDFs, like this one, leave title and author empty in their metadata.
 
 ## Input
 

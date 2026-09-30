@@ -22,7 +22,7 @@ main(async input => {
       return {billable: false, item: {...base, status: /password/i.test(e?.message ?? '') ? 'password_protected' : 'unreadable_pdf', error: String(e?.message ?? e).slice(0, 300)}};
     }
     const words = (d.text.match(/[\p{L}\p{N}]+/gu) ?? []).length;
-    if (words < 5 && d.pageCount > 0) return {billable: false, item: {...base, status: 'no_text_layer', pageCount: d.pageCount, error: 'The PDF has no selectable text (probably scanned images; OCR is not included).'}};
+    if (words === 0 && d.pageCount > 0) return {billable: false, item: {...base, status: 'no_text_layer', pageCount: d.pageCount, error: 'The PDF has no selectable text (probably scanned images; OCR is not included).'}};
     const {pages, ...rest} = d;
     return {billable: true, units: d.pagesRead, item: {...base, finalUrl: r.finalUrl, status: 'ok', bytes: r.bytes, ...rest, wordCount: words, pageTexts: perPage ? pages : undefined}};
   };
