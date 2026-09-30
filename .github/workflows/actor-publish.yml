@@ -35,7 +35,10 @@ jobs:
           APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
         run: |
           set -o pipefail
+          export APIFY_CLI_DISABLE_TELEMETRY=1
+          npx --yes apify-cli@latest login --token "$APIFY_TOKEN" >/dev/null 2>&1 || { echo "Apify login failed" | tee "$GITHUB_WORKSPACE/push.log"; exit 1; }
           npx --yes apify-cli@latest push --force 2>&1 | tail -n 30 | tee "$GITHUB_WORKSPACE/push.log"
+          if grep -q "^Error" "$GITHUB_WORKSPACE/push.log"; then exit 1; fi
       - name: Check the Actor on Apify with a real run
         if: always()
         env:
