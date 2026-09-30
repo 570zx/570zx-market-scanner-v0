@@ -27,7 +27,8 @@ test('normalize Lever, Ashby, Workable, SmartRecruiters, Recruitee', () => {
   const l = normalize('lever', 'n', [{id: 'a', text: 'Designer', categories: {location: 'London', team: 'Brand', department: 'Design', commitment: 'Full-time'}, hostedUrl: 'h', applyUrl: 'ap', createdAt: 1767225600000, descriptionPlain: 'Plain', workplaceType: 'hybrid'}])[0];
   assert.equal(l.department, 'Design / Brand'); assert.equal(l.employmentType, 'Full-time'); assert.equal(l.postedAt, '2026-01-01T00:00:00.000Z'); assert.equal(l.remote, false);
   const a = normalize('ashby', 'o', {jobs: [{id: 'x', title: 'ML', location: 'SF', isRemote: true, jobUrl: 'u', publishedAt: '2026-05-01T00:00:00Z', compensation: {compensationTierSummary: '$200K – $300K'}}, {id: 'y', title: 'Hidden', isListed: false}]});
-  assert.equal(a.length, 1); assert.equal(a[0].salary, '$200K – $300K'); assert.ok(a[0].remote);
+  assert.equal(a.length, 1);
+  assert.equal(normalize('ashby', 'o', {jobs: [{id: 'z', title: 'R', department: 'Research', team: 'Research'}]})[0].department, 'Research'); assert.equal(a[0].salary, '$200K – $300K'); assert.ok(a[0].remote);
   const w = normalize('workable', 'h', {name: 'HF', jobs: [{title: 'Eng', shortcode: 'S1', city: 'Paris', country: 'France', telecommuting: true, url: 'u', published_on: '2026-02-02'}]})[0];
   assert.equal(w.location, 'Paris, France'); assert.ok(w.remote);
   const s = normalize('smartrecruiters', 'Visa', {content: [{id: '9', name: 'Analyst', location: {city: 'Austin', region: 'TX', country: 'us', remote: false}, department: {label: 'Finance'}, releasedDate: '2026-03-03T00:00:00Z'}]})[0];

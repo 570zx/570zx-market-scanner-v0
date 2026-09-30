@@ -44,6 +44,7 @@ export function endpoint(ats, slug) {
 const iso = v => { if (v == null || v === '') return null; const d = new Date(typeof v === 'number' ? v : String(v)); return Number.isNaN(d.getTime()) ? null : d.toISOString(); };
 const clean = v => (v == null || String(v).trim() === '' ? null : String(v).trim());
 const text = html => (html ? textFromHtml(decodeEntities(String(html))) : null);
+const joinUnique = (...v) => { const u = [...new Set(v.map(x => (x == null ? '' : String(x).trim())).filter(Boolean))]; return u.length ? u.join(' / ') : null; };
 const remoteFrom = (...vals) => vals.some(v => v === true || /remote/i.test(String(v ?? '')));
 
 // Normalise each ATS's JSON to one job shape.
@@ -55,12 +56,12 @@ export function normalize(ats, slug, json) {
       url: j.absolute_url ?? null, applyUrl: j.absolute_url ?? null, postedAt: iso(j.first_published ?? j.updated_at), updatedAt: iso(j.updated_at),
       salary: null, descriptionText: text(j.content)}));
     case 'lever': return (Array.isArray(json) ? json : []).map(j => ({...base, jobId: j.id, title: clean(j.text), location: clean(j.categories?.location ?? j.categories?.allLocations?.join(', ')),
-      department: clean([j.categories?.department, j.categories?.team].filter(Boolean).join(' / ')), employmentType: clean(j.categories?.commitment),
+      department: joinUnique(j.categories?.department, j.categories?.team), employmentType: clean(j.categories?.commitment),
       remote: remoteFrom(j.workplaceType === 'remote', j.categories?.location), url: j.hostedUrl ?? null, applyUrl: j.applyUrl ?? null,
       postedAt: iso(j.createdAt), updatedAt: null, salary: j.salaryRange ? `${j.salaryRange.min ?? ''}-${j.salaryRange.max ?? ''} ${j.salaryRange.currency ?? ''} ${j.salaryRange.interval ?? ''}`.trim() : null,
       descriptionText: clean(j.descriptionPlain) ?? text(j.description)}));
     case 'ashby': return (json.jobs ?? []).filter(j => j.isListed !== false).map(j => ({...base, jobId: j.id, title: clean(j.title), location: clean(j.location),
-      department: clean([j.department, j.team].filter(Boolean).join(' / ')), employmentType: clean(j.employmentType), remote: remoteFrom(j.isRemote, j.location, j.workplaceType),
+      department: joinUnique(j.department, j.team), employmentType: clean(j.employmentType), remote: remoteFrom(j.isRemote, j.location, j.workplaceType),
       url: j.jobUrl ?? null, applyUrl: j.applyUrl ?? null, postedAt: iso(j.publishedAt), updatedAt: null,
       salary: clean(j.compensation?.compensationTierSummary ?? j.compensation?.scrapeableCompensationSalarySummary), descriptionText: clean(j.descriptionPlain) ?? text(j.descriptionHtml)}));
     case 'workable': return (json.jobs ?? []).map(j => ({...base, jobId: j.shortcode ?? j.id ?? null, title: clean(j.title),

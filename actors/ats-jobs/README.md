@@ -17,23 +17,24 @@ Get every open job from company career pages in one clean format. Most tech comp
 - **Filters** (optional): title keywords, locations (use "Remote" to match remote jobs), remote only, posted within N days.
 - **Include job description**: on by default.
 
-## Output (one row per job, shortened)
+## Output (one row per job; real result from 30 Sep 2026)
 
 ```json
 {
+  "input": "https://jobs.ashbyhq.com/openai",
+  "status": "ok",
   "ats": "ashby",
   "company": "openai",
-  "status": "ok",
-  "jobId": "…",
+  "jobId": "240d459b-696d-43eb-8497-fab3e56ecd9b",
   "title": "Research Engineer",
   "location": "San Francisco",
-  "remote": false,
   "department": "Research",
   "employmentType": "FullTime",
-  "salary": "…",
-  "postedAt": "…",
-  "url": "https://jobs.ashbyhq.com/openai/…",
-  "applyUrl": "…"
+  "remote": false,
+  "url": "https://jobs.ashbyhq.com/openai/240d459b-696d-43eb-8497-fab3e56ecd9b",
+  "applyUrl": "https://jobs.ashbyhq.com/openai/240d459b-696d-43eb-8497-fab3e56ecd9b/application",
+  "postedAt": "2025-04-05T00:03:20.653Z",
+  "salary": "$250K – $445K • Offers Equity"
 }
 ```
 
