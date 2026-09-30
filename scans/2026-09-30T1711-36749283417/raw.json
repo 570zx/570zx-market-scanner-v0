@@ -1,0 +1,1993 @@
+{
+ "period": [
+  "2025-07-01",
+  "2026-06-30"
+ ],
+ "errors": [],
+ "bands": {
+  "micro (up to $15,000)": {
+   "count": 4574929,
+   "total": 6219584968
+  },
+  "simplified ($15,000\u2013$350,000)": {
+   "count": 687340,
+   "total": 36565426455
+  }
+ },
+ "nc_micro": {
+  "count": 198463,
+  "total": 223743479
+ },
+ "digital": {
+  "541511": {
+   "label": "Custom software programming",
+   "count": 251,
+   "total": 769701
+  },
+  "541512": {
+   "label": "Computer systems design",
+   "count": 3240,
+   "total": 13165128
+  },
+  "541519": {
+   "label": "Other computer related services",
+   "count": 5354,
+   "total": 28515558
+  },
+  "518210": {
+   "label": "Data processing and hosting",
+   "count": 276,
+   "total": 358969
+  },
+  "541690": {
+   "label": "Other scientific and technical consulting",
+   "count": 380,
+   "total": 408011
+  },
+  "541910": {
+   "label": "Marketing research",
+   "count": 24,
+   "total": -142395
+  },
+  "541611": {
+   "label": "Administrative management consulting",
+   "count": 730,
+   "total": -6074334
+  },
+  "541430": {
+   "label": "Graphic design",
+   "count": 32,
+   "total": 65227
+  },
+  "541810": {
+   "label": "Advertising agencies",
+   "count": 47,
+   "total": 177025
+  },
+  "541990": {
+   "label": "Other professional services",
+   "count": 1121,
+   "total": -1420353
+  },
+  "561410": {
+   "label": "Document preparation",
+   "count": 47,
+   "total": -496221
+  },
+  "541370": {
+   "label": "Surveying and mapping (geospatial)",
+   "count": 57,
+   "total": 152353
+  },
+  "541618": {
+   "label": "Other management consulting",
+   "count": 83,
+   "total": -178888
+  },
+  "611430": {
+   "label": "Professional and management training",
+   "count": 631,
+   "total": 2702261
+  },
+  "561499": {
+   "label": "Other business support",
+   "count": 395,
+   "total": 1102703
+  },
+  "519130": {
+   "label": "Internet publishing and web search",
+   "count": 41,
+   "total": 51438
+  },
+  "511210": {
+   "label": "Software publishers",
+   "count": 644,
+   "total": 2568259
+  }
+ },
+ "digital_all": {
+  "count": 13353,
+  "total": 41724444
+ },
+ "digital_recipients": [
+  {
+   "amount": 8411024.98,
+   "recipient_id": "5ddb264f-234b-872c-2571-4731fde123c6-C",
+   "name": "LEIDOS, INC.",
+   "code": "833063105",
+   "uei": "UE9QJD4KK1L6",
+   "total_outlays": null
+  },
+  {
+   "amount": 6328376.61,
+   "recipient_id": "a76066ea-2b38-7251-6fd8-dab62b297127-C",
+   "name": "INMARSAT GOVERNMENT, INC.",
+   "code": "122598159",
+   "uei": "UK8HWZTN2QG3",
+   "total_outlays": null
+  },
+  {
+   "amount": 3609608.37,
+   "recipient_id": "e0f8746a-9a3b-810a-257a-cae2d63868da-C",
+   "name": "NEW TECH SOLUTIONS, INC.",
+   "code": "020149303",
+   "uei": "XK11LLUL61A7",
+   "total_outlays": null
+  },
+  {
+   "amount": 3142134.74,
+   "recipient_id": "5854bb09-e3fb-546c-f374-0845f138f8e8-C",
+   "name": "HPI FEDERAL LLC",
+   "code": "079871826",
+   "uei": "DJRUN4KK1HK3",
+   "total_outlays": null
+  },
+  {
+   "amount": 1328342.98,
+   "recipient_id": "2a71ed51-39c8-082f-31a0-f31d55a0a651-C",
+   "name": "SOFTWARE INFORMATION RESOURCE CORP.",
+   "code": "938265865",
+   "uei": "EJJMMJHYDFH6",
+   "total_outlays": null
+  },
+  {
+   "amount": 1096900.71,
+   "recipient_id": "4e74aeb5-dd21-20a7-63bd-e9f934d69583-C",
+   "name": "CARAHSOFT TECHNOLOGY CORP",
+   "code": "088365767",
+   "uei": "DT8KJHZXVJH5",
+   "total_outlays": null
+  },
+  {
+   "amount": 985840.7,
+   "recipient_id": "ce0dffc0-1ff9-1b62-b3a1-7501208eab61-C",
+   "name": "BCT PARTNERS LLC",
+   "code": "061423377",
+   "uei": "PFSLMY1VAK71",
+   "total_outlays": null
+  },
+  {
+   "amount": 919586.2,
+   "recipient_id": "b3bf0045-a393-0c84-7e1c-41efc4b25c9e-C",
+   "name": "ENTERPRISE TECHNOLOGY SOLUTIONS, INC.",
+   "code": "005050346",
+   "uei": "FBRMCGPMN963",
+   "total_outlays": null
+  },
+  {
+   "amount": 884899.67,
+   "recipient_id": "bcd07db9-001a-b962-dbab-d463bb99028f-C",
+   "name": "GOVERNMENT ACQUISITIONS LLC",
+   "code": "603814054",
+   "uei": "R98MW4ZKUUK3",
+   "total_outlays": null
+  },
+  {
+   "amount": 756375.23,
+   "recipient_id": "72ca0d6d-bfb3-664d-fa88-47cacc8687d3-C",
+   "name": "ADVANCED COMPUTER CONCEPTS, INC.",
+   "code": "116193400",
+   "uei": "CGE8ABMZLZN9",
+   "total_outlays": null
+  },
+  {
+   "amount": 655627.5,
+   "recipient_id": "df7c6a07-e6f1-95fa-8e50-3022dcd5ea6d-C",
+   "name": "PITNEY BOWES INC.",
+   "code": "001161793",
+   "uei": "CHTAKEYGS386",
+   "total_outlays": null
+  },
+  {
+   "amount": 653966.83,
+   "recipient_id": "3792ca7f-d5d2-d89c-872b-8c64e4e6390e-C",
+   "name": "FCN, INC.",
+   "code": "615378007",
+   "uei": "JEANDJTZ8HJ3",
+   "total_outlays": null
+  },
+  {
+   "amount": 594571.1,
+   "recipient_id": "3b8298c2-5bfd-7fc4-bb07-ad4c20d92543-C",
+   "name": "DH TECHNOLOGIES, INC.",
+   "code": "078815475",
+   "uei": "NKC2AB3ESFP5",
+   "total_outlays": null
+  },
+  {
+   "amount": 591815.37,
+   "recipient_id": "4c61a834-8a33-b7ca-aaa3-d58f9baf2e49-C",
+   "name": "REDHAWK IT SOLUTIONS, LLC",
+   "code": "801957023",
+   "uei": "QGAAEMCMJXQ7",
+   "total_outlays": null
+  },
+  {
+   "amount": 562805.89,
+   "recipient_id": "828667a9-8a2a-d44d-4a92-ae35b70c91f7-C",
+   "name": "PUNDIR GROUP, INC",
+   "code": "967455861",
+   "uei": "WX6XFTXM1EM6",
+   "total_outlays": null
+  },
+  {
+   "amount": 553999.66,
+   "recipient_id": "dbceb126-f729-60e7-d55a-ba235f519653-C",
+   "name": "THUNDERCAT TECHNOLOGY, LLC",
+   "code": "809887164",
+   "uei": "UER4AJLUB8D5",
+   "total_outlays": null
+  },
+  {
+   "amount": 486203.65,
+   "recipient_id": "abde3f7b-54a5-dbb5-7db4-5c1474b8cdff-C",
+   "name": "DLT SOLUTIONS, LLC",
+   "code": "786468199",
+   "uei": "F1N2KDGBDTU8",
+   "total_outlays": null
+  },
+  {
+   "amount": 484421.98,
+   "recipient_id": "43f43d49-b0f5-0339-89a0-372d8a66bd80-C",
+   "name": "LYME COMPUTER SYSTEMS, INC.",
+   "code": "144763067",
+   "uei": "F1UZPBD1VBH9",
+   "total_outlays": null
+  },
+  {
+   "amount": 459329.44,
+   "recipient_id": "456a17c9-3bd9-f107-77ee-816e474d173e-C",
+   "name": "STERLING COMPUTERS CORPORATION",
+   "code": "938836541",
+   "uei": "YZTLALWM4UC7",
+   "total_outlays": null
+  },
+  {
+   "amount": 446391.78,
+   "recipient_id": "63d967d4-ec3e-daa9-b729-952a80c05eb5-C",
+   "name": "ACCESSAGILITY LLC",
+   "code": "809979805",
+   "uei": "HMXCQJ8ADNL7",
+   "total_outlays": null
+  },
+  {
+   "amount": 416549.55,
+   "recipient_id": null,
+   "name": "MISCELLANEOUS FOREIGN AWARDEES",
+   "code": "123456787",
+   "uei": "LN9PU5M2YZN5",
+   "total_outlays": null
+  },
+  {
+   "amount": 406231.55,
+   "recipient_id": "9b22a4b3-5fc9-4c40-e48a-3a6d48ee5aa6-C",
+   "name": "FEDDATA TECHNOLOGY SOLUTIONS, LLC",
+   "code": "080801130",
+   "uei": "S6RXX8VMJK46",
+   "total_outlays": null
+  },
+  {
+   "amount": 403319.03,
+   "recipient_id": "a4ce814d-f601-2150-98bf-6f203db0ea2f-C",
+   "name": "GOVSMART, INC.",
+   "code": "961600272",
+   "uei": "DJACUETFQUL8",
+   "total_outlays": null
+  },
+  {
+   "amount": 365619.77,
+   "recipient_id": "99253b24-712b-034b-e1a4-77c8e86b4b5b-C",
+   "name": "COUNTERTRADE PRODUCTS, INC.",
+   "code": "144293636",
+   "uei": "CN4KSKX2UQY5",
+   "total_outlays": null
+  },
+  {
+   "amount": 355694.13,
+   "recipient_id": "5f4e5d33-10ef-b0cc-1f33-8835b33808f1-C",
+   "name": "CDW GOVERNMENT LLC",
+   "code": "026157235",
+   "uei": "PHZDZ8SJ5CM1",
+   "total_outlays": null
+  },
+  {
+   "amount": 349571.66,
+   "recipient_id": "1d2b86ed-22ef-ab63-ef2c-787925497c54-C",
+   "name": "BLUE TECH INC.",
+   "code": "121701957",
+   "uei": "MDC5LDZKQAM4",
+   "total_outlays": null
+  },
+  {
+   "amount": 331239.81,
+   "recipient_id": "385fc558-6774-83d9-9b51-953dec04283b-C",
+   "name": "BAHFED CORP",
+   "code": "078277396",
+   "uei": "TQ2KDQLRL8F1",
+   "total_outlays": null
+  },
+  {
+   "amount": 303116.1,
+   "recipient_id": "34071056-44d2-e9d7-8e51-6020803f7a2a-C",
+   "name": "ARCHITECHTURE SOLUTIONS LLC",
+   "code": "080130087",
+   "uei": "HQAJMSZDK666",
+   "total_outlays": null
+  },
+  {
+   "amount": 285220.39,
+   "recipient_id": "decd8e4d-0c57-0c5c-0a05-c76dce02e356-C",
+   "name": "COLOSSAL CONTRACTING LLC",
+   "code": "831720946",
+   "uei": "F4M9NB1HD785",
+   "total_outlays": null
+  },
+  {
+   "amount": 282071.62,
+   "recipient_id": "d46ad2a7-ed19-9535-4f24-787705845610-C",
+   "name": "V3GATE, LLC",
+   "code": "808862598",
+   "uei": "J4KHM5JY79E3",
+   "total_outlays": null
+  },
+  {
+   "amount": 250092.0,
+   "recipient_id": "2663806b-7c99-5432-1aef-86a2ad65e48a-C",
+   "name": "LRP PUBLICATIONS, INC.",
+   "code": "085698900",
+   "uei": "UCMPFP9EH2R5",
+   "total_outlays": null
+  },
+  {
+   "amount": 236228.78,
+   "recipient_id": "625ff1da-e9a2-cbdc-c8b3-fdd521fd1efc-C",
+   "name": "MINBURN TECHNOLOGY GROUP, LLC",
+   "code": "965431815",
+   "uei": "WN8JFVZTBCA5",
+   "total_outlays": null
+  },
+  {
+   "amount": 223224.2,
+   "recipient_id": "2a4d3db7-e268-7b36-3610-c75337f0b7e1-C",
+   "name": "FOUR POINTS TECHNOLOGY, L.L.C.",
+   "code": "089896737",
+   "uei": "H1KHJPJH9R51",
+   "total_outlays": null
+  },
+  {
+   "amount": 223172.19,
+   "recipient_id": "bb568d9a-9444-a87b-1a3b-70516d83949d-C",
+   "name": "CSP ENTERPRISES, LLC",
+   "code": "041108742",
+   "uei": "GJJRGECWBFK9",
+   "total_outlays": null
+  },
+  {
+   "amount": 215262.56,
+   "recipient_id": "8249282d-ed64-da04-74bb-8dbf49c9cca5-C",
+   "name": "PARAGON MICRO INC",
+   "code": "800436714",
+   "uei": "E41LV9AJGHQ1",
+   "total_outlays": null
+  },
+  {
+   "amount": 209550.05,
+   "recipient_id": "84085fb7-f6fa-d941-ee27-1726f67374eb-C",
+   "name": "HR ANEW, INC.",
+   "code": "115415338",
+   "uei": "NEH3SL8X3D83",
+   "total_outlays": null
+  },
+  {
+   "amount": 207734.25,
+   "recipient_id": "726b3257-75de-0f00-8770-521c89c51195-C",
+   "name": "MARTIN - MISER ASSOCIATES, INC",
+   "code": "145462768",
+   "uei": "D5DSAC81LF35",
+   "total_outlays": null
+  },
+  {
+   "amount": 196492.6,
+   "recipient_id": "9ad2b3e2-2ee9-68cf-3016-f66fc293042d-C",
+   "name": "SOLUTION GUIDANCE CORPORATION",
+   "code": "612948138",
+   "uei": "LF3VYSA8EC24",
+   "total_outlays": null
+  },
+  {
+   "amount": 195128.88,
+   "recipient_id": "c37ed355-cb9c-bbe3-b51e-f1e8e6fb9923-C",
+   "name": "CYNERGY PROFESSIONAL SYSTEMS LLC",
+   "code": "832018290",
+   "uei": "GK55J77VGN84",
+   "total_outlays": null
+  },
+  {
+   "amount": 193100.91,
+   "recipient_id": "5b172bfb-b6f8-831e-df01-fc55e9112117-C",
+   "name": "MIND YOUR BUSINESS INC",
+   "code": "961253291",
+   "uei": "GK9HUFKC3LA4",
+   "total_outlays": null
+  },
+  {
+   "amount": 190684.02,
+   "recipient_id": "609cb7a2-ca91-e8c4-3a97-726bb40d3da4-C",
+   "name": "OGIS COMMUNICATION GROUP INC",
+   "code": "831737478",
+   "uei": "ZNSFUPHSC3N3",
+   "total_outlays": null
+  },
+  {
+   "amount": 188000.0,
+   "recipient_id": "5baf64de-b62f-046c-04f1-21681dbafbd3-C",
+   "name": "GARMIN INTERNATIONAL, INC.",
+   "code": "791288004",
+   "uei": "Q1RFVFX4QFN5",
+   "total_outlays": null
+  },
+  {
+   "amount": 172528.78,
+   "recipient_id": "b8e9bca3-d236-b6e9-1384-a45afa5d9e98-C",
+   "name": "REGAN TECHNOLOGIES CORP",
+   "code": "111580007",
+   "uei": "PJ2BS3KYWKS5",
+   "total_outlays": null
+  },
+  {
+   "amount": 169365.52,
+   "recipient_id": "9dda419a-0386-ffe6-0968-e629c921f98c-C",
+   "name": "PRECISION SURVEYS INC",
+   "code": "848989711",
+   "uei": "QLGYLD5KCVR4",
+   "total_outlays": null
+  },
+  {
+   "amount": 167181.36,
+   "recipient_id": "d55dabdb-0c89-b6e8-e4f5-5817d2be7b63-C",
+   "name": "ALVAREZ LLC",
+   "code": "160759135",
+   "uei": "Y928UVG75CT6",
+   "total_outlays": null
+  },
+  {
+   "amount": 164087.59,
+   "recipient_id": "839e805e-7095-0376-08b1-f1e61beb9b66-C",
+   "name": "MICROTECHNOLOGIES LLC",
+   "code": "145454182",
+   "uei": "CL69E7KATK59",
+   "total_outlays": null
+  },
+  {
+   "amount": 149086.33,
+   "recipient_id": "1f83784a-bef1-92fc-11b1-dcfa8c7ec0a3-C",
+   "name": "INTEGRATION TECHNOLOGIES GROUP, INC.",
+   "code": "126511963",
+   "uei": "M7KUEGMEKNV4",
+   "total_outlays": null
+  },
+  {
+   "amount": 148295.63,
+   "recipient_id": "9dd8835c-4d98-c166-d9e6-a923b8ba4f16-C",
+   "name": "CTG FEDERAL, LLC",
+   "code": "080932836",
+   "uei": "G2D4Q7UKR5P5",
+   "total_outlays": null
+  },
+  {
+   "amount": 144075.0,
+   "recipient_id": "0015c856-c857-5435-9cae-44d9d12c72d4-C",
+   "name": "GUNPOWDER TECHNOLOGIES INCORPORATED",
+   "code": "117399948",
+   "uei": "DJS7B9NQQWY7",
+   "total_outlays": null
+  },
+  {
+   "amount": 143419.81,
+   "recipient_id": "1765a982-1d07-ca47-8816-803a6ccdb0d4-C",
+   "name": "AURORA SYSTEMS CONSULTING INC",
+   "code": "874406028",
+   "uei": "C1NMTBMS4KG5",
+   "total_outlays": null
+  },
+  {
+   "amount": 141221.31,
+   "recipient_id": "b6010741-8577-b3d7-bed6-b9fcff3518e1-C",
+   "name": "REGENCY CONSULTING INC",
+   "code": "029790073",
+   "uei": "SC8LMLWA6H51",
+   "total_outlays": null
+  },
+  {
+   "amount": 138752.44,
+   "recipient_id": "c78c330d-48dc-80ec-0dcf-3076b010cf1b-C",
+   "name": "VAE, INC.",
+   "code": "046257734",
+   "uei": "LB8JT7MNMYB5",
+   "total_outlays": null
+  },
+  {
+   "amount": 138305.63,
+   "recipient_id": "064ae3ed-3369-713b-8489-8ff60e8be050-C",
+   "name": "IMMIXTECHNOLOGY INC",
+   "code": "098692374",
+   "uei": "L6REMB5VKLL9",
+   "total_outlays": null
+  },
+  {
+   "amount": 136930.87,
+   "recipient_id": "a8bbf2a8-f572-f9d9-16f3-1a319e66a2a7-C",
+   "name": "ABOWD, MATTHEW G",
+   "code": "117653401",
+   "uei": "PNGFCKFGURM3",
+   "total_outlays": null
+  },
+  {
+   "amount": 135558.29,
+   "recipient_id": "b8ed89f0-5eff-d6ee-9254-d88b4c9ae2ca-C",
+   "name": "ALPHASIX, LLC.",
+   "code": "968969514",
+   "uei": "YRWSNBVVBK25",
+   "total_outlays": null
+  },
+  {
+   "amount": 133697.41,
+   "recipient_id": "455555be-773d-eab1-1e6b-7b94400b757e-C",
+   "name": "GENERAL DYNAMICS INFORMATION TECHNOLOGY, INC.",
+   "code": "067641597",
+   "uei": "SMNWM6HN79X5",
+   "total_outlays": null
+  },
+  {
+   "amount": 125613.45,
+   "recipient_id": "a0104c10-6c8d-a143-ccc4-de83813d60c7-C",
+   "name": "NATIONAL INDUSTRIES FOR THE BLIND",
+   "code": "001672120",
+   "uei": "E8QNBC287DY4",
+   "total_outlays": null
+  },
+  {
+   "amount": 122666.06,
+   "recipient_id": "89be90e4-7cd7-5fbb-702e-1bf03fabc9fb-C",
+   "name": "FLYWHEEL DATA LLC",
+   "code": "078881589",
+   "uei": "FGKEVGYL3ZF3",
+   "total_outlays": null
+  },
+  {
+   "amount": 121513.4,
+   "recipient_id": "e1f9ec1f-3c8d-6789-66b5-a4551f5da096-C",
+   "name": "EASTRATEGIESTX, LLC",
+   "code": "118341381",
+   "uei": "PJ7BVN5KL6L5",
+   "total_outlays": null
+  },
+  {
+   "amount": 120077.89,
+   "recipient_id": "298b93b4-6afd-00ea-5d98-2c387d98b447-C",
+   "name": "AMERICAN WORDATA, INC",
+   "code": "048474621",
+   "uei": "G4L6RJS94VP9",
+   "total_outlays": null
+  },
+  {
+   "amount": 120036.13,
+   "recipient_id": "589f33bf-0a5c-824b-5e51-d1c6cb930fb5-C",
+   "name": "EXECUTIVE INFORMATION SYSTEMS, L.L.C.",
+   "code": "938289527",
+   "uei": "MKF6VA9NZLR8",
+   "total_outlays": null
+  },
+  {
+   "amount": 119470.27,
+   "recipient_id": "dc33d87b-b58d-65fc-e7f7-50b8438a6cde-C",
+   "name": "CARTRIDGE TECHNOLOGIES, LLC",
+   "code": "556978807",
+   "uei": "Z5LLHNEXM9L8",
+   "total_outlays": null
+  },
+  {
+   "amount": 116703.3,
+   "recipient_id": "8467a285-b38f-7ccf-fb4c-9c52c4762e7c-C",
+   "name": "GOVPLACE, LLC",
+   "code": "957050883",
+   "uei": "JMVMGGNJGA29",
+   "total_outlays": null
+  },
+  {
+   "amount": 114822.48,
+   "recipient_id": "f00f2985-2117-287d-9e69-df3d9b5cb288-C",
+   "name": "SHI INTERNATIONAL CORP",
+   "code": "611429481",
+   "uei": "CEFCD41CLDJ8",
+   "total_outlays": null
+  },
+  {
+   "amount": 112398.32,
+   "recipient_id": "9b66417e-ec21-2772-c91e-a41e40707090-C",
+   "name": "DISYS SOLUTIONS, INC.",
+   "code": "962751918",
+   "uei": "R15MK4RSWRD3",
+   "total_outlays": null
+  },
+  {
+   "amount": 102783.47,
+   "recipient_id": "55f873c9-df64-8db9-d15e-255c4b1e5f7c-C",
+   "name": "IT1 SOURCE LLC",
+   "code": "141833587",
+   "uei": "TSY3HH9UE7G3",
+   "total_outlays": null
+  },
+  {
+   "amount": 102424.5,
+   "recipient_id": "98e14506-16c6-ad31-52ae-6387b23df8d4-C",
+   "name": "MEDIALAB SOLUTIONS LLC",
+   "code": "621346076",
+   "uei": "TUMRKBN5DZH9",
+   "total_outlays": null
+  },
+  {
+   "amount": 101992.0,
+   "recipient_id": "8216caed-cefc-a9fe-56d9-d7466414d77f-C",
+   "name": "PRECISION BIOMEDICAL SERVICES LLC",
+   "code": "084733640",
+   "uei": "UVBEK77ZLG86",
+   "total_outlays": null
+  },
+  {
+   "amount": 97724.53,
+   "recipient_id": "e743b248-6f24-390d-58f4-a819602e55f5-C",
+   "name": "PHARMACY ONESOURCE, INC.",
+   "code": "030231562",
+   "uei": "K1PZSJVND2J3",
+   "total_outlays": null
+  },
+  {
+   "amount": 93670.11,
+   "recipient_id": "70e674ba-2d79-d6bb-37c8-a03189735d37-C",
+   "name": "PANAMERICA COMPUTERS, INC.",
+   "code": "166669742",
+   "uei": "DPQEDJ6CXZM5",
+   "total_outlays": null
+  },
+  {
+   "amount": 92121.26,
+   "recipient_id": "8749aad1-bd69-08c9-790f-07e3fefaf715-C",
+   "name": "ATP GOV, LLC",
+   "code": "961645376",
+   "uei": "WH8LLL6HAX95",
+   "total_outlays": null
+  },
+  {
+   "amount": 88100.62,
+   "recipient_id": "b8d01603-144c-7b0c-ecf0-24060cd72b94-C",
+   "name": "AFFIGENT, LLC",
+   "code": "141089040",
+   "uei": "M46UYYHVH4B1",
+   "total_outlays": null
+  },
+  {
+   "amount": 88007.0,
+   "recipient_id": "a64be1b2-c65f-afc8-b0b9-947fca26df23-C",
+   "name": "THE GORDIAN GROUP, INC.",
+   "code": "868729716",
+   "uei": "R8JXSHBYMJS2",
+   "total_outlays": null
+  },
+  {
+   "amount": 88000.0,
+   "recipient_id": "55f9b8bd-9e28-97d4-1639-80ebfda5ffc8-C",
+   "name": "D DAVIS CONSULTING LLC",
+   "code": "118320471",
+   "uei": "SYDAQKN5ZVZ3",
+   "total_outlays": null
+  },
+  {
+   "amount": 86565.0,
+   "recipient_id": "81ada3c7-c008-8bce-de7d-0db74843e01d-C",
+   "name": "MEDRANO HECTOR D",
+   "code": "095350535",
+   "uei": "C6DZFYHZKS16",
+   "total_outlays": null
+  },
+  {
+   "amount": 86098.58,
+   "recipient_id": "854a08d9-32ba-8214-8573-e877610e8843-C",
+   "name": "QUADIENT, INC.",
+   "code": "080708241",
+   "uei": "W6GHEB8CZQS1",
+   "total_outlays": null
+  },
+  {
+   "amount": 84504.53,
+   "recipient_id": "d96a4bfd-2da7-00c1-948d-44005efba1a1-C",
+   "name": "WORLD WIDE TECHNOLOGY LLC",
+   "code": "614948396",
+   "uei": "C8VFSNKTMQB6",
+   "total_outlays": null
+  },
+  {
+   "amount": 83097.85,
+   "recipient_id": "43ab278f-fa39-d00e-8373-18bca2b3a88f-C",
+   "name": "THE MATHWORKS, INC.",
+   "code": "131142747",
+   "uei": "YQXBZHMXEVE5",
+   "total_outlays": null
+  },
+  {
+   "amount": 82709.26,
+   "recipient_id": "b57aca37-e609-e1f0-bb13-222830eab1e2-C",
+   "name": "STANDARD-BLAZAR, LLC",
+   "code": "117288714",
+   "uei": "DZ9XM5UDFN29",
+   "total_outlays": null
+  },
+  {
+   "amount": 81823.49,
+   "recipient_id": "729e2015-0309-7429-56c8-a6446b735171-C",
+   "name": "IMPRES TECHNOLOGY SOLUTIONS, INC",
+   "code": "011182784",
+   "uei": "MSSQQ551LG41",
+   "total_outlays": null
+  },
+  {
+   "amount": 81583.45,
+   "recipient_id": "85fe27a9-a9cf-c3d2-21e3-87e0f77b0ded-C",
+   "name": "AUGUST SCHELL ENTERPRISES, INC.",
+   "code": "877238592",
+   "uei": "PPMBFPRXNAJ9",
+   "total_outlays": null
+  },
+  {
+   "amount": 80000.0,
+   "recipient_id": "86193741-6889-27ca-f451-96be7687d5f7-C",
+   "name": "ALBERT TALLANT",
+   "code": "080485136",
+   "uei": "KKPPSHMJPD66",
+   "total_outlays": null
+  },
+  {
+   "amount": 79703.48,
+   "recipient_id": "33de7267-685b-6285-c8f2-b399b3cfbab2-C",
+   "name": "INSIGHT PUBLIC SECTOR, INC.",
+   "code": "884347568",
+   "uei": "FLZ4SYA9U2D1",
+   "total_outlays": null
+  },
+  {
+   "amount": 78391.93,
+   "recipient_id": "c07a6919-cdf9-7d1f-a566-40a65f12479b-C",
+   "name": "FOUR LLC",
+   "code": "789007064",
+   "uei": "X1JJYEW4HAN9",
+   "total_outlays": null
+  },
+  {
+   "amount": 78064.18,
+   "recipient_id": "e99f3811-0315-a3e0-91f1-b344d22529b8-C",
+   "name": "WEST PUBLISHING CORPORATION",
+   "code": "148508286",
+   "uei": "L997DB4PEJL8",
+   "total_outlays": null
+  },
+  {
+   "amount": 77837.31,
+   "recipient_id": "c245a6a5-edcd-ebb4-7c2b-201bfb38e100-C",
+   "name": "CELLENTIA INFORMATION TECHNOLOGY COMPANY",
+   "code": "079882469",
+   "uei": "EMVDTK297NP3",
+   "total_outlays": null
+  },
+  {
+   "amount": 77520.81,
+   "recipient_id": "a1980d7c-a11a-89c5-686e-f6ae7ab15e53-C",
+   "name": "SIRIUS FEDERAL LLC",
+   "code": "556054591",
+   "uei": "MFGMH9R7GMG3",
+   "total_outlays": null
+  },
+  {
+   "amount": 76400.46,
+   "recipient_id": "364fce24-b97b-e2d8-ffbc-05b9741446aa-C",
+   "name": "SPATIAL INTEGRATED SYSTEMS INC",
+   "code": "176073633",
+   "uei": "PR5MRFMCH3W7",
+   "total_outlays": null
+  },
+  {
+   "amount": 75269.84,
+   "recipient_id": "856adbaf-af7b-f322-d636-97783b1b7b9d-C",
+   "name": "SUVI GLOBAL SERVICES LLC",
+   "code": "080688533",
+   "uei": "L41KVW5HYLA7",
+   "total_outlays": null
+  },
+  {
+   "amount": 73500.0,
+   "recipient_id": "1b5b6fb3-b3a3-bfcb-ab8e-3e2e6a7450d0-C",
+   "name": "DOWN RANGE SERVICES LLC",
+   "code": null,
+   "uei": "LJVPQZE9LAV6",
+   "total_outlays": null
+  },
+  {
+   "amount": 73448.16,
+   "recipient_id": "1c6a411d-2551-4d5e-d9cb-9793958fcf17-C",
+   "name": "4 STAR TECHNOLOGIES, INC.",
+   "code": "610109675",
+   "uei": "UYLVJZ49BFC6",
+   "total_outlays": null
+  },
+  {
+   "amount": 73000.0,
+   "recipient_id": "542814be-939b-fa78-99b6-3c704a64a6f7-C",
+   "name": "DEAN T FITZGERALD",
+   "code": null,
+   "uei": "MCNCF9P8QGD5",
+   "total_outlays": null
+  },
+  {
+   "amount": 72980.0,
+   "recipient_id": "58166d87-b174-67f8-541f-b74f542ee8cb-C",
+   "name": "BROVA SOLUTIONS LLC",
+   "code": null,
+   "uei": "HD5LWRJHNG85",
+   "total_outlays": null
+  },
+  {
+   "amount": 72831.0,
+   "recipient_id": "2f9b400e-dc80-c49f-f49b-d0f639359e45-C",
+   "name": "METGREEN SOLUTIONS INC",
+   "code": "079535234",
+   "uei": "J4TDZHLCUGW3",
+   "total_outlays": null
+  },
+  {
+   "amount": 72080.22,
+   "recipient_id": "4cf96231-9d77-3e16-e45d-22c39393bc18-C",
+   "name": "WOOSLEY DAVID L",
+   "code": "079090420",
+   "uei": "F7R8RTMYC217",
+   "total_outlays": null
+  },
+  {
+   "amount": 70912.0,
+   "recipient_id": "a43aff3e-a570-0cb9-f0e5-3f0b2cc7d6e9-C",
+   "name": "SRI INTERNATIONAL",
+   "code": "009232752",
+   "uei": "SRG2J1WS9X63",
+   "total_outlays": null
+  },
+  {
+   "amount": 70591.61,
+   "recipient_id": "68c91921-0a4d-06df-845a-7a9f03feb934-C",
+   "name": "CTRW SOLUTIONS LLC",
+   "code": "118285393",
+   "uei": "J6Z3UC4S37T5",
+   "total_outlays": null
+  },
+  {
+   "amount": 70000.0,
+   "recipient_id": "edb9a542-291e-61ff-0475-e39ffd5e76f5-C",
+   "name": "TRUNKLINE CONSULTING LLC",
+   "code": "080510219",
+   "uei": "DJ7ALTHSWYL8",
+   "total_outlays": null
+  },
+  {
+   "amount": 69957.05,
+   "recipient_id": "36c37e59-c419-81e2-61f3-79b51c829963-C",
+   "name": "GOVERNMENT AND MILITARY CERTIFICATION SYSTEMS, INC",
+   "code": "078543087",
+   "uei": "J127LPX8UE75",
+   "total_outlays": null
+  },
+  {
+   "amount": 69376.54,
+   "recipient_id": "886ecb6e-b658-7fee-1dfd-6c7b07cadf35-C",
+   "name": "GOVCONNECTION INC",
+   "code": "809678782",
+   "uei": "GLGWMH9BMP76",
+   "total_outlays": null
+  }
+ ],
+ "digital_agencies": [
+  {
+   "id": 1173,
+   "code": "DOD",
+   "name": "Department of Defense",
+   "agency_slug": "department-of-defense",
+   "amount": 32088927.61,
+   "total_outlays": null
+  },
+  {
+   "id": 252,
+   "code": "DOJ",
+   "name": "Department of Justice",
+   "agency_slug": "department-of-justice",
+   "amount": 5571873.26,
+   "total_outlays": null
+  },
+  {
+   "id": 315,
+   "code": "DOS",
+   "name": "Department of State",
+   "agency_slug": "department-of-state",
+   "amount": 3310676.74,
+   "total_outlays": null
+  },
+  {
+   "id": 862,
+   "code": "NASA",
+   "name": "National Aeronautics and Space Administration",
+   "agency_slug": "national-aeronautics-and-space-administration",
+   "amount": 1543870.71,
+   "total_outlays": null
+  },
+  {
+   "id": 766,
+   "code": "DHS",
+   "name": "Department of Homeland Security",
+   "agency_slug": "department-of-homeland-security",
+   "amount": 1533518.7,
+   "total_outlays": null
+  },
+  {
+   "id": 183,
+   "code": "DOC",
+   "name": "Department of Commerce",
+   "agency_slug": "department-of-commerce",
+   "amount": 1023238.5,
+   "total_outlays": null
+  },
+  {
+   "id": 731,
+   "code": "DOT",
+   "name": "Department of Transportation",
+   "agency_slug": "department-of-transportation",
+   "amount": 705601.42,
+   "total_outlays": null
+  },
+  {
+   "id": 614,
+   "code": "GSA",
+   "name": "General Services Administration",
+   "agency_slug": "general-services-administration",
+   "amount": 531774.08,
+   "total_outlays": null
+  },
+  {
+   "id": 209,
+   "code": "DOI",
+   "name": "Department of the Interior",
+   "agency_slug": "department-of-the-interior",
+   "amount": 428353.96,
+   "total_outlays": null
+  },
+  {
+   "id": 930,
+   "code": "DOE",
+   "name": "Department of Energy",
+   "agency_slug": "department-of-energy",
+   "amount": 260945.07,
+   "total_outlays": null
+  }
+ ],
+ "digital_sample": [
+  {
+   "internal_id": 360108865,
+   "Award ID": "N0016426PG030",
+   "Recipient Name": "THE KENIFIC GROUP LLC",
+   "Award Amount": 15000.0,
+   "Awarding Agency": "Department of Defense",
+   "Start Date": "2026-04-09",
+   "Description": "RISK MANAGER LICENSE",
+   "NAICS": {
+    "code": "541511",
+    "description": "CUSTOM COMPUTER PROGRAMMING SERVICES"
+   },
+   "PSC": {
+    "code": "DA10",
+    "description": "IT AND TELECOM - BUSINESS APPLICATION/APPLICATION DEVELOPMENT SOFTWARE AS A SERVICE"
+   },
+   "awarding_agency_id": 1173,
+   "agency_slug": "department-of-defense",
+   "generated_internal_id": "CONT_AWD_N0016426PG030_9700_-NONE-_-NONE-"
+  },
+  {
+   "internal_id": 359713493,
+   "Award ID": "70RDA226FR0000022",
+   "Recipient Name": "TDB COMMUNICATIONS INC",
+   "Award Amount": 15000.0,
+   "Awarding Agency": "Department of Homeland Security",
+   "Start Date": "2026-06-25",
+   "Description": "COURT REPORTER AND STENOGRAPHY SERVICES",
+   "NAICS": {
+    "code": "541611",
+    "description": "ADMINISTRATIVE MANAGEMENT AND GENERAL MANAGEMENT CONSULTING SERVICES"
+   },
+   "PSC": {
+    "code": "R606",
+    "description": "SUPPORT- ADMINISTRATIVE: COURT REPORTING"
+   },
+   "awarding_agency_id": 766,
+   "agency_slug": "department-of-homeland-security",
+   "generated_internal_id": "CONT_AWD_70RDA226FR0000022_7001_GS10F0230W_4730"
+  },
+  {
+   "internal_id": 359204903,
+   "Award ID": "W911S826PA018",
+   "Recipient Name": "CAPE LEAD LLC",
+   "Award Amount": 15000.0,
+   "Awarding Agency": "Department of Defense",
+   "Start Date": "2026-03-16",
+   "Description": "2-DAY LE9D LEADERSHIP DEVELOPMENT PROGRAM",
+   "NAICS": {
+    "code": "611430",
+    "description": "PROFESSIONAL AND MANAGEMENT DEVELOPMENT TRAINING"
+   },
+   "PSC": {
+    "code": "U008",
+    "description": "EDUCATION/TRAINING- TRAINING/CURRICULUM DEVELOPMENT"
+   },
+   "awarding_agency_id": 1173,
+   "agency_slug": "department-of-defense",
+   "generated_internal_id": "CONT_AWD_W911S826PA018_9700_-NONE-_-NONE-"
+  },
+  {
+   "internal_id": 359180252,
+   "Award ID": "70FA4026C00000003",
+   "Recipient Name": "FE BLUEFIRE LLC",
+   "Award Amount": 15000.0,
+   "Awarding Agency": "Department of Homeland Security",
+   "Start Date": "2026-06-15",
+   "Description": "THE PURPOSE OF THIS CONTRACT IS TO PURCHASE POWER OUTAGE DATA SETS FROM BLUEFIRE LLC FOR A BASE AND TWO OPTION YEARS.  THE ACTION OBLIGATION AMOUNT IS $15,000.00 WITH A TOTAL CONTRACT VALUE OF $46,824.00.  THE GOVERNMENT AGREES TO THE COMMERCIAL TERM",
+   "NAICS": {
+    "code": "518210",
+    "description": "COMPUTING INFRASTRUCTURE PROVIDERS, DATA PROCESSING, WEB HOSTING, AND RELATED SERVICES"
+   },
+   "PSC": {
+    "code": "7A20",
+    "description": "IT AND TELECOM - APPLICATION DEVELOPMENT SOFTWARE (PERPETUAL LICENSE SOFTWARE)"
+   },
+   "awarding_agency_id": 766,
+   "agency_slug": "department-of-homeland-security",
+   "generated_internal_id": "CONT_AWD_70FA4026C00000003_7022_-NONE-_-NONE-"
+  },
+  {
+   "internal_id": 359070228,
+   "Award ID": "15A00026FABP00469",
+   "Recipient Name": "R6 SERVICES & CONSULTING, LLC",
+   "Award Amount": 15000.0,
+   "Awarding Agency": "Department of Justice",
+   "Start Date": "2026-08-20",
+   "Description": "CONTRACT SPECIALIST: EXPLOSIVES SPECIALIST",
+   "NAICS": {
+    "code": "611430",
+    "description": "PROFESSIONAL AND MANAGEMENT DEVELOPMENT TRAINING"
+   },
+   "PSC": {
+    "code": "R499",
+    "description": "SUPPORT- PROFESSIONAL: OTHER"
+   },
+   "awarding_agency_id": 252,
+   "agency_slug": "department-of-justice",
+   "generated_internal_id": "CONT_AWD_15A00026FABP00469_1560_15A00021AAQA00156_1560"
+  },
+  {
+   "internal_id": 359008448,
+   "Award ID": "15A00026FABP00439",
+   "Recipient Name": "J.D.RICHARDSON INC",
+   "Award Amount": 15000.0,
+   "Awarding Agency": "Department of Justice",
+   "Start Date": "2026-08-19",
+   "Description": "TRAINING INSTRUCTOR EXPLOSIVES SPECIALIST AND EXERCISE SUPPORT SPECIALIST LAW ENFORCEMENT/INDUSTRY OPERATIONS INSTRUCTOR",
+   "NAICS": {
+    "code": "611430",
+    "description": "PROFESSIONAL AND MANAGEMENT DEVELOPMENT TRAINING"
+   },
+   "PSC": {
+    "code": "R499",
+    "description": "SUPPORT- PROFESSIONAL: OTHER"
+   },
+   "awarding_agency_id": 252,
+   "agency_slug": "department-of-justice",
+   "generated_internal_id": "CONT_AWD_15A00026FABP00439_1560_15A00026AAQA00125_1560"
+  },
+  {
+   "internal_id": 359008445,
+   "Award ID": "15A00026FABP00435",
+   "Recipient Name": "GUNPOWDER TECHNOLOGIES INCORPORATED",
+   "Award Amount": 15000.0,
+   "Awarding Agency": "Department of Justice",
+   "Start Date": "2026-08-19",
+   "Description": "TRAINING INSTRUCTOR EXPLOSIVES SPECIALIST - LAW ENFORCEMENT/INDUSTRY OPERATIONS INSTRUCTOR",
+   "NAICS": {
+    "code": "611430",
+    "description": "PROFESSIONAL AND MANAGEMENT DEVELOPMENT TRAINING"
+   },
+   "PSC": {
+    "code": "R499",
+    "description": "SUPPORT- PROFESSIONAL: OTHER"
+   },
+   "awarding_agency_id": 252,
+   "agency_slug": "department-of-justice",
+   "generated_internal_id": "CONT_AWD_15A00026FABP00435_1560_15A00026AAQA00126_1560"
+  },
+  {
+   "internal_id": 358964629,
+   "Award ID": "15A00026FABP00452",
+   "Recipient Name": "DOWN RANGE SERVICES LLC",
+   "Award Amount": 15000.0,
+   "Awarding Agency": "Department of Justice",
+   "Start Date": "2026-08-16",
+   "Description": "CONTRACT SPECIALIST: EXPLOSIVES SPECIALIST",
+   "NAICS": {
+    "code": "541990",
+    "description": "ALL OTHER PROFESSIONAL, SCIENTIFIC, AND TECHNICAL SERVICES"
+   },
+   "PSC": {
+    "code": "R499",
+    "description": "SUPPORT- PROFESSIONAL: OTHER"
+   },
+   "awarding_agency_id": 252,
+   "agency_slug": "department-of-justice",
+   "generated_internal_id": "CONT_AWD_15A00026FABP00452_1560_15A00022AAQA00010_1560"
+  },
+  {
+   "internal_id": 358805768,
+   "Award ID": "36C26226P1028",
+   "Recipient Name": "GE PRECISION HEALTHCARE LLC",
+   "Award Amount": 15000.0,
+   "Awarding Agency": "Department of Veterans Affairs",
+   "Start Date": "2026-06-01",
+   "Description": "AISYS TRAINING",
+   "NAICS": {
+    "code": "611430",
+    "description": "PROFESSIONAL AND MANAGEMENT DEVELOPMENT TRAINING"
+   },
+   "PSC": {
+    "code": "U008",
+    "description": "EDUCATION/TRAINING- TRAINING/CURRICULUM DEVELOPMENT"
+   },
+   "awarding_agency_id": 561,
+   "agency_slug": "department-of-veterans-affairs",
+   "generated_internal_id": "CONT_AWD_36C26226P1028_3600_-NONE-_-NONE-"
+  },
+  {
+   "internal_id": 357661005,
+   "Award ID": "140L1226P0015",
+   "Recipient Name": "TABLET COMMAND, INC.",
+   "Award Amount": 15000.0,
+   "Awarding Agency": "Department of the Interior",
+   "Start Date": "2026-05-01",
+   "Description": "EO 14398 DOI TABLET COMMAND BASE PLUS ONE OPTION PERIOD",
+   "NAICS": {
+    "code": "541512",
+    "description": "COMPUTER SYSTEMS DESIGN SERVICES"
+   },
+   "PSC": {
+    "code": "7E20",
+    "description": "IT and Telecom - End User: Help Desk;Tier 1-2,Workspace,Print,Output,Productivity Tools (HW/Perp SW)"
+   },
+   "awarding_agency_id": 209,
+   "agency_slug": "department-of-the-interior",
+   "generated_internal_id": "CONT_AWD_140L1226P0015_1422_-NONE-_-NONE-"
+  },
+  {
+   "internal_id": 357402839,
+   "Award ID": "1305M326F0054",
+   "Recipient Name": "TOFFLER ASSOCIATES, INC.",
+   "Award Amount": 15000.0,
+   "Awarding Agency": "Department of Commerce",
+   "Start Date": "2026-04-24",
+   "Description": "STRATEGIC FORESIGHT AND PERFORMANCE MANAGEMENT CONSULTANT SERVICES BPA - CALL ORDER FOR EXECUTIVE LEADERSHIP DEVELOPMENT AND MISSION SUPPORT SERVICES",
+   "NAICS": {
+    "code": "541611",
+    "description": "ADMINISTRATIVE MANAGEMENT AND GENERAL MANAGEMENT CONSULTING SERVICES"
+   },
+   "PSC": {
+    "code": "R431",
+    "description": "SUPPORT- PROFESSIONAL: HUMAN RESOURCES"
+   },
+   "awarding_agency_id": 183,
+   "agency_slug": "department-of-commerce",
+   "generated_internal_id": "CONT_AWD_1305M326F0054_1330_1305M324A0011_1330"
+  },
+  {
+   "internal_id": 357191804,
+   "Award ID": "15F06726F0000473",
+   "Recipient Name": "VERTICAL JOBS, INC.",
+   "Award Amount": 15000.0,
+   "Awarding Agency": "Department of Justice",
+   "Start Date": "2026-04-10",
+   "Description": "ROLE PLAYERS SERVICES-COUNTERINTELLIGENCE DIVISION (CD)",
+   "NAICS": {
+    "code": "561499",
+    "description": "ALL OTHER BUSINESS SUPPORT SERVICES"
+   },
+   "PSC": {
+    "code": "R499",
+    "description": "SUPPORT- PROFESSIONAL: OTHER"
+   },
+   "awarding_agency_id": 252,
+   "agency_slug": "department-of-justice",
+   "generated_internal_id": "CONT_AWD_15F06726F0000473_1549_15F06722A0000898_1549"
+  },
+  {
+   "internal_id": 356870148,
+   "Award ID": "15A00026FABP00304",
+   "Recipient Name": "EASTRATEGIESTX, LLC",
+   "Award Amount": 15000.0,
+   "Awarding Agency": "Department of Justice",
+   "Start Date": "2026-04-13",
+   "Description": "CONTRACT SPECIALIST: EXPLOSIVES SPECIALIST",
+   "NAICS": {
+    "code": "541690",
+    "description": "OTHER SCIENTIFIC AND TECHNICAL CONSULTING SERVICES"
+   },
+   "PSC": {
+    "code": "R499",
+    "description": "SUPPORT- PROFESSIONAL: OTHER"
+   },
+   "awarding_agency_id": 252,
+   "agency_slug": "department-of-justice",
+   "generated_internal_id": "CONT_AWD_15A00026FABP00304_1560_15A00022AAQA00065_1560"
+  },
+  {
+   "internal_id": 355886907,
+   "Award ID": "HTC71126FE129",
+   "Recipient Name": "UNCOMN LLC",
+   "Award Amount": 15000.0,
+   "Awarding Agency": "Department of Defense",
+   "Start Date": "2026-02-01",
+   "Description": "THE PURPOSE OF THIS TASK ORDER IS TO OBLIGATE THE CONTRACT MINIMUM GUARANTEE OF $15,000.00.",
+   "NAICS": {
+    "code": "541512",
+    "description": "COMPUTER SYSTEMS DESIGN SERVICES"
+   },
+   "PSC": {
+    "code": "DF01",
+    "description": "IT AND TELECOM - IT MANAGEMENT SUPPORT SERVICES (LABOR)"
+   },
+   "awarding_agency_id": 1173,
+   "agency_slug": "department-of-defense",
+   "generated_internal_id": "CONT_AWD_HTC71126FE129_9700_HTC71126DE116_9700"
+  },
+  {
+   "internal_id": 355648008,
+   "Award ID": "140D0426F8105",
+   "Recipient Name": "SOFTTHINK SOLUTIONS, INC.",
+   "Award Amount": 15000.0,
+   "Awarding Agency": "Department of the Interior",
+   "Start Date": "2025-10-14",
+   "Description": "WEBSITE HOSTING, MAINTENANCE AND SUPPORT",
+   "NAICS": {
+    "code": "541511",
+    "description": "CUSTOM COMPUTER PROGRAMMING SERVICES"
+   },
+   "PSC": {
+    "code": "7A21",
+    "description": "IT AND TELECOM - BUSINESS APPLICATION SOFTWARE (PERPETUAL LICENSE SOFTWARE)"
+   },
+   "awarding_agency_id": 209,
+   "agency_slug": "department-of-the-interior",
+   "generated_internal_id": "CONT_AWD_140D0426F8105_1406_47QTCA19D0075_4732"
+  },
+  {
+   "internal_id": 353972638,
+   "Award ID": "W50S6K25PA006",
+   "Recipient Name": "FAIRBANKS JUNIOR ICE DOGS, INC.",
+   "Award Amount": 15000.0,
+   "Awarding Agency": "Department of Defense",
+   "Start Date": "2025-09-30",
+   "Description": "CONTRACTOR SHALL PROVIDE ADVERTISING AND MARKETING CAPABILITY WITH THE BIG DIPPER ICE ARENA IN FAIRBANKS, AK, IAW THE PWS.",
+   "NAICS": {
+    "code": "541810",
+    "description": "ADVERTISING AGENCIES"
+   },
+   "PSC": {
+    "code": "R701",
+    "description": "SUPPORT- MANAGEMENT: ADVERTISING"
+   },
+   "awarding_agency_id": 1173,
+   "agency_slug": "department-of-defense",
+   "generated_internal_id": "CONT_AWD_W50S6K25PA006_9700_-NONE-_-NONE-"
+  },
+  {
+   "internal_id": 353644523,
+   "Award ID": "N0018925PZ562",
+   "Recipient Name": "JACEY ECKHART LIVE LLC",
+   "Award Amount": 15000.0,
+   "Awarding Agency": "Department of Defense",
+   "Start Date": "2025-09-26",
+   "Description": "GUEST SPEAKING SERVICES",
+   "NAICS": {
+    "code": "611430",
+    "description": "PROFESSIONAL AND MANAGEMENT DEVELOPMENT TRAINING"
+   },
+   "PSC": {
+    "code": "R499",
+    "description": "SUPPORT- PROFESSIONAL: OTHER"
+   },
+   "awarding_agency_id": 1173,
+   "agency_slug": "department-of-defense",
+   "generated_internal_id": "CONT_AWD_N0018925PZ562_9700_-NONE-_-NONE-"
+  },
+  {
+   "internal_id": 351848662,
+   "Award ID": "140D0426F0032",
+   "Recipient Name": "CONKLIN & DEDECKER ASSOCIATES, INC.",
+   "Award Amount": 15000.0,
+   "Awarding Agency": "Department of the Interior",
+   "Start Date": "2025-11-03",
+   "Description": "KING AIR BUSINESS CASE ANALYSES",
+   "NAICS": {
+    "code": "541611",
+    "description": "ADMINISTRATIVE MANAGEMENT AND GENERAL MANAGEMENT CONSULTING SERVICES"
+   },
+   "PSC": {
+    "code": "R699",
+    "description": "SUPPORT- ADMINISTRATIVE: OTHER"
+   },
+   "awarding_agency_id": 209,
+   "agency_slug": "department-of-the-interior",
+   "generated_internal_id": "CONT_AWD_140D0426F0032_1406_140D0425D0008_1406"
+  },
+  {
+   "internal_id": 310040742,
+   "Award ID": "N0018925F0503",
+   "Recipient Name": "DELL MARKETING L.P.",
+   "Award Amount": 15000.0,
+   "Awarding Agency": "Department of Defense",
+   "Start Date": "2025-09-17",
+   "Description": "AZURE MONETARY COMIT SHRDSVR ALNG SUBSVL MVL COMMIT (IMPACT LVL 2)",
+   "NAICS": {
+    "code": "511210",
+    "description": "SOFTWARE PUBLISHERS"
+   },
+   "PSC": {
+    "code": "7A21",
+    "description": "IT AND TELECOM - BUSINESS APPLICATION SOFTWARE (PERPETUAL LICENSE SOFTWARE)"
+   },
+   "awarding_agency_id": 1173,
+   "agency_slug": "department-of-defense",
+   "generated_internal_id": "CONT_AWD_N0018925F0503_9700_N6600121A0083_9700"
+  },
+  {
+   "internal_id": 310037870,
+   "Award ID": "N0018924F0592",
+   "Recipient Name": "DELL MARKETING L.P.",
+   "Award Amount": 15000.0,
+   "Awarding Agency": "Department of Defense",
+   "Start Date": "2024-09-17",
+   "Description": "AZURE MONETARY COMMIT SHRDSVR ALNG SUBSVL MVL COMMIT (IMPACT LVL 2)",
+   "NAICS": {
+    "code": "511210",
+    "description": "SOFTWARE PUBLISHERS"
+   },
+   "PSC": {
+    "code": "7A21",
+    "description": "IT AND TELECOM - BUSINESS APPLICATION SOFTWARE (PERPETUAL LICENSE SOFTWARE)"
+   },
+   "awarding_agency_id": 1173,
+   "agency_slug": "department-of-defense",
+   "generated_internal_id": "CONT_AWD_N0018924F0592_9700_N6600121A0083_9700"
+  },
+  {
+   "internal_id": 310027743,
+   "Award ID": "N0018920PZ130",
+   "Recipient Name": "SOLL MARTIN A",
+   "Award Amount": 15000.0,
+   "Awarding Agency": "Department of Defense",
+   "Start Date": "2020-05-16",
+   "Description": "EXPERT SERVICE LABOR",
+   "NAICS": {
+    "code": "541611",
+    "description": "ADMINISTRATIVE MANAGEMENT AND GENERAL MANAGEMENT CONSULTING SERVICES"
+   },
+   "PSC": {
+    "code": "R424",
+    "description": "SUPPORT- PROFESSIONAL: EXPERT WITNESS"
+   },
+   "awarding_agency_id": 1173,
+   "agency_slug": "department-of-defense",
+   "generated_internal_id": "CONT_AWD_N0018920PZ130_9700_-NONE-_-NONE-"
+  },
+  {
+   "internal_id": 306333959,
+   "Award ID": "H9225725FE037",
+   "Recipient Name": "SHEFFIELD COMPANY, LLC",
+   "Award Amount": 15000.0,
+   "Awarding Agency": "Department of Defense",
+   "Start Date": "2025-06-03",
+   "Description": "BRIEF 101 1-DAY WORKSHOP",
+   "NAICS": {
+    "code": "611430",
+    "description": "PROFESSIONAL AND MANAGEMENT DEVELOPMENT TRAINING"
+   },
+   "PSC": {
+    "code": "U008",
+    "description": "EDUCATION/TRAINING- TRAINING/CURRICULUM DEVELOPMENT"
+   },
+   "awarding_agency_id": 1173,
+   "agency_slug": "department-of-defense",
+   "generated_internal_id": "CONT_AWD_H9225725FE037_9700_H9225723D0004_9700"
+  },
+  {
+   "internal_id": 297103378,
+   "Award ID": "DTOS5915P00022",
+   "Recipient Name": "UNIVERSITY OF CALIFORNIA, DAVIS",
+   "Award Amount": 15000.0,
+   "Awarding Agency": "Department of Transportation",
+   "Start Date": "2015-06-03",
+   "Description": "IGF::OT::IGF",
+   "NAICS": {
+    "code": "541990",
+    "description": "ALL OTHER PROFESSIONAL, SCIENTIFIC, AND TECHNICAL SERVICES"
+   },
+   "PSC": {
+    "code": "R499",
+    "description": "SUPPORT- PROFESSIONAL: OTHER"
+   },
+   "awarding_agency_id": 731,
+   "agency_slug": "department-of-transportation",
+   "generated_internal_id": "CONT_AWD_DTOS5915P00022_6901_-NONE-_-NONE-"
+  },
+  {
+   "internal_id": 292028697,
+   "Award ID": "89243125PSC000381",
+   "Recipient Name": "QUALITY SYSTEMS APPLICATIONS INC",
+   "Award Amount": 15000.0,
+   "Awarding Agency": "Department of Energy",
+   "Start Date": "2025-09-24",
+   "Description": "REQUISITION TO PROVIDE FUNDING TO SUPPORT THE OFFICE OF SCIENCE FY25 LAB EVALUATION ACTIVITIES UTILIZING THE LAB RATING TOOL (LRT)",
+   "NAICS": {
+    "code": "541512",
+    "description": "COMPUTER SYSTEMS DESIGN SERVICES"
+   },
+   "PSC": {
+    "code": "DE10",
+    "description": "IT and Telecom - End User as a Service: Help Desk;Tier 1-2,Workspace,Print,Output,Productivity Tools"
+   },
+   "awarding_agency_id": 930,
+   "agency_slug": "department-of-energy",
+   "generated_internal_id": "CONT_AWD_89243125PSC000381_8900_-NONE-_-NONE-"
+  },
+  {
+   "internal_id": 291905606,
+   "Award ID": "83310122P0041",
+   "Recipient Name": "JOHN RIORDAN AND ASSOCIATES, LLC",
+   "Award Amount": 15000.0,
+   "Awarding Agency": "Export-Import Bank of the United States",
+   "Start Date": "2022-09-30",
+   "Description": "OCS STRATEGIC PLANNING & TEAM DEVELOPMENT",
+   "NAICS": {
+    "code": "611430",
+    "description": "PROFESSIONAL AND MANAGEMENT DEVELOPMENT TRAINING"
+   },
+   "PSC": {
+    "code": "U008",
+    "description": "EDUCATION/TRAINING- TRAINING/CURRICULUM DEVELOPMENT"
+   },
+   "awarding_agency_id": 878,
+   "agency_slug": "export-import-bank-of-the-united-states",
+   "generated_internal_id": "CONT_AWD_83310122P0041_8300_-NONE-_-NONE-"
+  }
+ ],
+ "nc_digital": {
+  "count": 344,
+  "total": 1931557
+ },
+ "nc_digital_sample": [
+  {
+   "internal_id": 277394821,
+   "Award ID": "12444022F0044",
+   "Recipient Name": "MIND YOUR BUSINESS INC",
+   "Award Amount": 14979.66,
+   "Awarding Agency": "Department of Agriculture",
+   "Start Date": "2022-07-13",
+   "Description": "BACKGROUND CHECKS FOR SOUTHWESTERN REGION",
+   "NAICS": {
+    "code": "541611",
+    "description": "ADMINISTRATIVE MANAGEMENT AND GENERAL MANAGEMENT CONSULTING SERVICES"
+   },
+   "PSC": {
+    "code": "R615",
+    "description": "SUPPORT- ADMINISTRATIVE: BACKGROUND INVESTIGATION"
+   },
+   "awarding_agency_id": 95,
+   "agency_slug": "department-of-agriculture",
+   "generated_internal_id": "CONT_AWD_12444022F0044_12C2_12444021A0005_12C2"
+  },
+  {
+   "internal_id": 306333984,
+   "Award ID": "H9225725FE064",
+   "Recipient Name": "KARCHER GROUP INC",
+   "Award Amount": 14792.04,
+   "Awarding Agency": "Department of Defense",
+   "Start Date": "2025-08-05",
+   "Description": "U.S. MARINE CORPS FORCES SPECIAL OPERATIONS COMMAND (MARFORSOC), MRTC, HQ, HAS A REQUIREMENT TO UPGRADE A/V EQUIPMENT IN RR450, ROOM 101A AND 106A. UPGRADE THE EXISTING CLASSROOM 101 AND 106 AUDIO SYSTEMS TO SUPPORT INSTRUCTOR VOICE REINFORCEMENT.",
+   "NAICS": {
+    "code": "541990",
+    "description": "ALL OTHER PROFESSIONAL, SCIENTIFIC, AND TECHNICAL SERVICES"
+   },
+   "PSC": {
+    "code": "R499",
+    "description": "SUPPORT- PROFESSIONAL: OTHER"
+   },
+   "awarding_agency_id": 1173,
+   "agency_slug": "department-of-defense",
+   "generated_internal_id": "CONT_AWD_H9225725FE064_9700_H9225724D0004_9700"
+  },
+  {
+   "internal_id": 291637379,
+   "Award ID": "75N96023F00001",
+   "Recipient Name": "KNOWLEDGEWORKS GLOBAL LTD",
+   "Award Amount": 14463.05,
+   "Awarding Agency": "Department of Health and Human Services",
+   "Start Date": "2023-08-07",
+   "Description": "TASK ORDER 0001 PEER REVIEW SUPPORT SERVICES",
+   "NAICS": {
+    "code": "561410",
+    "description": "DOCUMENT PREPARATION SERVICES"
+   },
+   "PSC": {
+    "code": "R699",
+    "description": "SUPPORT- ADMINISTRATIVE: OTHER"
+   },
+   "awarding_agency_id": 806,
+   "agency_slug": "department-of-health-and-human-services",
+   "generated_internal_id": "CONT_AWD_75N96023F00001_7529_75N96023D00003_7529"
+  },
+  {
+   "internal_id": 362074233,
+   "Award ID": "W9128F26PA067",
+   "Recipient Name": "INTERSPEC, LLC",
+   "Award Amount": 14205.0,
+   "Awarding Agency": "Department of Defense",
+   "Start Date": "2026-06-09",
+   "Description": "THIS IS A NON-PERSONNEL SERVICES CONTRACT TO PERFORM INSPECTIONS ON DEPARTMENT OF DEFENSE FUEL TANKS. THIS SERVICE ENTAILS PROVIDING AN ABOVEGROUND STORAGE TANK (AST) INSPECTION ON TANK(S). THIS IS FOR 4 API EXTERNAL INSPECTIONS AT FORT BRAGG, NC.",
+   "NAICS": {
+    "code": "541990",
+    "description": "ALL OTHER PROFESSIONAL, SCIENTIFIC, AND TECHNICAL SERVICES"
+   },
+   "PSC": {
+    "code": "Z1GC",
+    "description": "MAINTENANCE OF FUEL STORAGE BUILDINGS"
+   },
+   "awarding_agency_id": 1173,
+   "agency_slug": "department-of-defense",
+   "generated_internal_id": "CONT_AWD_W9128F26PA067_9700_-NONE-_-NONE-"
+  },
+  {
+   "internal_id": 277774698,
+   "Award ID": "140F0520P0105",
+   "Recipient Name": "COASTAL WILDLIFE REFUGE SOCIETY INC",
+   "Award Amount": 14025.04,
+   "Awarding Agency": "Department of the Interior",
+   "Start Date": "2020-06-22",
+   "Description": "RED WOLF RECOVERY BIO TECHNICIAN/SUPPORT",
+   "NAICS": {
+    "code": "541990",
+    "description": "ALL OTHER PROFESSIONAL, SCIENTIFIC, AND TECHNICAL SERVICES"
+   },
+   "PSC": {
+    "code": "R799",
+    "description": "SUPPORT- MANAGEMENT: OTHER"
+   },
+   "awarding_agency_id": 209,
+   "agency_slug": "department-of-the-interior",
+   "generated_internal_id": "CONT_AWD_140F0520P0105_1448_-NONE-_-NONE-"
+  },
+  {
+   "internal_id": 291637656,
+   "Award ID": "75N96023P00073",
+   "Recipient Name": "GRANT CENTRAL, LLC",
+   "Award Amount": 13954.0,
+   "Awarding Agency": "Department of Health and Human Services",
+   "Start Date": "2023-03-27",
+   "Description": "WORKSHOP FOR GRANT DEVELOPMENT",
+   "NAICS": {
+    "code": "611430",
+    "description": "PROFESSIONAL AND MANAGEMENT DEVELOPMENT TRAINING"
+   },
+   "PSC": {
+    "code": "U001",
+    "description": "EDUCATION/TRAINING- LECTURES"
+   },
+   "awarding_agency_id": 806,
+   "agency_slug": "department-of-health-and-human-services",
+   "generated_internal_id": "CONT_AWD_75N96023P00073_7529_-NONE-_-NONE-"
+  },
+  {
+   "internal_id": 306461727,
+   "Award ID": "HC101325FD832",
+   "Recipient Name": "INMARSAT GOVERNMENT, INC.",
+   "Award Amount": 13916.04,
+   "Awarding Agency": "Department of Defense",
+   "Start Date": "2025-07-16",
+   "Description": "IGVC000214EBM COMMERCIAL SATELLITE SUBSCRIPTION SERVICES.",
+   "NAICS": {
+    "code": "541519",
+    "description": "OTHER COMPUTER RELATED SERVICES"
+   },
+   "PSC": {
+    "code": "DG10",
+    "description": "IT AND TELECOM - NETWORK AS A SERVICE"
+   },
+   "awarding_agency_id": 1173,
+   "agency_slug": "department-of-defense",
+   "generated_internal_id": "CONT_AWD_HC101325FD832_9700_HC101324A0003_9700"
+  },
+  {
+   "internal_id": 278301369,
+   "Award ID": "15JCRM24P00000248",
+   "Recipient Name": "DEVELOPMENTAL & FORENSIC PEDIATRICS PA",
+   "Award Amount": 13784.83,
+   "Awarding Agency": "Department of Justice",
+   "Start Date": "2024-08-19",
+   "Description": "EXPERT WITNESS",
+   "NAICS": {
+    "code": "541611",
+    "description": "ADMINISTRATIVE MANAGEMENT AND GENERAL MANAGEMENT CONSULTING SERVICES"
+   },
+   "PSC": {
+    "code": "R499",
+    "description": "SUPPORT- PROFESSIONAL: OTHER"
+   },
+   "awarding_agency_id": 252,
+   "agency_slug": "department-of-justice",
+   "generated_internal_id": "CONT_AWD_15JCRM24P00000248_1501_-NONE-_-NONE-"
+  },
+  {
+   "internal_id": 358698553,
+   "Award ID": "36C24626P0638",
+   "Recipient Name": "GRAHAM ADVISORY NETWORK INC",
+   "Award Amount": 13432.4,
+   "Awarding Agency": "Department of Veterans Affairs",
+   "Start Date": "2026-05-28",
+   "Description": "PHARMACIST LETTER WITH CE (CONTINUING EDUCATION) AND PHARMACY TEHNICIAN LETTER WITH CE AND LIVE WEBINARS",
+   "NAICS": {
+    "code": "611430",
+    "description": "PROFESSIONAL AND MANAGEMENT DEVELOPMENT TRAINING"
+   },
+   "PSC": {
+    "code": "U099",
+    "description": "EDUCATION/TRAINING- OTHER"
+   },
+   "awarding_agency_id": 561,
+   "agency_slug": "department-of-veterans-affairs",
+   "generated_internal_id": "CONT_AWD_36C24626P0638_3600_-NONE-_-NONE-"
+  },
+  {
+   "internal_id": 357448010,
+   "Award ID": "FA480926F0013",
+   "Recipient Name": "ABM FEDERAL SALES, INC.",
+   "Award Amount": 13288.8,
+   "Awarding Agency": "Department of Defense",
+   "Start Date": "2026-01-27",
+   "Description": "MANAGED PRINT SERVICES FOR 4 MSG, 4 OG, 4 FWSA AND RESERVE UNITS AT SJAFB.",
+   "NAICS": {
+    "code": "541611",
+    "description": "ADMINISTRATIVE MANAGEMENT AND GENERAL MANAGEMENT CONSULTING SERVICES"
+   },
+   "PSC": {
+    "code": "R499",
+    "description": "SUPPORT- PROFESSIONAL: OTHER"
+   },
+   "awarding_agency_id": 1173,
+   "agency_slug": "department-of-defense",
+   "generated_internal_id": "CONT_AWD_FA480926F0013_9700_FA480923D0007_9700"
+  },
+  {
+   "internal_id": 358621422,
+   "Award ID": "70Z03826FM0000012",
+   "Recipient Name": "ADVANCED COMPUTER CONCEPTS, INC.",
+   "Award Amount": 12691.11,
+   "Awarding Agency": "Department of Homeland Security",
+   "Start Date": "2026-05-26",
+   "Description": "PROCUREMENT OF NESSUS PROFESSIONAL SOFTWARE RENEWALS FOR AVIATION LOGISTICS CENTER",
+   "NAICS": {
+    "code": "541519",
+    "description": "OTHER COMPUTER RELATED SERVICES"
+   },
+   "PSC": {
+    "code": "7A21",
+    "description": "IT AND TELECOM - BUSINESS APPLICATION SOFTWARE (PERPETUAL LICENSE SOFTWARE)"
+   },
+   "awarding_agency_id": 766,
+   "agency_slug": "department-of-homeland-security",
+   "generated_internal_id": "CONT_AWD_70Z03826FM0000012_7008_NNG15SD60B_8000"
+  },
+  {
+   "internal_id": 356559398,
+   "Award ID": "W9124726FA015",
+   "Recipient Name": "ENTERPRISE TECHNOLOGY SOLUTIONS, INC.",
+   "Award Amount": 12646.88,
+   "Awarding Agency": "Department of Defense",
+   "Start Date": "2025-12-31",
+   "Description": "USARCENT G6 PROCUREMENT- RIGHT CLICK TOOL 12 MONTH SUBSCRIPTIONS. QTY:1000",
+   "NAICS": {
+    "code": "511210",
+    "description": "SOFTWARE PUBLISHERS"
+   },
+   "PSC": {
+    "code": "7A21",
+    "description": "IT AND TELECOM - BUSINESS APPLICATION SOFTWARE (PERPETUAL LICENSE SOFTWARE)"
+   },
+   "awarding_agency_id": 1173,
+   "agency_slug": "department-of-defense",
+   "generated_internal_id": "CONT_AWD_W9124726FA015_9700_W52P1J20D0049_9700"
+  },
+  {
+   "internal_id": 291638237,
+   "Award ID": "75N96025F00006",
+   "Recipient Name": "IT1 SOURCE LLC",
+   "Award Amount": 12550.58,
+   "Awarding Agency": "Department of Health and Human Services",
+   "Start Date": "2025-08-25",
+   "Description": "DELIVERY ORDER FOR MALWAREBYTES LICENSES",
+   "NAICS": {
+    "code": "541519",
+    "description": "OTHER COMPUTER RELATED SERVICES"
+   },
+   "PSC": {
+    "code": "7E20",
+    "description": "IT and Telecom - End User: Help Desk;Tier 1-2,Workspace,Print,Output,Productivity Tools (HW/Perp SW)"
+   },
+   "awarding_agency_id": 806,
+   "agency_slug": "department-of-health-and-human-services",
+   "generated_internal_id": "CONT_AWD_75N96025F00006_7529_HHSN316201500059W_7529"
+  },
+  {
+   "internal_id": 277403120,
+   "Award ID": "12445225C0010",
+   "Recipient Name": "COLE SURVEYING AND DESIGN, PA",
+   "Award Amount": 12500.0,
+   "Awarding Agency": "Department of Agriculture",
+   "Start Date": "2025-06-02",
+   "Description": "MORATORIUM EXCEPTION UNDER BLI CMSO FOR HURRICANE HELENE R8 SRS SHORTLIST - PURPOSE: THIS SURVEY IS THE BASIS FOR MAKING SITE DESIGN/CONSTRUCTION DECISIONS FOR REPAIR AND REPLACEMENT OF THE EXISTING ACCESSIBLE HIKING AND FISHING TRAIL AND FISHING P",
+   "NAICS": {
+    "code": "541370",
+    "description": "SURVEYING AND MAPPING (EXCEPT GEOPHYSICAL) SERVICES"
+   },
+   "PSC": {
+    "code": "C219",
+    "description": "ARCHITECT AND ENGINEERING- GENERAL: OTHER"
+   },
+   "awarding_agency_id": 95,
+   "agency_slug": "department-of-agriculture",
+   "generated_internal_id": "CONT_AWD_12445225C0010_12C2_-NONE-_-NONE-"
+  },
+  {
+   "internal_id": 279524387,
+   "Award ID": "28321325P00050069",
+   "Recipient Name": "NALCO COMPANY LLC",
+   "Award Amount": 12228.02,
+   "Awarding Agency": "Social Security Administration",
+   "Start Date": "2025-08-11",
+   "Description": "TESTING OF CLOSED LOOP WATER FOR HVAC SYSTEM FOR QC TO AVOID CONTAMINATION LEADING TO AIR BORNE ILLNESS. FUEL TESTING TO VERIFY QUALITY OF DIESEL FUEL BEING USED IN GENERATORS FOR CRITICAL BACK UP POWER IN THE INNER CORE OF THE DATA CENTER.",
+   "NAICS": {
+    "code": "541690",
+    "description": "OTHER SCIENTIFIC AND TECHNICAL CONSULTING SERVICES"
+   },
+   "PSC": {
+    "code": "H268",
+    "description": "EQUIPMENT AND MATERIALS TESTING- CHEMICALS AND CHEMICAL PRODUCTS"
+   },
+   "awarding_agency_id": 539,
+   "agency_slug": "social-security-administration",
+   "generated_internal_id": "CONT_AWD_28321325P00050069_2800_-NONE-_-NONE-"
+  }
+ ],
+ "psc": [
+  {
+   "id": null,
+   "code": "6505",
+   "name": "DRUGS AND BIOLOGICALS",
+   "amount": 1222990914.77,
+   "total_outlays": null
+  },
+  {
+   "id": null,
+   "code": "8915",
+   "name": "FRUITS AND VEGETABLES",
+   "amount": 649355001.02,
+   "total_outlays": null
+  },
+  {
+   "id": null,
+   "code": "6515",
+   "name": "MEDICAL AND SURGICAL INSTRUMENTS, EQUIPMENT, AND SUPPLIES",
+   "amount": 488203513.07,
+   "total_outlays": null
+  },
+  {
+   "id": null,
+   "code": "9130",
+   "name": "LIQUID PROPELLANTS AND FUELS, PETROLEUM BASE",
+   "amount": 410658161.19,
+   "total_outlays": null
+  },
+  {
+   "id": null,
+   "code": "6640",
+   "name": "LABORATORY EQUIPMENT AND SUPPLIES",
+   "amount": 331588260.84,
+   "total_outlays": null
+  },
+  {
+   "id": null,
+   "code": "5120",
+   "name": "HAND TOOLS, NONEDGED, NONPOWERED",
+   "amount": 291862454.97,
+   "total_outlays": null
+  },
+  {
+   "id": null,
+   "code": "8905",
+   "name": "MEAT, POULTRY, AND FISH",
+   "amount": 267457370.88,
+   "total_outlays": null
+  },
+  {
+   "id": null,
+   "code": "7510",
+   "name": "OFFICE SUPPLIES",
+   "amount": 182765739.68,
+   "total_outlays": null
+  },
+  {
+   "id": null,
+   "code": "9150",
+   "name": "OILS AND GREASES: CUTTING, LUBRICATING, AND HYDRAULIC",
+   "amount": 81081524.3,
+   "total_outlays": null
+  },
+  {
+   "id": null,
+   "code": "5340",
+   "name": "HARDWARE, COMMERCIAL",
+   "amount": 75750388.75,
+   "total_outlays": null
+  },
+  {
+   "id": null,
+   "code": "8910",
+   "name": "DAIRY FOODS AND EGGS",
+   "amount": 70300313.99,
+   "total_outlays": null
+  },
+  {
+   "id": null,
+   "code": "7910",
+   "name": "FLOOR POLISHERS AND VACUUM CLEANING EQUIPMENT",
+   "amount": 55979073.44,
+   "total_outlays": null
+  },
+  {
+   "id": null,
+   "code": "7110",
+   "name": "OFFICE FURNITURE",
+   "amount": 53860714.15,
+   "total_outlays": null
+  },
+  {
+   "id": null,
+   "code": "6530",
+   "name": "HOSPITAL FURNITURE, EQUIPMENT, UTENSILS, AND SUPPLIES",
+   "amount": 49367868.09,
+   "total_outlays": null
+  },
+  {
+   "id": null,
+   "code": "1560",
+   "name": "AIRFRAME STRUCTURAL COMPONENTS",
+   "amount": 45797723.3,
+   "total_outlays": null
+  }
+ ],
+ "agencies": [
+  {
+   "id": 1173,
+   "code": "DOD",
+   "name": "Department of Defense",
+   "agency_slug": "department-of-defense",
+   "amount": 5233957521.54,
+   "total_outlays": null
+  },
+  {
+   "id": 614,
+   "code": "GSA",
+   "name": "General Services Administration",
+   "agency_slug": "general-services-administration",
+   "amount": 789728142.45,
+   "total_outlays": null
+  },
+  {
+   "id": 252,
+   "code": "DOJ",
+   "name": "Department of Justice",
+   "agency_slug": "department-of-justice",
+   "amount": 47565691.2,
+   "total_outlays": null
+  },
+  {
+   "id": 315,
+   "code": "DOS",
+   "name": "Department of State",
+   "agency_slug": "department-of-state",
+   "amount": 44552566.39,
+   "total_outlays": null
+  },
+  {
+   "id": 561,
+   "code": "VA",
+   "name": "Department of Veterans Affairs",
+   "agency_slug": "department-of-veterans-affairs",
+   "amount": 41123508.47,
+   "total_outlays": null
+  },
+  {
+   "id": 95,
+   "code": "USDA",
+   "name": "Department of Agriculture",
+   "agency_slug": "department-of-agriculture",
+   "amount": 34019857.46,
+   "total_outlays": null
+  },
+  {
+   "id": 209,
+   "code": "DOI",
+   "name": "Department of the Interior",
+   "agency_slug": "department-of-the-interior",
+   "amount": 16405982.87,
+   "total_outlays": null
+  },
+  {
+   "id": 766,
+   "code": "DHS",
+   "name": "Department of Homeland Security",
+   "agency_slug": "department-of-homeland-security",
+   "amount": 16385993.69,
+   "total_outlays": null
+  },
+  {
+   "id": 862,
+   "code": "NASA",
+   "name": "National Aeronautics and Space Administration",
+   "agency_slug": "national-aeronautics-and-space-administration",
+   "amount": 3027528.39,
+   "total_outlays": null
+  },
+  {
+   "id": 183,
+   "code": "DOC",
+   "name": "Department of Commerce",
+   "agency_slug": "department-of-commerce",
+   "amount": 2911623.19,
+   "total_outlays": null
+  }
+ ]
+}
