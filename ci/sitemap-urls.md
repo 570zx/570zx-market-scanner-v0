@@ -1,9 +1,9 @@
-# sitemap-urls  2026-09-30T16:18:53Z 5c69f2c
+# sitemap-urls  2026-09-30T16:20:14Z 31850e3
 ## install
 ```
 npm warn deprecated lodash.isequal@4.5.0: This package is deprecated. Use require('node:util').isDeepStrictEqual instead.
 
-added 187 packages in 2s
+added 187 packages in 3s
 ```
 ## unit tests
 ```
@@ -22,10 +22,10 @@ added 187 packages in 2s
 ## items
 42 items
 ```json
-{"site": "https://www.python.org/", "domain": "www.python.org", "status": "no_sitemap_found", "sitemapsTried": ["https://www.python.org/sitemap.xml", "https://www.python.org/sitemap_index.xml", "https://www.python.org/wp-sitemap.xml", "https://www.python.org/sitemap.txt"], "errors": ["https://www.python.org/sitemap.xml: HTTP 404", "https://www.python.org/sitemap_index.xml: HTTP 404", "https://www.python.org/wp-sitemap.xml: HTTP 404", "https://www.python.org/sitemap.txt: HTTP 404"]}
+{"site": "https://apify.com/sitemap.xml", "domain": "apify.com", "status": "ok", "url": "https://apify.com/", "lastmod": null, "changefreq": null, "priority": null, "images": 0, "sitemap": "https://apify.com/sitemap/pages.xml"}
 ```
 ```json
-{"site": "https://apify.com/sitemap.xml", "domain": "apify.com", "status": "ok", "url": "https://apify.com/", "lastmod": null, "changefreq": null, "priority": null, "images": 0, "sitemap": "https://apify.com/sitemap/pages.xml"}
+{"site": "https://example.com/", "domain": "example.com", "status": "no_sitemap_found", "sitemapsTried": ["https://example.com/sitemap.xml", "https://example.com/sitemap_index.xml", "https://example.com/wp-sitemap.xml", "https://example.com/sitemap.txt"], "errors": ["https://example.com/sitemap.xml: HTTP 404", "https://example.com/sitemap_index.xml: HTTP 404", "https://example.com/wp-sitemap.xml: HTTP 404", "https://example.com/sitemap.txt: HTTP 404"]}
 ```
 ```json
 {"site": "https://apify.com/sitemap.xml", "domain": "apify.com", "status": "ok", "url": "https://apify.com/about", "lastmod": null, "changefreq": null, "priority": null, "images": 0, "sitemap": "https://apify.com/sitemap/pages.xml"}
