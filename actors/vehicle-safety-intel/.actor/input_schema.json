@@ -1,0 +1,41 @@
+{
+  "title": "Vehicle Safety Intel",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "vins": {
+      "title": "VINs",
+      "type": "array",
+      "description": "17-character Vehicle Identification Numbers, one per item (up to 1,000 per run). Example: 1HGCM82633A004352",
+      "editor": "stringList",
+      "prefill": ["1HGCM82633A004352"]
+    },
+    "includeRecalls": {
+      "title": "Include safety recalls",
+      "type": "boolean",
+      "description": "Recall campaigns for this make, model and year (NHTSA). Note: this lists campaigns that apply to the model year, it cannot say whether this particular car has already been repaired.",
+      "default": true
+    },
+    "includeComplaints": {
+      "title": "Include owner complaints",
+      "type": "boolean",
+      "description": "Count of owner complaints filed with NHTSA for this make, model and year, the most affected components, and the most recent complaints.",
+      "default": true
+    },
+    "includeRatings": {
+      "title": "Include crash-test ratings",
+      "type": "boolean",
+      "description": "NHTSA 5-star safety ratings (overall, front, side, rollover) when the vehicle was rated.",
+      "default": true
+    },
+    "maxComplaintsPerVehicle": {
+      "title": "Recent complaints to return per vehicle",
+      "type": "integer",
+      "description": "How many of the most recent complaint records to include (the total count is always included). Set 0 for counts only.",
+      "default": 5,
+      "minimum": 0,
+      "maximum": 50
+    }
+  },
+  "required": ["vins"]
+}

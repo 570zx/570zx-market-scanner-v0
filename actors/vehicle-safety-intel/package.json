@@ -1,0 +1,16 @@
+{
+  "name": "vehicle-safety-intel",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "VIN to specs, safety recalls, owner complaints and crash ratings from US government data (NHTSA).",
+  "scripts": {
+    "start": "node src/main.js",
+    "test": "node --test tests/*.test.mjs",
+    "live": "node tests/live.mjs"
+  },
+  "dependencies": {
+    "apify": "^3.2.0"
+  },
+  "engines": {"node": ">=20"}
+}
