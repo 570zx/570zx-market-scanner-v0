@@ -23,22 +23,24 @@ Check a list of domains for email authentication and spoofing protection in one 
 
 Grade: **A** no problems; **B** one warning; **C** two or more warnings; **D** one error; **F** two or more errors, or the domain does not exist.
 
-## Output (one row per domain, shortened)
+## Output (one row per domain; real result for example.com, shortened)
 
 ```json
 {
   "domain": "example.com",
   "status": "ok",
-  "grade": "D",
-  "mailProvider": null,
-  "spfRecord": "v=spf1 -all",
-  "dmarcPolicy": "reject",
-  "dkimSelectorsFound": [],
+  "exists": true,
+  "grade": "A",
+  "errors": 0,
+  "warnings": 0,
   "issues": [
+    {"severity": "notice", "code": "dmarc_no_reports", "message": "DMARC has no rua= address, so no aggregate reports are collected."},
     {"severity": "notice", "code": "null_mx", "message": "Null MX: the domain states it never receives email."}
   ]
 }
 ```
+
+Each row also includes the raw `spfRecord`, `dmarcRecord`, `mx`, `dkim`, `nameservers` and more.
 
 ## Limits
 
