@@ -11,23 +11,30 @@ Look up any list of domains in the registries' official RDAP service, the modern
 - **Portfolio management**: track expiry dates across all your domains
 - **Lead research**: registrar and nameserver data for a list of companies
 
-## Output (one row per domain, shortened)
+## Output (one row per domain; real result from 30 Sep 2026)
 
 ```json
 {
   "domain": "apify.com",
   "status": "ok",
   "registered": true,
-  "registrar": "GoDaddy.com, LLC",
-  "registrarIanaId": "146",
-  "createdDate": "2015-01-12T15:11:56Z",
-  "expiryDate": "2031-01-12T15:11:56Z",
-  "daysUntilExpiry": 1565,
-  "ageYears": 11.7,
-  "statuses": ["client transfer prohibited"],
-  "nameservers": ["ns-1234.awsdns-26.org"],
-  "dnssec": false,
-  "abuseEmail": "abuse@godaddy.com"
+  "registrar": "Amazon Registrar, Inc.",
+  "registrarIanaId": "468",
+  "createdDate": "2009-06-02T17:14:10Z",
+  "expiryDate": "2035-06-02T17:14:10Z",
+  "daysUntilExpiry": 3167,
+  "ageYears": 17.3,
+  "statuses": [
+    "client transfer prohibited"
+  ],
+  "nameservers": [
+    "ns-1225.awsdns-25.org",
+    "ns-1928.awsdns-49.co.uk",
+    "ns-449.awsdns-56.com",
+    "ns-839.awsdns-40.net"
+  ],
+  "dnssec": true,
+  "abuseEmail": "trustandsafety@support.aws.com"
 }
 ```
 

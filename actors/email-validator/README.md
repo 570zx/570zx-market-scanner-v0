@@ -10,7 +10,7 @@ Clean an email list before you send to it. For each address you get a verdict (`
 - Filtering lead lists before outreach
 - Separating business addresses from free and throwaway ones
 
-## Output (one row per address)
+## Output (one row per address, shortened)
 
 ```json
 {
@@ -20,7 +20,6 @@ Clean an email list before you send to it. For each address you get a verdict (`
   "reasons": ["possible typo, did you mean bob@gmail.com?"],
   "syntaxValid": true,
   "mailServer": true,
-  "mxRecords": ["mx.gmial.com"],
   "disposable": false,
   "roleAccount": false,
   "freeProvider": false,

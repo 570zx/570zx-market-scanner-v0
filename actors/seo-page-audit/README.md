@@ -10,7 +10,7 @@ Audit any number of pages for on-page SEO. Each page gets a 0-100 score and a pl
 - Catching SEO regressions after a release: run it on a schedule and compare scores
 - Finding pages with missing titles, descriptions, H1s or alt text across a large site
 
-## Output (one row per page)
+## Output (one row per page; real result for example.com, shortened)
 
 ```json
 {
@@ -28,12 +28,12 @@ Audit any number of pages for on-page SEO. Each page gets a 0-100 score and a pl
   ],
   "title": "Example Domain",
   "titleLength": 14,
-  "wordCount": 28,
+  "wordCount": 27,
   "imagesMissingAlt": 0,
   "internalLinks": 0,
   "externalLinks": 1,
   "schemaTypes": [],
-  "responseTimeMs": 120
+  "responseTimeMs": 108
 }
 ```
 

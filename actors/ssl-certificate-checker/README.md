@@ -11,7 +11,7 @@ Check the SSL/TLS certificate of any number of domains in one run: expiry date a
 - **Security reviews**: find self-signed, mismatched or old-TLS endpoints
 - **Inventory**: list which certificate authority each domain uses
 
-## Output (one row per host, shortened)
+## Output (one row per host; real result from 30 Sep 2026, shortened)
 
 ```json
 {
@@ -19,16 +19,17 @@ Check the SSL/TLS certificate of any number of domains in one run: expiry date a
   "port": 443,
   "status": "ok",
   "valid": true,
-  "daysLeft": 61,
-  "validTo": "2026-11-30T23:59:59.000Z",
-  "issuer": "Google Trust Services",
+  "daysLeft": 108,
+  "validTo": "2027-01-16T23:59:59.000Z",
+  "issuer": "Amazon",
+  "issuerCommonName": "Amazon RSA 2048 M04",
   "coversHost": true,
   "trusted": true,
   "selfSigned": false,
   "protocol": "TLSv1.3",
-  "keyType": "EC prime256v1",
-  "sanCount": 2,
-  "subjectAltNames": ["apify.com", "*.apify.com"],
+  "keyType": "RSA 2048",
+  "sanCount": 4,
+  "subjectAltNames": ["*.apify.com", "apifier.com", "*.apifier.com", "apify.com"],
   "issues": []
 }
 ```

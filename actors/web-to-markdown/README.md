@@ -32,9 +32,7 @@ Turn any web page into clean Markdown that an LLM can use. You give it URLs; it 
   "title": "Markdown",
   "lang": "en",
   "extraction": "main_content",
-  "wordCount": 3120,
-  "approxTokens": 5210,
-  "markdown": "# Markdown\n\nMarkdown is a lightweight markup language for creating formatted text ..."
+  "markdown": "# Markdown\n\nFrom Wikipedia, the free encyclopedia\n\n..."
 }
 ```
 
