@@ -33,7 +33,9 @@ for k, v in pricing['events'].items():
     events[k] = {'eventTitle': v['title'], 'eventDescription': v['description'], 'eventPriceUsd': v['price']}
 st, cur = call('GET', act)
 existing = (cur.get('data') or {}).get('pricingInfos') or []
-same = existing and json.dumps(existing[-1].get('pricingPerEvent', {}).get('actorChargeEvents', {}), sort_keys=True) == json.dumps(events, sort_keys=True)
+# Apify rewrites the synthetic start event's title and text, so compare only our own events' prices.
+have = (existing[-1].get('pricingPerEvent', {}).get('actorChargeEvents', {}) if existing else {})
+same = bool(existing) and all(k in have and abs(have[k].get('eventPriceUsd', -1) - v['eventPriceUsd']) < 1e-12 for k, v in events.items() if k != 'apify-actor-start')
 body = {'categories': store['categories'], 'seoTitle': store['seoTitle'], 'seoDescription': store['seoDescription']}
 if not same:
     body['pricingInfos'] = [{'pricingModel': 'PAY_PER_EVENT', 'pricingPerEvent': {'actorChargeEvents': events}}]
