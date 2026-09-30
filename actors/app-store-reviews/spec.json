@@ -1,0 +1,19 @@
+{
+  "title": "App Store Reviews & App Details",
+  "description": "Get iPhone and iPad app details (rating, rating count, version history, price, size, genre, description, screenshots) and the most recent customer reviews (rating, title, text, app version, date) from Apple's App Store, in any country. Paste App Store links, app IDs or app names.",
+  "viewTitle": "Apps and reviews",
+  "view": [["type", "Type"], ["appName", "App"], ["name", "App name"], ["country", "Country"], ["rating", "Rating", "number"], ["title", "Review title"], ["text", "Review"], ["appVersion", "Version"], ["date", "Date"]],
+  "input": {
+    "apps": {"title": "Apps", "type": "array", "editor": "stringList", "description": "App Store links, numeric app IDs, or app names (the top search match is used). Up to 500 per run.", "prefill": ["https://apps.apple.com/us/app/spotify-music-and-podcasts/id324684580", "Duolingo"]},
+    "countries": {"title": "Countries", "type": "array", "editor": "stringList", "description": "Two-letter App Store country codes such as us, gb, de (reviews are per country). Default: the country in the link, otherwise us. Up to 20.", "prefill": ["us"]},
+    "maxReviewsPerApp": {"title": "Maximum reviews per app and country", "type": "integer", "default": 100, "minimum": 0, "maximum": 500, "description": "Most recent first. Apple's feed provides at most 500 per country. 0 = app details only."},
+    "includeAppDetails": {"title": "Include app details", "type": "boolean", "default": true}
+  },
+  "required": ["apps"],
+  "pricing": {"events": {
+    "app": {"title": "App details", "description": "One app's details for one country.", "price": 0.002},
+    "review": {"title": "Review", "description": "One customer review.", "price": 0.0002}
+  }},
+  "store": {"seoTitle": "App Store Reviews Scraper & App Details API", "seoDescription": "Apple App Store reviews and app details for any app and country: ratings, review text, versions, price, screenshots. Links, IDs or app names.", "categories": ["DEVELOPER_TOOLS", "MARKETING"]},
+  "testInput": {"apps": ["https://apps.apple.com/us/app/spotify-music-and-podcasts/id324684580", "Duolingo", "1"], "maxReviewsPerApp": 5}
+}

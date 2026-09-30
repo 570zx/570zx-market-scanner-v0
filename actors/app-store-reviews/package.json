@@ -1,0 +1,17 @@
+{
+  "name": "app-store-reviews",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Get iPhone and iPad app details (rating, rating count, version history, price, size, genre, description, screenshots) and the most recent customer reviews (rating, title, text, app version, date) from Apple's App Store, in any country. Paste App Store links, app IDs or app names.",
+  "scripts": {
+    "start": "node src/main.js",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "apify": "^3.2.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
