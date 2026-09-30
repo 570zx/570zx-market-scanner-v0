@@ -1,4 +1,4 @@
-# sitemap-urls  2026-09-30T16:24:51Z 3e1734e
+# sitemap-urls  2026-09-30T16:26:29Z ec026a8
 ## install
 ```
 npm warn deprecated lodash.isequal@4.5.0: This package is deprecated. Use require('node:util').isDeepStrictEqual instead.

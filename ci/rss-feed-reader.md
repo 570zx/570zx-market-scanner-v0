@@ -1,4 +1,4 @@
-# rss-feed-reader  2026-09-30T16:24:40Z 3e1734e
+# rss-feed-reader  2026-09-30T16:26:20Z ec026a8
 ## install
 ```
 npm warn deprecated lodash.isequal@4.5.0: This package is deprecated. Use require('node:util').isDeepStrictEqual instead.
@@ -22,6 +22,15 @@ added 187 packages in 2s
 ## items
 10 items
 ```json
+{"input": "https://feeds.bbci.co.uk/news/rss.xml", "status": "ok", "feedUrl": "https://feeds.bbci.co.uk/news/rss.xml", "feedTitle": "BBC News", "feedFormat": "rss2", "title": "'We've just taken control': Passengers describe what happened on flight", "link": "https://www.bbc.co.uk/news/videos/cv70d22kd34do?at_medium=RSS&at_campaign=rss", "guid": "https://www.bbc.co.uk/news/videos/cv70d22kd34do#1", "published": "2026-09-30T15:07:00.000Z", "updated": null, "author": null, "categories": [], "summary": "Passengers on the Flydubai flight bound for Israel filmed the moments following the stabbing.", "image": "https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/ee3c/live/4572b2f0-bcea-11f1-babe-4199b0e7ccea.jpg", "enclosureUrl": null, "enclosureType": null, "durationSeconds": null}
+```
+```json
+{"input": "https://feeds.bbci.co.uk/news/rss.xml", "status": "ok", "feedUrl": "https://feeds.bbci.co.uk/news/rss.xml", "feedTitle": "BBC News", "feedFormat": "rss2", "title": "UK believes Iran involved in RAF Fairford incident, PM says", "link": "https://www.bbc.co.uk/news/articles/cjwyz59k5y75o?at_medium=RSS&at_campaign=rss", "guid": "https://www.bbc.co.uk/news/articles/cjwyz59k5y75o#1", "published": "2026-09-30T15:59:51.000Z", "updated": null, "author": null, "categories": [], "summary": "The prime minister's comments come days after the suspects were released on the 'strictest possible bail conditions'.", "image": "https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/1aad/live/f81efd40-bce1-11f1-a64c-550be9e3c66b.jpg", "enclosureUrl": null, "enclosureType": null, "durationSeconds": null}
+```
+```json
+{"input": "https://feeds.bbci.co.uk/news/rss.xml", "status": "ok", "feedUrl": "https://feeds.bbci.co.uk/news/rss.xml", "feedTitle": "BBC News", "feedFormat": "rss2", "title": "China funding UK research and sending it to Beijing's spies, MI5 warns", "link": "https://www.bbc.co.uk/news/articles/cwy7zrljp527o?at_medium=RSS&at_campaign=rss", "guid": "https://www.bbc.co.uk/news/articles/cwy7zrljp527o#1", "published": "2026-09-30T13:49:38.000Z", "updated": null, "author": null, "categories": [], "summary": "British universities are being urged to sever ties with China General Technology Research Institute which is linked to the Chinese Ministry of State Security (MSS).", "image": "https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/347f/live/b70622b0-bcd3-11f1-9f83-d9975ff80416.jpg", "enclosureUrl": null, "enclosureType": null, "durationSeconds": null}
+```
+```json
 {"input": "https://blog.apify.com/", "status": "ok", "feedUrl": "https://blog.apify.com/rss/", "feedTitle": "Apify Blog", "feedFormat": "rss2", "title": "Give your LangGraph agent real-time web data with Apify", "link": "https://blog.apify.com/langgraph-agent-web-data/", "guid": "6ab514320fbf470001cfa583", "published": "2026-09-30T10:07:16.000Z", "updated": null, "author": "Antonello Zanini", "categories": ["Tutorial", "AI agents", "MCP"], "summary": "Connect a LangGraph agent to Apify through the official langchain-apify integration or Apify MCP Server, and give it real-time web search, scraping, and social media data.", "image": "https://storage.ghost.io/c/f2/6e/f26ec999-9a90-4aee-a0d4-9b3ca2bb668f/content/images/2026/09/Langgraph-Agents.png", "enclosureUrl": null, "enclosureType": null, "durationSeconds": null}
 ```
 ```json
@@ -41,13 +50,4 @@ added 187 packages in 2s
 ```
 ```json
 {"input": "https://github.blog/feed/", "status": "ok", "feedUrl": "https://github.blog/feed/", "feedTitle": "The GitHub Blog", "feedFormat": "rss2", "title": "Highlights from Git 2.56", "link": "https://github.blog/open-source/git/highlights-from-git-2-56/", "guid": "https://github.blog/?p=99087", "published": "2026-09-28T17:23:33.000Z", "updated": null, "author": "Elijah Newren", "categories": ["Git", "Open Source"], "summary": "The open source Git project just released Git 2.56. Here is GitHub's look at some of the most interesting features and changes introduced since last time. The post Highlights from Git 2.56 appeared first on The GitHub Blog .", "image": null, "enclosureUrl": null, "enclosureType": null, "durationSeconds": null}
-```
-```json
-{"input": "https://feeds.bbci.co.uk/news/rss.xml", "status": "ok", "feedUrl": "https://feeds.bbci.co.uk/news/rss.xml", "feedTitle": "BBC News", "feedFormat": "rss2", "title": "'We've just taken control': Passengers describe what happened on flight", "link": "https://www.bbc.co.uk/news/videos/cv70d22kd34do?at_medium=RSS&at_campaign=rss", "guid": "https://www.bbc.co.uk/news/videos/cv70d22kd34do#1", "published": "2026-09-30T15:07:00.000Z", "updated": null, "author": null, "categories": [], "summary": "Passengers on the Flydubai flight bound for Israel filmed the moments following the stabbing.", "image": "https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/ee3c/live/4572b2f0-bcea-11f1-babe-4199b0e7ccea.jpg", "enclosureUrl": null, "enclosureType": null, "durationSeconds": null}
-```
-```json
-{"input": "https://feeds.bbci.co.uk/news/rss.xml", "status": "ok", "feedUrl": "https://feeds.bbci.co.uk/news/rss.xml", "feedTitle": "BBC News", "feedFormat": "rss2", "title": "UK believes Iran involved in RAF Fairford incident, PM says", "link": "https://www.bbc.co.uk/news/articles/cjwyz59k5y75o?at_medium=RSS&at_campaign=rss", "guid": "https://www.bbc.co.uk/news/articles/cjwyz59k5y75o#1", "published": "2026-09-30T15:59:51.000Z", "updated": null, "author": null, "categories": [], "summary": "The prime minister's comments come days after the suspects were released on the 'strictest possible bail conditions'.", "image": "https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/1aad/live/f81efd40-bce1-11f1-a64c-550be9e3c66b.jpg", "enclosureUrl": null, "enclosureType": null, "durationSeconds": null}
-```
-```json
-{"input": "https://feeds.bbci.co.uk/news/rss.xml", "status": "ok", "feedUrl": "https://feeds.bbci.co.uk/news/rss.xml", "feedTitle": "BBC News", "feedFormat": "rss2", "title": "China funding UK research and sending it to Beijing's spies, MI5 warns", "link": "https://www.bbc.co.uk/news/articles/cwy7zrljp527o?at_medium=RSS&at_campaign=rss", "guid": "https://www.bbc.co.uk/news/articles/cwy7zrljp527o#1", "published": "2026-09-30T13:49:38.000Z", "updated": null, "author": null, "categories": [], "summary": "British universities are being urged to sever ties with China General Technology Research Institute which is linked to the Chinese Ministry of State Security (MSS).", "image": "https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/347f/live/b70622b0-bcd3-11f1-9f83-d9975ff80416.jpg", "enclosureUrl": null, "enclosureType": null, "durationSeconds": null}
 ```
