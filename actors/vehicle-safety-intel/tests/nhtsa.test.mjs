@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {NhtsaClient, buildReport, pickModel, checkDigitOk, normalizeVin, VIN_RE, parseNhtsaDate, summarizeComplaints, decodeStatus} from '../src/nhtsa.js';
+import {NhtsaClient, buildReport, pickModels, checkDigitOk, normalizeVin, VIN_RE, parseNhtsaDate, summarizeComplaints, decodeStatus} from '../src/nhtsa.js';
 
 const jres = (obj, status = 200) => ({status, ok: status < 400, text: async () => JSON.stringify(obj)});
 
@@ -112,12 +112,13 @@ test('options switch off lookups', async () => {
   assert.equal(item.recalls, undefined);
 });
 
-test('pickModel handles NHTSA spelling differences', () => {
-  assert.equal(pickModel(['F150', 'F250'], 'F-150'), 'F150');
-  assert.equal(pickModel(['NEW BEETLE', 'JETTA'], 'Beetle'), 'NEW BEETLE');
-  assert.equal(pickModel(['MODEL 3', 'MODEL S'], 'Model 3'), 'MODEL 3');
-  assert.equal(pickModel(['CIVIC'], 'Accord'), null);
-  assert.equal(pickModel([], 'Accord'), null);
+test('pickModels handles NHTSA spelling differences', () => {
+  assert.deepEqual(pickModels(['F150', 'F250'], 'F-150'), ['F150']);
+  assert.deepEqual(pickModels(['F-150 SUPERCAB', 'F-150 SUPERCREW', 'RANGER'], 'F-150'), ['F-150 SUPERCAB', 'F-150 SUPERCREW']);
+  assert.deepEqual(pickModels(['NEW BEETLE', 'JETTA'], 'Beetle'), ['NEW BEETLE']);
+  assert.deepEqual(pickModels(['MODEL 3', 'MODEL S'], 'Model 3'), ['MODEL 3']);
+  assert.deepEqual(pickModels(['CIVIC'], 'Accord'), []);
+  assert.deepEqual(pickModels([], 'Accord'), []);
 });
 
 test('resolved model name is used in the lookup and 400 means no records', async () => {
@@ -133,4 +134,17 @@ test('resolved model name is used in the lookup and 400 means no records', async
   assert.equal(item.complaintCount, 0);
   assert.equal(item.recallCount, 1);
   assert.equal(item.status, 'ok');
+});
+
+test('several matching model names are merged without duplicates', async () => {
+  const f = fakeFetch([
+    ['DecodeVinValues', {Results: [{ErrorCode: '0', Make: 'FORD', Model: 'F-150', ModelYear: '2013'}]}],
+    ['products/vehicle/models', {results: [{model: 'F-150 SUPERCAB'}, {model: 'F-150 SUPERCREW'}]}],
+    ['recallsByVehicle', url => jres({results: url.includes('SUPERCAB') ? [{NHTSACampaignNumber: 'A'}, {NHTSACampaignNumber: 'B'}] : [{NHTSACampaignNumber: 'B'}, {NHTSACampaignNumber: 'C'}]})],
+    ['complaintsByVehicle', {results: []}],
+    ['SafetyRatings/modelyear', {Results: []}]
+  ]);
+  const {item} = await buildReport(fast(f), '1HGCM82633A004352', {});
+  assert.equal(item.recallCount, 3);
+  assert.deepEqual(item.recallsMatchedModels, ['F-150 SUPERCAB', 'F-150 SUPERCREW']);
 });

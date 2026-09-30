@@ -9,7 +9,7 @@ for (const v of vins) {
   const ms = Date.now() - t;
   if (billable) ok++;
   console.log(`## ${v}  status=${item.status} billable=${billable} (${ms} ms)`);
-  console.log(`${item.year} ${item.make} ${item.model} | recalls ${item.recallCount} (model "${item.recallsModelName}") | complaints ${item.complaintCount} (model "${item.complaintsModelName}") | NCAP ${item.overallSafetyRating} | warnings: ${JSON.stringify(item.warnings)}`);
+  console.log(`${item.year} ${item.make} ${item.model} | recalls ${item.recallCount} (${JSON.stringify(item.recallsMatchedModels)}) | complaints ${item.complaintCount} (${JSON.stringify(item.complaintsMatchedModels)}) | NCAP ${item.overallSafetyRating} | warnings: ${JSON.stringify(item.warnings)}`);
 }
 console.log(`\nbillable ${ok} of ${vins.length}`);
 if (ok < 2) process.exit(1);

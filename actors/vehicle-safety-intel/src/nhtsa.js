@@ -76,25 +76,32 @@ export class NhtsaClient {
     return this.modelCache.get(key);
   }
 
-  async resolveModel(issueType, make, model, year) {
+  async resolveModels(issueType, make, model, year) {
     let names = [];
     try { names = await this.modelNames(issueType, make, year); } catch { /* fall back to the decoded name */ }
-    return pickModel(names, model) ?? model;
+    const picked = pickModels(names, model);
+    return picked.length ? picked : [model];
   }
 
-  async recalls({make, model, year}) {
-    const m = await this.resolveModel('r', make, model, year);
-    const q = `make=${encodeURIComponent(make)}&model=${encodeURIComponent(m)}&modelYear=${year}`;
-    const j = await this.getJson(`${API}/recalls/recallsByVehicle?${q}`, {emptyOn400: true});
-    return {model: m, rows: j?.results ?? []};
+  async byModels(path, issueType, {make, model, year}, keyOf) {
+    const models = await this.resolveModels(issueType, make, model, year);
+    const rows = [], seen = new Set();
+    for (const m of models) {
+      const q = `make=${encodeURIComponent(make)}&model=${encodeURIComponent(m)}&modelYear=${year}`;
+      const j = await this.getJson(`${API}/${path}?${q}`, {emptyOn400: true});
+      for (const r of j?.results ?? []) {
+        const k = keyOf(r);
+        if (k != null && seen.has(k)) continue;
+        if (k != null) seen.add(k);
+        rows.push(r);
+      }
+    }
+    return {models, rows};
   }
 
-  async complaints({make, model, year}) {
-    const m = await this.resolveModel('c', make, model, year);
-    const q = `make=${encodeURIComponent(make)}&model=${encodeURIComponent(m)}&modelYear=${year}`;
-    const j = await this.getJson(`${API}/complaints/complaintsByVehicle?${q}`, {emptyOn400: true});
-    return {model: m, rows: j?.results ?? []};
-  }
+  recalls(v) { return this.byModels('recalls/recallsByVehicle', 'r', v, r => r.NHTSACampaignNumber); }
+
+  complaints(v) { return this.byModels('complaints/complaintsByVehicle', 'c', v, r => r.odiNumber); }
 
   // Ratings are per "variant" (VehicleId); a model year can have several. Returns the variants that have ratings.
   async ratings({make, model, year}) {
@@ -113,15 +120,14 @@ export class NhtsaClient {
 
 const squash = v => String(v ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 
-// Pick the database's spelling of a model: exact after ignoring punctuation and case, else the
-// shortest name that contains (or is contained in) the decoded name.
-export function pickModel(names, model) {
+// The database's spellings of a model: every name equal to it once punctuation and case are ignored;
+// failing that, up to 5 shortest names that contain it (or that it contains), e.g. "F-150" -> "F-150 SUPERCAB".
+export function pickModels(names, model) {
   const want = squash(model);
-  if (!want || !names?.length) return null;
-  const exact = names.find(n => squash(n) === want);
-  if (exact) return exact;
-  const near = names.filter(n => squash(n).includes(want) || want.includes(squash(n))).sort((a, b) => a.length - b.length);
-  return near[0] ?? null;
+  if (!want || !names?.length) return [];
+  const exact = names.filter(n => squash(n) === want);
+  if (exact.length) return exact;
+  return names.filter(n => squash(n).includes(want) || (squash(n).length >= 3 && want.includes(squash(n)))).sort((a, b) => a.length - b.length || (a < b ? -1 : 1)).slice(0, 5);
 }
 
 export function specsFromDecode(d) {
@@ -257,16 +263,16 @@ export async function buildReport(client, rawVin, opts) {
   const veh = {make: specs.make, model: specs.model, year: specs.year};
 
   const tasks = [];
-  if (includeRecalls) tasks.push(client.recalls(veh).then(({model, rows}) => {
+  if (includeRecalls) tasks.push(client.recalls(veh).then(({models, rows}) => {
     const list = summarizeRecalls(rows);
-    item.recallsModelName = model;
+    item.recallsMatchedModels = models;
     item.recallCount = list.length;
     item.recallsNote = 'Recall campaigns that apply to this make, model and year. NHTSA does not publish whether this specific car was already repaired: check with the manufacturer or a dealer using the VIN.';
     item.recalls = list;
   }));
-  if (includeComplaints) tasks.push(client.complaints(veh).then(({model, rows}) => {
+  if (includeComplaints) tasks.push(client.complaints(veh).then(({models, rows}) => {
     const s = summarizeComplaints(rows, maxComplaintsPerVehicle);
-    item.complaintsModelName = model;
+    item.complaintsMatchedModels = models;
     item.complaintCount = s.total;
     item.complaintSummary = {crashes: s.crashes, fires: s.fires, injuries: s.injuries, deaths: s.deaths, topComponents: s.topComponents};
     item.recentComplaints = s.recent;
