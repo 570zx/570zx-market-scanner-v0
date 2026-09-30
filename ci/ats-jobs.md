@@ -1,9 +1,9 @@
-# ats-jobs  2026-09-30T16:17:07Z fa72530
+# ats-jobs  2026-09-30T16:18:13Z 5c69f2c
 ## install
 ```
 npm warn deprecated lodash.isequal@4.5.0: This package is deprecated. Use require('node:util').isDeepStrictEqual instead.
 
-added 187 packages in 6s
+added 187 packages in 7s
 ```
 ## unit tests
 ```
@@ -16,7 +16,7 @@ added 187 packages in 6s
 [33mWARN[39m  Ignored attempt to charge for an event - the Actor does not use the pay-per-event pricing
 [32mINFO[39m  [Status message]: Companies 1/5, jobs 50
 [32mINFO[39m  [Status message]: Companies 2/5, jobs 426
-[32mINFO[39m  [Status message]: Companies 3/5, jobs 433
+[32mINFO[39m  [Status message]: Companies 3/5, jobs 455
 [32mINFO[39m  [Status message]: Companies 4/5, jobs 462
 [32mINFO[39m  [Status message]: Read 4 job boards, 462 jobs returned.
 ```
