@@ -1,0 +1,19 @@
+# Apify terms and docs (developer economics, publishing rules)
+https://docs.apify.com/platform/actors/publishing/monetize.md
+https://docs.apify.com/platform/actors/publishing/monetize/pay-per-event.md
+https://docs.apify.com/platform/actors/publishing/monetize
+https://docs.apify.com/platform/actors/publishing/monetize/pay-per-event
+https://docs.apify.com/academy/actor-marketing-playbook/store-basics/how-actor-monetization-works
+https://help.apify.com/en/articles/10057167-how-developer-payouts-work
+https://help.apify.com/en/articles/8684010-make-money-publishing-your-actors-on-apify-store
+https://help.apify.com/en/articles/12800725-ship-your-actor-and-get-paid
+https://docs.apify.com/legal/store-publishing-terms-and-conditions
+https://docs.apify.com/platform/actors/publishing/publish
+https://docs.apify.com/platform/actors/publishing/quality-score
+https://apify.com/partners/actor-developers
+https://docs.apify.com/llms.txt
+# Write-ups on what earns
+https://agentbyline.com/articles/apify-actor-passive-income-what-really-earns-in-2026-67lcfr
+https://blog.apify.com/building-98-actors-on-apify-store/
+https://godberrystudios.com/posts/apify-pay-per-event-migration-playbook-2026/
+https://use-apify.com/docs/apify-for-developers/monetize-actors
