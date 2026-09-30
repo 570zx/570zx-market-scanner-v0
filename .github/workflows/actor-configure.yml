@@ -1,0 +1,41 @@
+name: Actor configure
+
+# Sets price (pay per event), categories and Store visibility for the Vehicle
+# Safety Intel Actor through the Apify API. Visibility is only switched on after
+# the price is confirmed. Writes the outcome to the actor-results branch.
+
+on:
+  workflow_dispatch:
+    inputs:
+      make_public:
+        description: "Make the Actor public in Apify Store after pricing is set"
+        required: true
+        default: "true"
+
+permissions:
+  contents: write
+
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure through the Apify API
+        env:
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          MAKE_PUBLIC: ${{ inputs.make_public }}
+        run: python3 actors/configure.py 2>&1 | tee CONFIGURE.md
+      - name: Save outcome
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          work="$RUNNER_TEMP/c"
+          git clone --quiet --depth 1 --branch actor-results "$remote" "$work"
+          cp CONFIGURE.md "$work/CONFIGURE.md"
+          git -C "$work" config user.name "actor-configure"; git -C "$work" config user.email "actor-configure@users.noreply.github.com"
+          git -C "$work" add -A; git -C "$work" commit --quiet -m "Actor configure report" || true
+          git -C "$work" push --quiet origin HEAD:actor-results
