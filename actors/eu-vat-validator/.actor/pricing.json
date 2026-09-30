@@ -1,0 +1,9 @@
+{
+  "events": {
+    "vat-check": {
+      "title": "VAT number checked",
+      "description": "One number checked, including numbers found invalid or badly formatted. Numbers VIES can't answer (national system down) are free.",
+      "price": 0.002
+    }
+  }
+}

@@ -9,3 +9,4 @@ ssl-certificate-checker
 domain-rdap-lookup
 app-store-reviews
 rss-feed-reader
+eu-vat-validator
