@@ -4,8 +4,8 @@ current: isPublic False categories None pricingInfos null
 
 set pricing/categories: HTTP 400
 {
- "type": "cannot-monetize-without-payout-billing-info",
- "message": "To monetize your Actor, you need to set your payout billing info at https://console.apify.com/actors/IFgedzUMAOip8F0co/publication."
+ "type": "schema-validation",
+ "message": "Invalid value provided in updatedActor: seoTitle must be at most 60 characters long Received \"VIN Decoder API with Recalls, Complaints and Crash Ratings (NHTSA)\""
 }
 
 pricing confirmed: False
