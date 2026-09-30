@@ -1,0 +1,1222 @@
+[
+ {
+  "id": "orb_1_5R",
+  "stats": {
+   "days": 40,
+   "trades": 62,
+   "tradesPerDay": 1.55,
+   "winRatePct": 43.55,
+   "avgTradePct": -0.62,
+   "avgR": -0.17,
+   "final": 218.78,
+   "returnPct": -12.49,
+   "maxDrawdownPct": 14.68,
+   "earlyReturnPct": -13.43,
+   "lastTenReturnPct": 1.09,
+   "byReason": {
+    "close": {
+     "n": 42,
+     "avgPct": -0.58,
+     "pnl": -18.58
+    },
+    "stop": {
+     "n": 11,
+     "avgPct": -5.45,
+     "pnl": -46.26
+    },
+    "target": {
+     "n": 9,
+     "avgPct": 5.08,
+     "pnl": 33.62
+    }
+   }
+  },
+  "stress": {
+   "days": 40,
+   "trades": 62,
+   "tradesPerDay": 1.55,
+   "winRatePct": 25.81,
+   "avgTradePct": -1.61,
+   "avgR": -0.43,
+   "final": 178.06,
+   "returnPct": -28.78,
+   "maxDrawdownPct": 28.78,
+   "earlyReturnPct": -25.93,
+   "lastTenReturnPct": -3.84,
+   "byReason": {
+    "close": {
+     "n": 42,
+     "avgPct": -1.57,
+     "pnl": -45.98
+    },
+    "stop": {
+     "n": 11,
+     "avgPct": -6.39,
+     "pnl": -49.96
+    },
+    "target": {
+     "n": 9,
+     "avgPct": 4.04,
+     "pnl": 24
+    }
+   }
+  },
+  "curve": [
+   {
+    "date": "2026-08-03",
+    "equity": 246.99,
+    "pnl": -3.01,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-04",
+    "equity": 249.16,
+    "pnl": 2.17,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-05",
+    "equity": 245.15,
+    "pnl": -4.01,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-06",
+    "equity": 241.85,
+    "pnl": -3.3,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-07",
+    "equity": 243.97,
+    "pnl": 2.12,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-10",
+    "equity": 233.48,
+    "pnl": -10.5,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-11",
+    "equity": 230.42,
+    "pnl": -3.06,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-12",
+    "equity": 226.91,
+    "pnl": -3.51,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-13",
+    "equity": 230.86,
+    "pnl": 3.96,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-14",
+    "equity": 230.86,
+    "pnl": 0,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-17",
+    "equity": 231.15,
+    "pnl": 0.28,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-18",
+    "equity": 235.42,
+    "pnl": 4.27,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-19",
+    "equity": 238.46,
+    "pnl": 3.04,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-20",
+    "equity": 238.14,
+    "pnl": -0.32,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-21",
+    "equity": 231.93,
+    "pnl": -6.2,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-24",
+    "equity": 223.18,
+    "pnl": -8.75,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-25",
+    "equity": 222.23,
+    "pnl": -0.95,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-26",
+    "equity": 217.65,
+    "pnl": -4.58,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-27",
+    "equity": 215.19,
+    "pnl": -2.46,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-28",
+    "equity": 215.19,
+    "pnl": 0,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-31",
+    "equity": 215.95,
+    "pnl": 0.76,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-01",
+    "equity": 223.12,
+    "pnl": 7.17,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-02",
+    "equity": 223.78,
+    "pnl": 0.65,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-03",
+    "equity": 225.88,
+    "pnl": 2.1,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-04",
+    "equity": 223.29,
+    "pnl": -2.58,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-08",
+    "equity": 218.32,
+    "pnl": -4.97,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-09",
+    "equity": 218.32,
+    "pnl": 0,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-10",
+    "equity": 216.23,
+    "pnl": -2.09,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-11",
+    "equity": 216.23,
+    "pnl": 0,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-14",
+    "equity": 216.42,
+    "pnl": 0.19,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-15",
+    "equity": 213.48,
+    "pnl": -2.94,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-16",
+    "equity": 213.45,
+    "pnl": -0.03,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-17",
+    "equity": 213.29,
+    "pnl": -0.16,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-18",
+    "equity": 220.73,
+    "pnl": 7.44,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-21",
+    "equity": 220.73,
+    "pnl": 0,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-22",
+    "equity": 222.97,
+    "pnl": 2.23,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-23",
+    "equity": 220.99,
+    "pnl": -1.98,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-24",
+    "equity": 220,
+    "pnl": -0.99,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-25",
+    "equity": 220,
+    "pnl": 0,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-28",
+    "equity": 218.78,
+    "pnl": -1.22,
+    "candidates": 3
+   }
+  ]
+ },
+ {
+  "id": "orb_2R",
+  "stats": {
+   "days": 40,
+   "trades": 62,
+   "tradesPerDay": 1.55,
+   "winRatePct": 41.94,
+   "avgTradePct": -0.84,
+   "avgR": -0.19,
+   "final": 209.11,
+   "returnPct": -16.36,
+   "maxDrawdownPct": 18.91,
+   "earlyReturnPct": -17.62,
+   "lastTenReturnPct": 1.54,
+   "byReason": {
+    "close": {
+     "n": 49,
+     "avgPct": 0.06,
+     "pnl": 0.3
+    },
+    "stop": {
+     "n": 11,
+     "avgPct": -5.45,
+     "pnl": -44.73
+    },
+    "target": {
+     "n": 2,
+     "avgPct": 2.43,
+     "pnl": 3.53
+    }
+   }
+  },
+  "stress": {
+   "days": 40,
+   "trades": 62,
+   "tradesPerDay": 1.55,
+   "winRatePct": 22.58,
+   "avgTradePct": -1.82,
+   "avgR": -0.46,
+   "final": 170.21,
+   "returnPct": -31.91,
+   "maxDrawdownPct": 32.21,
+   "earlyReturnPct": -29.51,
+   "lastTenReturnPct": -3.42,
+   "byReason": {
+    "close": {
+     "n": 49,
+     "avgPct": -0.93,
+     "pnl": -33.27
+    },
+    "stop": {
+     "n": 11,
+     "avgPct": -6.39,
+     "pnl": -48.35
+    },
+    "target": {
+     "n": 2,
+     "avgPct": 1.41,
+     "pnl": 1.83
+    }
+   }
+  },
+  "curve": [
+   {
+    "date": "2026-08-03",
+    "equity": 246.99,
+    "pnl": -3.01,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-04",
+    "equity": 249.16,
+    "pnl": 2.17,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-05",
+    "equity": 245.15,
+    "pnl": -4.01,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-06",
+    "equity": 241.85,
+    "pnl": -3.3,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-07",
+    "equity": 243.97,
+    "pnl": 2.12,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-10",
+    "equity": 233.48,
+    "pnl": -10.5,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-11",
+    "equity": 230.42,
+    "pnl": -3.06,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-12",
+    "equity": 226.91,
+    "pnl": -3.51,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-13",
+    "equity": 220.92,
+    "pnl": -5.98,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-14",
+    "equity": 220.92,
+    "pnl": 0,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-17",
+    "equity": 221.19,
+    "pnl": 0.27,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-18",
+    "equity": 223.53,
+    "pnl": 2.34,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-19",
+    "equity": 226.42,
+    "pnl": 2.89,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-20",
+    "equity": 226.64,
+    "pnl": 0.22,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-21",
+    "equity": 220.74,
+    "pnl": -5.9,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-24",
+    "equity": 212.41,
+    "pnl": -8.33,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-25",
+    "equity": 211.5,
+    "pnl": -0.91,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-26",
+    "equity": 207.14,
+    "pnl": -4.36,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-27",
+    "equity": 204.8,
+    "pnl": -2.34,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-28",
+    "equity": 204.8,
+    "pnl": 0,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-31",
+    "equity": 205.52,
+    "pnl": 0.73,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-01",
+    "equity": 212.73,
+    "pnl": 7.21,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-02",
+    "equity": 213.36,
+    "pnl": 0.62,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-03",
+    "equity": 216.08,
+    "pnl": 2.72,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-04",
+    "equity": 213.61,
+    "pnl": -2.47,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-08",
+    "equity": 208.85,
+    "pnl": -4.76,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-09",
+    "equity": 208.85,
+    "pnl": 0,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-10",
+    "equity": 206.85,
+    "pnl": -2,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-11",
+    "equity": 206.85,
+    "pnl": 0,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-14",
+    "equity": 205.94,
+    "pnl": -0.91,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-15",
+    "equity": 203.14,
+    "pnl": -2.8,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-16",
+    "equity": 203.1,
+    "pnl": -0.03,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-17",
+    "equity": 202.71,
+    "pnl": -0.39,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-18",
+    "equity": 210.97,
+    "pnl": 8.26,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-21",
+    "equity": 210.97,
+    "pnl": 0,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-22",
+    "equity": 213.11,
+    "pnl": 2.14,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-23",
+    "equity": 211.22,
+    "pnl": -1.89,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-24",
+    "equity": 210.27,
+    "pnl": -0.94,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-25",
+    "equity": 210.27,
+    "pnl": 0,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-28",
+    "equity": 209.11,
+    "pnl": -1.17,
+    "candidates": 3
+   }
+  ]
+ },
+ {
+  "id": "orb_3R",
+  "stats": {
+   "days": 40,
+   "trades": 62,
+   "tradesPerDay": 1.55,
+   "winRatePct": 41.94,
+   "avgTradePct": -0.82,
+   "avgR": -0.19,
+   "final": 209.73,
+   "returnPct": -16.11,
+   "maxDrawdownPct": 18.67,
+   "earlyReturnPct": -17.38,
+   "lastTenReturnPct": 1.54,
+   "byReason": {
+    "close": {
+     "n": 50,
+     "avgPct": 0.08,
+     "pnl": 0.83
+    },
+    "stop": {
+     "n": 11,
+     "avgPct": -5.45,
+     "pnl": -44.69
+    },
+    "target": {
+     "n": 1,
+     "avgPct": 5.06,
+     "pnl": 3.59
+    }
+   }
+  },
+  "stress": {
+   "days": 40,
+   "trades": 62,
+   "tradesPerDay": 1.55,
+   "winRatePct": 20.97,
+   "avgTradePct": -1.81,
+   "avgR": -0.45,
+   "final": 170.73,
+   "returnPct": -31.71,
+   "maxDrawdownPct": 32,
+   "earlyReturnPct": -29.3,
+   "lastTenReturnPct": -3.41,
+   "byReason": {
+    "close": {
+     "n": 50,
+     "avgPct": -0.92,
+     "pnl": -33.48
+    },
+    "stop": {
+     "n": 11,
+     "avgPct": -6.39,
+     "pnl": -48.3
+    },
+    "target": {
+     "n": 1,
+     "avgPct": 4.02,
+     "pnl": 2.51
+    }
+   }
+  },
+  "curve": [
+   {
+    "date": "2026-08-03",
+    "equity": 246.99,
+    "pnl": -3.01,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-04",
+    "equity": 249.16,
+    "pnl": 2.17,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-05",
+    "equity": 245.15,
+    "pnl": -4.01,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-06",
+    "equity": 241.85,
+    "pnl": -3.3,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-07",
+    "equity": 243.97,
+    "pnl": 2.12,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-10",
+    "equity": 233.48,
+    "pnl": -10.5,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-11",
+    "equity": 230.42,
+    "pnl": -3.06,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-12",
+    "equity": 226.91,
+    "pnl": -3.51,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-13",
+    "equity": 220.92,
+    "pnl": -5.98,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-14",
+    "equity": 220.92,
+    "pnl": 0,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-17",
+    "equity": 221.19,
+    "pnl": 0.27,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-18",
+    "equity": 223.53,
+    "pnl": 2.34,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-19",
+    "equity": 226.42,
+    "pnl": 2.89,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-20",
+    "equity": 225.82,
+    "pnl": -0.6,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-21",
+    "equity": 219.93,
+    "pnl": -5.88,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-24",
+    "equity": 211.64,
+    "pnl": -8.3,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-25",
+    "equity": 210.73,
+    "pnl": -0.91,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-26",
+    "equity": 206.39,
+    "pnl": -4.34,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-27",
+    "equity": 204.06,
+    "pnl": -2.33,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-28",
+    "equity": 204.06,
+    "pnl": 0,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-31",
+    "equity": 204.78,
+    "pnl": 0.72,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-01",
+    "equity": 211.96,
+    "pnl": 7.18,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-02",
+    "equity": 212.58,
+    "pnl": 0.62,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-03",
+    "equity": 216.72,
+    "pnl": 4.14,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-04",
+    "equity": 214.25,
+    "pnl": -2.48,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-08",
+    "equity": 209.47,
+    "pnl": -4.77,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-09",
+    "equity": 209.47,
+    "pnl": 0,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-10",
+    "equity": 207.47,
+    "pnl": -2.01,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-11",
+    "equity": 207.47,
+    "pnl": 0,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-14",
+    "equity": 206.55,
+    "pnl": -0.92,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-15",
+    "equity": 203.74,
+    "pnl": -2.81,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-16",
+    "equity": 203.71,
+    "pnl": -0.03,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-17",
+    "equity": 203.32,
+    "pnl": -0.39,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-18",
+    "equity": 211.6,
+    "pnl": 8.28,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-21",
+    "equity": 211.6,
+    "pnl": 0,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-22",
+    "equity": 213.74,
+    "pnl": 2.14,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-23",
+    "equity": 211.85,
+    "pnl": -1.9,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-24",
+    "equity": 210.9,
+    "pnl": -0.95,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-25",
+    "equity": 210.9,
+    "pnl": 0,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-28",
+    "equity": 209.73,
+    "pnl": -1.17,
+    "candidates": 3
+   }
+  ]
+ },
+ {
+  "id": "orb_2R_gap5",
+  "stats": {
+   "days": 40,
+   "trades": 69,
+   "tradesPerDay": 1.73,
+   "winRatePct": 40.58,
+   "avgTradePct": -0.51,
+   "avgR": -0.17,
+   "final": 220.63,
+   "returnPct": -11.75,
+   "maxDrawdownPct": 15.59,
+   "earlyReturnPct": -9.95,
+   "lastTenReturnPct": -1.99,
+   "byReason": {
+    "close": {
+     "n": 54,
+     "avgPct": 0.21,
+     "pnl": 7.65
+    },
+    "stop": {
+     "n": 12,
+     "avgPct": -5.28,
+     "pnl": -49.39
+    },
+    "target": {
+     "n": 3,
+     "avgPct": 5.55,
+     "pnl": 12.37
+    }
+   }
+  },
+  "stress": {
+   "days": 40,
+   "trades": 69,
+   "tradesPerDay": 1.73,
+   "winRatePct": 26.09,
+   "avgTradePct": -1.5,
+   "avgR": -0.42,
+   "final": 175.38,
+   "returnPct": -29.85,
+   "maxDrawdownPct": 29.85,
+   "earlyReturnPct": -24.26,
+   "lastTenReturnPct": -7.37,
+   "byReason": {
+    "close": {
+     "n": 54,
+     "avgPct": -0.79,
+     "pnl": -30.46
+    },
+    "stop": {
+     "n": 12,
+     "avgPct": -6.22,
+     "pnl": -52.75
+    },
+    "target": {
+     "n": 3,
+     "avgPct": 4.5,
+     "pnl": 8.6
+    }
+   }
+  },
+  "curve": [
+   {
+    "date": "2026-08-03",
+    "equity": 243.89,
+    "pnl": -6.11,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-04",
+    "equity": 246.03,
+    "pnl": 2.14,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-05",
+    "equity": 243.03,
+    "pnl": -3,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-06",
+    "equity": 243.03,
+    "pnl": 0,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-07",
+    "equity": 242.39,
+    "pnl": -0.64,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-10",
+    "equity": 235.47,
+    "pnl": -6.92,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-11",
+    "equity": 229.06,
+    "pnl": -6.41,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-12",
+    "equity": 225.57,
+    "pnl": -3.49,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-13",
+    "equity": 226.45,
+    "pnl": 0.88,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-14",
+    "equity": 226.45,
+    "pnl": 0,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-17",
+    "equity": 230.27,
+    "pnl": 3.82,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-18",
+    "equity": 233.16,
+    "pnl": 2.89,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-19",
+    "equity": 236.17,
+    "pnl": 3.01,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-20",
+    "equity": 237.98,
+    "pnl": 1.81,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-21",
+    "equity": 229.76,
+    "pnl": -8.22,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-24",
+    "equity": 221.7,
+    "pnl": -8.05,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-25",
+    "equity": 217.34,
+    "pnl": -4.36,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-26",
+    "equity": 211.02,
+    "pnl": -6.32,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-27",
+    "equity": 211.73,
+    "pnl": 0.71,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-28",
+    "equity": 211.73,
+    "pnl": 0,
+    "candidates": 3
+   },
+   {
+    "date": "2026-08-31",
+    "equity": 213.35,
+    "pnl": 1.61,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-01",
+    "equity": 220.83,
+    "pnl": 7.48,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-02",
+    "equity": 222.81,
+    "pnl": 1.98,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-03",
+    "equity": 233.37,
+    "pnl": 10.56,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-04",
+    "equity": 233.31,
+    "pnl": -0.06,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-08",
+    "equity": 233.31,
+    "pnl": 0,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-09",
+    "equity": 233.19,
+    "pnl": -0.12,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-10",
+    "equity": 227.99,
+    "pnl": -5.2,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-11",
+    "equity": 225.12,
+    "pnl": -2.87,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-14",
+    "equity": 225.12,
+    "pnl": 0,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-15",
+    "equity": 222.97,
+    "pnl": -2.16,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-16",
+    "equity": 222.93,
+    "pnl": -0.04,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-17",
+    "equity": 218.65,
+    "pnl": -4.28,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-18",
+    "equity": 226.7,
+    "pnl": 8.04,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-21",
+    "equity": 226.7,
+    "pnl": 0,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-22",
+    "equity": 228.99,
+    "pnl": 2.29,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-23",
+    "equity": 228.3,
+    "pnl": -0.69,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-24",
+    "equity": 228.3,
+    "pnl": 0,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-25",
+    "equity": 226.75,
+    "pnl": -1.55,
+    "candidates": 3
+   },
+   {
+    "date": "2026-09-28",
+    "equity": 220.63,
+    "pnl": -6.12,
+    "candidates": 3
+   }
+  ]
+ }
+]
