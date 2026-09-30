@@ -1,0 +1,9 @@
+{
+  "events": {
+    "website": {
+      "title": "Website analysed",
+      "description": "One website fetched and analysed. Unreachable, blocked or error pages are free.",
+      "price": 0.002
+    }
+  }
+}

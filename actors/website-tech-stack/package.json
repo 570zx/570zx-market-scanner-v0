@@ -1,0 +1,17 @@
+{
+  "name": "website-tech-stack",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Find the CMS, e-commerce platform, frameworks, analytics, ad pixels, hosting, CDN, payments and chat tools behind any website. Bulk domains, version numbers, evidence for each match.",
+  "scripts": {
+    "start": "node src/main.js",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "apify": "^3.2.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,75 @@
+{
+  "actorSpecification": 1,
+  "name": "website-tech-stack",
+  "title": "Website Tech Stack Detector (Wappalyzer / BuiltWith alternative)",
+  "description": "Find the CMS, e-commerce platform, frameworks, analytics, ad pixels, hosting, CDN, payments and chat tools behind any website. Bulk domains, version numbers, evidence for each match.",
+  "version": "0.1",
+  "buildTag": "latest",
+  "input": "./input_schema.json",
+  "output": "./output_schema.json",
+  "dockerfile": "../Dockerfile",
+  "storages": {
+    "dataset": {
+      "actorSpecification": 1,
+      "views": {
+        "overview": {
+          "title": "Websites",
+          "transformation": {
+            "fields": [
+              "inputUrl",
+              "status",
+              "cms",
+              "ecommerce",
+              "framework",
+              "hosting",
+              "cdn",
+              "technologyCount",
+              "technologyNames"
+            ]
+          },
+          "display": {
+            "component": "table",
+            "properties": {
+              "inputUrl": {
+                "label": "Website",
+                "format": "text"
+              },
+              "status": {
+                "label": "Status",
+                "format": "text"
+              },
+              "cms": {
+                "label": "CMS / builder",
+                "format": "text"
+              },
+              "ecommerce": {
+                "label": "E-commerce",
+                "format": "text"
+              },
+              "framework": {
+                "label": "Framework",
+                "format": "text"
+              },
+              "hosting": {
+                "label": "Hosting",
+                "format": "text"
+              },
+              "cdn": {
+                "label": "CDN",
+                "format": "text"
+              },
+              "technologyCount": {
+                "label": "Technologies",
+                "format": "number"
+              },
+              "technologyNames": {
+                "label": "All technologies",
+                "format": "array"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

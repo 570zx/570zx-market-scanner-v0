@@ -1,0 +1,83 @@
+name: Actors CI
+
+# For every Actor with a spec.json (or the one named on a manual run): install, unit tests,
+# then a local run through the Apify SDK on .actor/test-input.json against the real internet.
+# Reports to actor-results/ci/<actor>.md. Runs on pushes to actors-batch-* branches.
+
+on:
+  push:
+    branches: ["actors-batch-*"]
+    paths: [actors/**, .github/workflows/actors-ci.yml]
+  workflow_dispatch:
+    inputs:
+      actor:
+        description: "Actor folder (blank = all)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: actors-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Test and run each Actor
+        env:
+          ONLY: ${{ inputs.actor }}
+        run: |
+          set -u
+          mkdir -p "$RUNNER_TEMP/ci"
+          actors/sync-shared.sh --check > "$RUNNER_TEMP/ci/_shared-check.txt" 2>&1 || echo "SHARED COPIES OUT OF DATE" >> "$RUNNER_TEMP/ci/_shared-check.txt"
+          for spec in actors/*/spec.json; do
+            dir=$(dirname "$spec"); name=$(basename "$dir")
+            if [ -n "${ONLY:-}" ] && [ "$ONLY" != "$name" ]; then continue; fi
+            out="$RUNNER_TEMP/ci/$name.md"
+            ( cd "$dir"
+              echo "# $name  $(date -u +%FT%TZ) ${GITHUB_SHA::7}"
+              echo '## install'; echo '```'; npm install --no-audit --no-fund 2>&1 | tail -n 4; echo '```'
+              echo '## unit tests'; echo '```'; npm test 2>&1 | grep -E '^# (tests|pass|fail)|^not ok|Error' | head -n 30; echo '```'
+              rm -rf storage; mkdir -p storage/key_value_stores/default
+              cp .actor/test-input.json storage/key_value_stores/default/INPUT.json
+              echo '## local run on test input'; echo '```'
+              timeout 600 node src/main.js 2>&1 | grep -vE 'System info' | tail -n 15
+              echo '```'
+              echo '## items'
+              python3 - <<'PY'
+          import json, glob
+          files = sorted(glob.glob('storage/datasets/default/*.json'))
+          print(f'{len(files)} items')
+          for f in files[:12]:
+              d = json.load(open(f))
+              s = json.dumps(d, ensure_ascii=False)
+              print('```json'); print(s[:1400] + (' …' if len(s) > 1400 else '')); print('```')
+          PY
+            ) > "$out" 2>&1
+            echo "done $name"
+          done
+      - name: Publish CI report
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          for attempt in 1 2 3 4 5; do
+            work="$RUNNER_TEMP/r-$attempt"
+            git clone --quiet --depth 1 --branch actor-results "$remote" "$work"
+            mkdir -p "$work/ci"; cp "$RUNNER_TEMP"/ci/* "$work/ci/"
+            git -C "$work" config user.name "actors-ci"; git -C "$work" config user.email "actors-ci@users.noreply.github.com"
+            git -C "$work" add -A; git -C "$work" commit --quiet -m "Actors CI ${GITHUB_SHA::7}" || true
+            if git -C "$work" push --quiet origin HEAD:actor-results; then exit 0; fi
+            sleep $((attempt * 5))
+          done
+          exit 1
