@@ -1,0 +1,552 @@
+{
+ "period": [
+  "2025-07-01",
+  "2026-06-30"
+ ],
+ "errors": [
+  "/search/spending_by_award/: HTTP 422 b'{\"detail\":\"Invalid value in \\'filters|award_amounts|lower_bound\\': Input should be a valid integer, got a number with a fractional part\"}'"
+ ],
+ "bands": {
+  "micro (up to $15,000)": {
+   "count": 4580065,
+   "total": 6218986513
+  },
+  "simplified ($15,000\u2013$350,000)": {
+   "count": 687340,
+   "total": 36565426455
+  }
+ },
+ "nc_micro": {
+  "count": 198858,
+  "total": 223743727
+ },
+ "digital": {
+  "541511": {
+   "label": "Custom software programming",
+   "count": 251,
+   "total": 769701
+  },
+  "541512": {
+   "label": "Computer systems design",
+   "count": 3240,
+   "total": 13165128
+  },
+  "541519": {
+   "label": "Other computer related services",
+   "count": 5355,
+   "total": 28515559
+  },
+  "518210": {
+   "label": "Data processing and hosting",
+   "count": 276,
+   "total": 358969
+  },
+  "541690": {
+   "label": "Other scientific and technical consulting",
+   "count": 380,
+   "total": 408011
+  },
+  "541910": {
+   "label": "Marketing research",
+   "count": 24,
+   "total": -142395
+  },
+  "541611": {
+   "label": "Administrative management consulting",
+   "count": 731,
+   "total": -6241867
+  },
+  "541430": {
+   "label": "Graphic design",
+   "count": 32,
+   "total": 65227
+  },
+  "541810": {
+   "label": "Advertising agencies",
+   "count": 47,
+   "total": 177025
+  },
+  "541990": {
+   "label": "Other professional services",
+   "count": 1121,
+   "total": -1420353
+  },
+  "561410": {
+   "label": "Document preparation",
+   "count": 47,
+   "total": -496221
+  },
+  "541370": {
+   "label": "Surveying and mapping (geospatial)",
+   "count": 57,
+   "total": 152353
+  },
+  "541618": {
+   "label": "Other management consulting",
+   "count": 83,
+   "total": -178888
+  },
+  "611430": {
+   "label": "Professional and management training",
+   "count": 631,
+   "total": 2702261
+  },
+  "561499": {
+   "label": "Other business support",
+   "count": 395,
+   "total": 1102703
+  },
+  "519130": {
+   "label": "Internet publishing and web search",
+   "count": 41,
+   "total": 51438
+  },
+  "511210": {
+   "label": "Software publishers",
+   "count": 646,
+   "total": 2553618
+  }
+ },
+ "digital_all": {
+  "count": 13357,
+  "total": 41542270
+ },
+ "digital_recipients": [
+  {
+   "amount": 8411024.98,
+   "recipient_id": "5ddb264f-234b-872c-2571-4731fde123c6-C",
+   "name": "LEIDOS, INC.",
+   "code": "833063105",
+   "uei": "UE9QJD4KK1L6",
+   "total_outlays": null
+  },
+  {
+   "amount": 6328376.61,
+   "recipient_id": "a76066ea-2b38-7251-6fd8-dab62b297127-C",
+   "name": "INMARSAT GOVERNMENT, INC.",
+   "code": "122598159",
+   "uei": "UK8HWZTN2QG3",
+   "total_outlays": null
+  },
+  {
+   "amount": 3609608.37,
+   "recipient_id": "e0f8746a-9a3b-810a-257a-cae2d63868da-C",
+   "name": "NEW TECH SOLUTIONS, INC.",
+   "code": "020149303",
+   "uei": "XK11LLUL61A7",
+   "total_outlays": null
+  },
+  {
+   "amount": 3142134.74,
+   "recipient_id": "5854bb09-e3fb-546c-f374-0845f138f8e8-C",
+   "name": "HPI FEDERAL LLC",
+   "code": "079871826",
+   "uei": "DJRUN4KK1HK3",
+   "total_outlays": null
+  },
+  {
+   "amount": 1328342.98,
+   "recipient_id": "2a71ed51-39c8-082f-31a0-f31d55a0a651-C",
+   "name": "SOFTWARE INFORMATION RESOURCE CORP.",
+   "code": "938265865",
+   "uei": "EJJMMJHYDFH6",
+   "total_outlays": null
+  },
+  {
+   "amount": 1096901.16,
+   "recipient_id": "4e74aeb5-dd21-20a7-63bd-e9f934d69583-C",
+   "name": "CARAHSOFT TECHNOLOGY CORP",
+   "code": "088365767",
+   "uei": "DT8KJHZXVJH5",
+   "total_outlays": null
+  },
+  {
+   "amount": 985840.7,
+   "recipient_id": "ce0dffc0-1ff9-1b62-b3a1-7501208eab61-C",
+   "name": "BCT PARTNERS LLC",
+   "code": "061423377",
+   "uei": "PFSLMY1VAK71",
+   "total_outlays": null
+  },
+  {
+   "amount": 919586.2,
+   "recipient_id": "b3bf0045-a393-0c84-7e1c-41efc4b25c9e-C",
+   "name": "ENTERPRISE TECHNOLOGY SOLUTIONS, INC.",
+   "code": "005050346",
+   "uei": "FBRMCGPMN963",
+   "total_outlays": null
+  },
+  {
+   "amount": 884899.67,
+   "recipient_id": "bcd07db9-001a-b962-dbab-d463bb99028f-C",
+   "name": "GOVERNMENT ACQUISITIONS LLC",
+   "code": "603814054",
+   "uei": "R98MW4ZKUUK3",
+   "total_outlays": null
+  },
+  {
+   "amount": 756375.23,
+   "recipient_id": "72ca0d6d-bfb3-664d-fa88-47cacc8687d3-C",
+   "name": "ADVANCED COMPUTER CONCEPTS, INC.",
+   "code": "116193400",
+   "uei": "CGE8ABMZLZN9",
+   "total_outlays": null
+  },
+  {
+   "amount": 655627.5,
+   "recipient_id": "df7c6a07-e6f1-95fa-8e50-3022dcd5ea6d-C",
+   "name": "PITNEY BOWES INC.",
+   "code": "001161793",
+   "uei": "CHTAKEYGS386",
+   "total_outlays": null
+  },
+  {
+   "amount": 653966.83,
+   "recipient_id": "3792ca7f-d5d2-d89c-872b-8c64e4e6390e-C",
+   "name": "FCN, INC.",
+   "code": "615378007",
+   "uei": "JEANDJTZ8HJ3",
+   "total_outlays": null
+  },
+  {
+   "amount": 594571.1,
+   "recipient_id": "3b8298c2-5bfd-7fc4-bb07-ad4c20d92543-C",
+   "name": "DH TECHNOLOGIES, INC.",
+   "code": "078815475",
+   "uei": "NKC2AB3ESFP5",
+   "total_outlays": null
+  },
+  {
+   "amount": 591815.37,
+   "recipient_id": "4c61a834-8a33-b7ca-aaa3-d58f9baf2e49-C",
+   "name": "REDHAWK IT SOLUTIONS, LLC",
+   "code": "801957023",
+   "uei": "QGAAEMCMJXQ7",
+   "total_outlays": null
+  },
+  {
+   "amount": 562805.89,
+   "recipient_id": "828667a9-8a2a-d44d-4a92-ae35b70c91f7-C",
+   "name": "PUNDIR GROUP, INC",
+   "code": "967455861",
+   "uei": "WX6XFTXM1EM6",
+   "total_outlays": null
+  },
+  {
+   "amount": 553999.66,
+   "recipient_id": "dbceb126-f729-60e7-d55a-ba235f519653-C",
+   "name": "THUNDERCAT TECHNOLOGY, LLC",
+   "code": "809887164",
+   "uei": "UER4AJLUB8D5",
+   "total_outlays": null
+  },
+  {
+   "amount": 486203.65,
+   "recipient_id": "abde3f7b-54a5-dbb5-7db4-5c1474b8cdff-C",
+   "name": "DLT SOLUTIONS, LLC",
+   "code": "786468199",
+   "uei": "F1N2KDGBDTU8",
+   "total_outlays": null
+  },
+  {
+   "amount": 484421.98,
+   "recipient_id": "43f43d49-b0f5-0339-89a0-372d8a66bd80-C",
+   "name": "LYME COMPUTER SYSTEMS, INC.",
+   "code": "144763067",
+   "uei": "F1UZPBD1VBH9",
+   "total_outlays": null
+  },
+  {
+   "amount": 459329.44,
+   "recipient_id": "456a17c9-3bd9-f107-77ee-816e474d173e-C",
+   "name": "STERLING COMPUTERS CORPORATION",
+   "code": "938836541",
+   "uei": "YZTLALWM4UC7",
+   "total_outlays": null
+  },
+  {
+   "amount": 446391.78,
+   "recipient_id": "63d967d4-ec3e-daa9-b729-952a80c05eb5-C",
+   "name": "ACCESSAGILITY LLC",
+   "code": "809979805",
+   "uei": "HMXCQJ8ADNL7",
+   "total_outlays": null
+  }
+ ],
+ "digital_agencies": [
+  {
+   "id": 1173,
+   "code": "DOD",
+   "name": "Department of Defense",
+   "agency_slug": "department-of-defense",
+   "amount": 32074286.67,
+   "total_outlays": null
+  },
+  {
+   "id": 252,
+   "code": "DOJ",
+   "name": "Department of Justice",
+   "agency_slug": "department-of-justice",
+   "amount": 5571873.26,
+   "total_outlays": null
+  },
+  {
+   "id": 315,
+   "code": "DOS",
+   "name": "Department of State",
+   "agency_slug": "department-of-state",
+   "amount": 3310676.74,
+   "total_outlays": null
+  },
+  {
+   "id": 862,
+   "code": "NASA",
+   "name": "National Aeronautics and Space Administration",
+   "agency_slug": "national-aeronautics-and-space-administration",
+   "amount": 1543870.71,
+   "total_outlays": null
+  },
+  {
+   "id": 766,
+   "code": "DHS",
+   "name": "Department of Homeland Security",
+   "agency_slug": "department-of-homeland-security",
+   "amount": 1533518.7,
+   "total_outlays": null
+  },
+  {
+   "id": 183,
+   "code": "DOC",
+   "name": "Department of Commerce",
+   "agency_slug": "department-of-commerce",
+   "amount": 855705.65,
+   "total_outlays": null
+  },
+  {
+   "id": 731,
+   "code": "DOT",
+   "name": "Department of Transportation",
+   "agency_slug": "department-of-transportation",
+   "amount": 705601.42,
+   "total_outlays": null
+  },
+  {
+   "id": 614,
+   "code": "GSA",
+   "name": "General Services Administration",
+   "agency_slug": "general-services-administration",
+   "amount": 531774.08,
+   "total_outlays": null
+  },
+  {
+   "id": 209,
+   "code": "DOI",
+   "name": "Department of the Interior",
+   "agency_slug": "department-of-the-interior",
+   "amount": 428353.96,
+   "total_outlays": null
+  },
+  {
+   "id": 930,
+   "code": "DOE",
+   "name": "Department of Energy",
+   "agency_slug": "department-of-energy",
+   "amount": 260945.07,
+   "total_outlays": null
+  }
+ ],
+ "digital_sample": [],
+ "digital_sba": {
+  "count": 13357,
+  "total": 41542270
+ },
+ "psc": [
+  {
+   "id": null,
+   "code": "6505",
+   "name": "DRUGS AND BIOLOGICALS",
+   "amount": 1222991106.89,
+   "total_outlays": null
+  },
+  {
+   "id": null,
+   "code": "8915",
+   "name": "FRUITS AND VEGETABLES",
+   "amount": 649355001.02,
+   "total_outlays": null
+  },
+  {
+   "id": null,
+   "code": "6515",
+   "name": "MEDICAL AND SURGICAL INSTRUMENTS, EQUIPMENT, AND SUPPLIES",
+   "amount": 488203715.39,
+   "total_outlays": null
+  },
+  {
+   "id": null,
+   "code": "9130",
+   "name": "LIQUID PROPELLANTS AND FUELS, PETROLEUM BASE",
+   "amount": 410658161.19,
+   "total_outlays": null
+  },
+  {
+   "id": null,
+   "code": "6640",
+   "name": "LABORATORY EQUIPMENT AND SUPPLIES",
+   "amount": 331588269.95,
+   "total_outlays": null
+  },
+  {
+   "id": null,
+   "code": "5120",
+   "name": "HAND TOOLS, NONEDGED, NONPOWERED",
+   "amount": 291864141.67,
+   "total_outlays": null
+  },
+  {
+   "id": null,
+   "code": "8905",
+   "name": "MEAT, POULTRY, AND FISH",
+   "amount": 267457370.88,
+   "total_outlays": null
+  },
+  {
+   "id": null,
+   "code": "7510",
+   "name": "OFFICE SUPPLIES",
+   "amount": 182765874.39,
+   "total_outlays": null
+  },
+  {
+   "id": null,
+   "code": "9150",
+   "name": "OILS AND GREASES: CUTTING, LUBRICATING, AND HYDRAULIC",
+   "amount": 81081524.42,
+   "total_outlays": null
+  },
+  {
+   "id": null,
+   "code": "5340",
+   "name": "HARDWARE, COMMERCIAL",
+   "amount": 75750556.37,
+   "total_outlays": null
+  },
+  {
+   "id": null,
+   "code": "8910",
+   "name": "DAIRY FOODS AND EGGS",
+   "amount": 70300316.68,
+   "total_outlays": null
+  },
+  {
+   "id": null,
+   "code": "7910",
+   "name": "FLOOR POLISHERS AND VACUUM CLEANING EQUIPMENT",
+   "amount": 55979073.44,
+   "total_outlays": null
+  },
+  {
+   "id": null,
+   "code": "7110",
+   "name": "OFFICE FURNITURE",
+   "amount": 53860714.47,
+   "total_outlays": null
+  },
+  {
+   "id": null,
+   "code": "6530",
+   "name": "HOSPITAL FURNITURE, EQUIPMENT, UTENSILS, AND SUPPLIES",
+   "amount": 49367868.09,
+   "total_outlays": null
+  },
+  {
+   "id": null,
+   "code": "1560",
+   "name": "AIRFRAME STRUCTURAL COMPONENTS",
+   "amount": 45797723.8,
+   "total_outlays": null
+  }
+ ],
+ "agencies": [
+  {
+   "id": 1173,
+   "code": "DOD",
+   "name": "Department of Defense",
+   "agency_slug": "department-of-defense",
+   "amount": 5233562677.12,
+   "total_outlays": null
+  },
+  {
+   "id": 614,
+   "code": "GSA",
+   "name": "General Services Administration",
+   "agency_slug": "general-services-administration",
+   "amount": 789732163.61,
+   "total_outlays": null
+  },
+  {
+   "id": 252,
+   "code": "DOJ",
+   "name": "Department of Justice",
+   "agency_slug": "department-of-justice",
+   "amount": 47565692.0,
+   "total_outlays": null
+  },
+  {
+   "id": 315,
+   "code": "DOS",
+   "name": "Department of State",
+   "agency_slug": "department-of-state",
+   "amount": 44552566.45,
+   "total_outlays": null
+  },
+  {
+   "id": 561,
+   "code": "VA",
+   "name": "Department of Veterans Affairs",
+   "agency_slug": "department-of-veterans-affairs",
+   "amount": 41083407.97,
+   "total_outlays": null
+  },
+  {
+   "id": 95,
+   "code": "USDA",
+   "name": "Department of Agriculture",
+   "agency_slug": "department-of-agriculture",
+   "amount": 34019857.47,
+   "total_outlays": null
+  },
+  {
+   "id": 209,
+   "code": "DOI",
+   "name": "Department of the Interior",
+   "agency_slug": "department-of-the-interior",
+   "amount": 16405982.87,
+   "total_outlays": null
+  },
+  {
+   "id": 766,
+   "code": "DHS",
+   "name": "Department of Homeland Security",
+   "agency_slug": "department-of-homeland-security",
+   "amount": 16385993.72,
+   "total_outlays": null
+  },
+  {
+   "id": 862,
+   "code": "NASA",
+   "name": "National Aeronautics and Space Administration",
+   "agency_slug": "national-aeronautics-and-space-administration",
+   "amount": 3027529.32,
+   "total_outlays": null
+  },
+  {
+   "id": 183,
+   "code": "DOC",
+   "name": "Department of Commerce",
+   "agency_slug": "department-of-commerce",
+   "amount": 2744090.34,
+   "total_outlays": null
+  }
+ ]
+}
