@@ -1,0 +1,40 @@
+name: Actor store details
+
+# Sets only categories and SEO text for already-published Actors from their .actor/store.json.
+# No pricing, no visibility, no spending. Writes the outcome to the actor-results branch.
+
+on:
+  workflow_dispatch:
+    inputs:
+      folders:
+        description: "Space-separated actor folders"
+        required: true
+        default: "seo-page-audit sitemap-urls web-to-markdown website-tech-stack"
+
+permissions:
+  contents: write
+
+jobs:
+  store:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply store details
+        env:
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          FOLDERS: ${{ inputs.folders }}
+        run: python3 actors/store-details.py $FOLDERS 2>&1 | tee STORE.md
+      - name: Save outcome
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          work="$RUNNER_TEMP/c"
+          git clone --quiet --depth 1 --branch actor-results "$remote" "$work"
+          cp STORE.md "$work/STORE.md"
+          git -C "$work" config user.name "actor-store"; git -C "$work" config user.email "actor-store@users.noreply.github.com"
+          git -C "$work" add -A; git -C "$work" commit --quiet -m "Actor store details report" || true
+          git -C "$work" push --quiet origin HEAD:actor-results
