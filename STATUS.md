@@ -12,7 +12,7 @@
 | domain-rdap-lookup | yes | built |  |
 | app-store-reviews | yes | built |  |
 | rss-feed-reader | yes | built |  |
-| eu-vat-validator | no | built |  |
+| eu-vat-validator | yes | built |  |
 | seo-page-audit | yes | built |  |
 | sitemap-urls | yes | built |  |
 | vehicle-safety-intel | yes | built |  |
