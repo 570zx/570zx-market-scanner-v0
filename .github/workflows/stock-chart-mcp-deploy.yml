@@ -59,7 +59,11 @@ jobs:
             if [ -n "${!name}" ]; then printf '%s' "${!name}" | npx --no-install wrangler secret put "$name"; else echo "skip $name (not set)"; fi
           done
       - name: Health check
+        # Each secret upload rolls out a new Worker version, so retry briefly.
         run: |
-          sleep 10
-          curl --fail --silent --show-error --max-time 20 https://stock-chart-mcp.sucharda-dodge.workers.dev/health
-          echo
+          for i in 1 2 3 4 5 6; do
+            sleep 10
+            if curl --fail --silent --show-error --max-time 20 https://stock-chart-mcp.sucharda-dodge.workers.dev/health; then echo; exit 0; fi
+            echo " (attempt $i failed, retrying)"
+          done
+          exit 1

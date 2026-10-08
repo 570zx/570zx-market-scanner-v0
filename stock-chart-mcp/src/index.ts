@@ -7,7 +7,7 @@
 //   GET  /health
 // Anything without a valid token gets 404. Cron (every 5 min): the watcher.
 
-import { Alpaca, UserError, normalizeSymbol, rangeKey, type FetchLike } from './alpaca.ts';
+import { Alpaca, UserError, defaultFetch, normalizeSymbol, rangeKey, type FetchLike } from './alpaca.ts';
 import { brief, table } from './analyze.ts';
 import { chartToken, chartTokenOk, mcpTokenOk, MIN_TOKEN_LENGTH } from './auth.ts';
 import { renderChart } from './chart.ts';
@@ -18,7 +18,7 @@ import { runWatch } from './watch.ts';
 export type Env = McpEnv;
 const notFound = () => new Response('Not found', { status: 404 });
 
-export async function handle(req: Request, env: Env, fetcher: FetchLike = fetch, now = new Date()): Promise<Response> {
+export async function handle(req: Request, env: Env, fetcher: FetchLike = defaultFetch, now = new Date()): Promise<Response> {
   const url = new URL(req.url);
   const [area, token, ...rest] = url.pathname.split('/').filter(Boolean);
   if (url.pathname === '/health') {
