@@ -1,0 +1,10 @@
+{
+  "name": "x-profile-scraper",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Pull a public X (Twitter) profile's posts and interactions via the official X API v2.",
+  "bin": {"x-profile-scraper": "scrape.mjs"},
+  "scripts": {"start": "node scrape.mjs", "test": "node --test tests/*.test.mjs"},
+  "engines": {"node": ">=20"}
+}
