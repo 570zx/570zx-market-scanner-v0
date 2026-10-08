@@ -1,0 +1,24 @@
+name = "stock-chart-mcp"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+keep_vars = true
+
+# Watchlist watcher. It only does work on weekdays inside the session
+# (9:30-16:00 ET, or 4:00-20:00 with WATCH_EXTENDED_HOURS=true).
+[triggers]
+crons = ["*/5 * * * *"]
+
+# No database_id: Wrangler provisions the D1 database on first deploy.
+[[d1_databases]]
+binding = "DB"
+database_name = "stock-chart-mcp"
+migrations_dir = "migrations"
+
+[vars]
+ALPACA_FEED = "iex"
+WATCH_EXTENDED_HOURS = "false"
+
+# Runtime secrets (Cloudflare > Worker > Settings > Variables and Secrets):
+# ALPACA_API_KEY, ALPACA_API_SECRET  free Alpaca market-data keys
+# MCP_TOKEN                          >= 24 random characters; part of the connector URL
+# ALERT_WEBHOOK_URL                  optional Discord-style webhook for watcher alerts
