@@ -6,7 +6,7 @@
 // With delayed SIP data the watcher runs on the data's clock (now minus the
 // delay), so it keeps going until the delayed after-hours session ends.
 
-import { Alpaca, RANGES, UserError, prevClose, trimToSessions, type AlpacaEnv, type Bar, type FetchLike } from './alpaca.ts';
+import { Alpaca, RANGES, UserError, defaultFetch, prevClose, trimToSessions, type AlpacaEnv, type Bar, type FetchLike } from './alpaca.ts';
 import { analyze, priceDigits, type Analysis, type WatchState } from './analyze.ts';
 import { etParts, inSession } from './time.ts';
 
@@ -132,7 +132,7 @@ export function detectEvents(a: Analysis, prev: { state: WatchState; signals: st
   return out;
 }
 
-export async function runWatch(env: WatchEnv, now = new Date(), fetcher: FetchLike = fetch) {
+export async function runWatch(env: WatchEnv, now = new Date(), fetcher: FetchLike = defaultFetch) {
   const extended = env.WATCH_EXTENDED_HOURS !== 'false';
   const client = new Alpaca(env, fetcher);
   const dataNow = client.dataEnd(now);

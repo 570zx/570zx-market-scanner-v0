@@ -259,3 +259,43 @@ test('live chart page and JSON API use the view-only token',async()=>{
   assert.equal((await handle(new Request(`https://x.dev/api/${ct}/analysis/AAPL?range=7y`),e,f,NOW)).status,400);
   assert.equal((await handle(new Request(`https://x.dev/api/${ct}/analysis/AAPL`,{method:'POST'}),e,f,NOW)).status,405);
 });
+
+// Workers' fetch throws "Illegal invocation" unless called with the global
+// scope (or undefined) as `this`. This stand-in enforces the same rule.
+function strictFetch(log){
+  const inner=fakeAlpaca(book,log);
+  return function(url,init){
+    if(this!==undefined&&this!==globalThis)throw new TypeError('Illegal invocation: function called with incorrect `this` reference.');
+    return inner(url,init);
+  };
+}
+
+test('fetch is never called with a non-global `this` (injected fetch)',async()=>{
+  const e=env({ALERT_WEBHOOK_URL:'https://hook.example/x'}),log=[],f=strictFetch(log);
+  for(const name of ['get_quote','analyze_stock']){
+    const r=await call(e,name,{symbol:'AAPL'},NOW,f);
+    assert.equal(r.isError,undefined,`${name}: ${r.content[0].text}`);
+  }
+  const ct=await chartToken(e);
+  assert.equal((await handle(new Request(`https://x.dev/api/${ct}/analysis/AAPL`),e,f,NOW)).status,200);
+  await call(e,'watch_stock',{symbol:'AAPL',levels:['1']},NOW,f);
+  const r=await runWatch(e,new Date('2026-10-07T15:00:00Z'),f);
+  assert.equal(r.ran,true);
+  assert.ok(log.some(({url})=>url.startsWith('https://data.alpaca.markets')));
+});
+
+test('default fetch path (as deployed) calls the global fetch correctly',async()=>{
+  const original=globalThis.fetch,log=[];
+  globalThis.fetch=strictFetch(log);
+  try{
+    const e=env();
+    const res=await handle(new Request(`https://x.dev/mcp/${TOKEN}`,{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/call',params:{name:'get_quote',arguments:{symbol:'AAPL'}}})}),e,undefined,NOW);
+    const out=(await res.json()).result;
+    assert.equal(out.isError,undefined,out.content[0].text);
+    await call(e,'watch_stock',{symbol:'AAPL'},NOW,fakeAlpaca(book));
+    const w=await runWatch(e,new Date('2026-10-07T15:00:00Z'));
+    assert.equal(w.ran,true);
+    assert.ok(log.length>=3,'default path went through globalThis.fetch');
+  }finally{globalThis.fetch=original;}
+});

@@ -11,6 +11,10 @@ import { etParts, REGULAR_OPEN, REGULAR_CLOSE, EXTENDED_OPEN, EXTENDED_CLOSE } f
 export type Bar = { t: string; o: number; h: number; l: number; c: number; v: number; vw?: number };
 export type AlpacaEnv = { ALPACA_API_KEY?: string; ALPACA_API_SECRET?: string; ALPACA_FEED?: string; ALPACA_SIP_DELAY_MINUTES?: string };
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
+// Workers throws "Illegal invocation" if the platform fetch is called with any
+// `this` other than the global scope (e.g. as this.fetcher(...)), so the
+// default always calls it as a plain function.
+export const defaultFetch: FetchLike = (input, init) => fetch(input, init);
 
 // The only host this server talks to with the Alpaca keys. No trading API
 // (api.alpaca.markets / paper-api.alpaca.markets) is ever called.
@@ -64,9 +68,11 @@ export class Alpaca {
   fallbackReason?: string;
   private env: AlpacaEnv;
   private fetcher: FetchLike;
-  constructor(env: AlpacaEnv, fetcher: FetchLike = fetch) {
+  constructor(env: AlpacaEnv, fetcher: FetchLike = defaultFetch) {
     if (!env.ALPACA_API_KEY || !env.ALPACA_API_SECRET) throw new UserError('Server is missing ALPACA_API_KEY / ALPACA_API_SECRET');
-    this.env = env; this.fetcher = fetcher;
+    // Call through a closure so `this` is never this client, even for an
+    // injected platform fetch.
+    this.env = env; this.fetcher = (input, init) => fetcher(input, init);
     this.requested = (env.ALPACA_FEED || 'sip').toLowerCase();
     this.used = this.requested;
     const delay = Number(env.ALPACA_SIP_DELAY_MINUTES ?? 15);
