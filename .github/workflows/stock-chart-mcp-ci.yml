@@ -1,0 +1,33 @@
+name: Stock chart MCP CI
+
+on:
+  pull_request:
+    paths:
+      - "stock-chart-mcp/**"
+      - ".github/workflows/stock-chart-mcp-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "stock-chart-mcp/**"
+      - ".github/workflows/stock-chart-mcp-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: stock-chart-mcp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: stock-chart-mcp/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
