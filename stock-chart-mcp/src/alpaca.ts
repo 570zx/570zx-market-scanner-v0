@@ -33,7 +33,12 @@ export class UserError extends Error {}
 class FeedRefused extends Error {}
 
 export type RangeKey = '1d' | '5d' | '1mo' | '3mo' | '6mo' | '1y' | '5y';
-export type RangeSpec = { timeframe: string; barMinutes: number; lookbackDays: number; sessions?: number; intraday: boolean };
+// straddles: bars can span a session boundary (labelled by overlap, 'mixed'
+// when they cover more than one session). vwap: false skips VWAP.
+export type RangeSpec = {
+  timeframe: string; barMinutes: number; lookbackDays: number; sessions?: number; intraday: boolean;
+  straddles?: boolean; vwap?: boolean;
+};
 export const RANGES: Record<RangeKey, RangeSpec> = {
   '1d': { timeframe: '5Min', barMinutes: 5, lookbackDays: 6, sessions: 1, intraday: true },
   '5d': { timeframe: '15Min', barMinutes: 15, lookbackDays: 10, sessions: 5, intraday: true },
@@ -49,12 +54,32 @@ export function rangeKey(raw: unknown): RangeKey {
   return k;
 }
 
-export type Session = 'pre' | 'regular' | 'post' | 'daily';
+// Optional bar size overriding a range's default. 'auto' keeps RANGES as is.
+export type IntervalKey = 'auto' | '1min' | '4h';
+export const INTERVALS: IntervalKey[] = ['auto', '1min', '4h'];
+export const FOUR_HOUR_RANGES: RangeKey[] = ['1mo', '3mo', '6mo'];
+export function resolveSpec(rawRange: unknown, rawInterval: unknown): { range: RangeKey; interval: IntervalKey; spec: RangeSpec } {
+  const interval = String(rawInterval ?? 'auto').toLowerCase() as IntervalKey;
+  if (!INTERVALS.includes(interval)) throw new UserError(`interval must be one of ${INTERVALS.join(', ')}`);
+  if (interval === 'auto') { const range = rangeKey(rawRange); return { range, interval, spec: RANGES[range] }; }
+  if (interval === '1min') {
+    const range = rangeKey(rawRange ?? '1d');
+    if (range !== '1d') throw new UserError('interval "1min" is only available with range "1d"');
+    // Shorter lookback than 5-min: enough to reach the last session over a weekend.
+    return { range, interval, spec: { timeframe: '1Min', barMinutes: 1, lookbackDays: 4, sessions: 1, intraday: true } };
+  }
+  const range = rangeKey(rawRange ?? '3mo');
+  if (!FOUR_HOUR_RANGES.includes(range)) throw new UserError(`interval "4h" is available with range ${FOUR_HOUR_RANGES.join(', ')} (default 3mo)`);
+  return { range, interval, spec: { timeframe: '4Hour', barMinutes: 240, lookbackDays: RANGES[range].lookbackDays, intraday: true, straddles: true, vwap: false } };
+}
+
+export type Session = 'pre' | 'regular' | 'post' | 'mixed' | 'daily';
 export function sessionOf(t: string, spec: RangeSpec): Session {
   if (!spec.intraday) return 'daily';
-  const m = etParts(t).minutes;
-  if (m + spec.barMinutes <= REGULAR_OPEN) return 'pre';
+  const m = etParts(t).minutes, end = m + spec.barMinutes;
+  if (end <= REGULAR_OPEN) return 'pre';
   if (m >= REGULAR_CLOSE) return 'post';
+  if (spec.straddles && (m < REGULAR_OPEN || end > REGULAR_CLOSE)) return 'mixed';
   return 'regular';
 }
 
@@ -168,8 +193,7 @@ export function prevClose(daily: Bar[], date: string) {
   return before.length ? before[before.length - 1].c : null;
 }
 
-export async function loadBars(client: Alpaca, symbol: string, range: RangeKey, extended = false, now = new Date()) {
-  const spec = RANGES[range];
+export async function loadBars(client: Alpaca, symbol: string, spec: RangeSpec, extended = false, now = new Date()) {
   const start = new Date(now.getTime() - spec.lookbackDays * 86_400_000);
   const raw = (await client.bars([symbol], spec.timeframe, start, now))[symbol] ?? [];
   return trimToSessions(raw, spec, extended);

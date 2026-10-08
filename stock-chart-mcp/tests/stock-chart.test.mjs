@@ -1,11 +1,11 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {inflateSync} from 'node:zlib';
-import {D1,sessionBars,dailyBars,fakeAlpaca} from './fakes.mjs';
+import {D1,sessionBars,dailyBars,fakeAlpaca,fourHourBars} from './fakes.mjs';
 import {sma,ema,rsi,macd,vwap,lastCross,swingLevels} from '../src/indicators.ts';
 import {analyze,table} from '../src/analyze.ts';
 import {renderChart} from '../src/chart.ts';
-import {trimToSessions,RANGES,normalizeSymbol,sessionOf} from '../src/alpaca.ts';
+import {trimToSessions,RANGES,normalizeSymbol,sessionOf,resolveSpec} from '../src/alpaca.ts';
 import {inSession,etParts} from '../src/time.ts';
 import {chartToken} from '../src/auth.ts';
 import {handle} from '../src/index.ts';
@@ -168,7 +168,7 @@ test('analyze_stock returns read-out, view-only link, chart image and JSON',asyn
   const lean=await call(e,'analyze_stock',{symbol:'AAPL',chart:false,include_data:false,extended_hours:false});
   assert.equal(lean.content.length,1);
   const bad=await call(e,'analyze_stock',{symbol:'ZZZZ'});
-  assert.equal(bad.isError,true);assert.match(bad.content[0].text,/No 1d price data/);
+  assert.equal(bad.isError,true);assert.match(bad.content[0].text,/No 1d 5Min price data/);
 });
 
 test('levels and zones: parsing, crossings, tests',()=>{
@@ -298,4 +298,77 @@ test('default fetch path (as deployed) calls the global fetch correctly',async()
     assert.equal(w.ran,true);
     assert.ok(log.length>=3,'default path went through globalThis.fetch');
   }finally{globalThis.fetch=original;}
+});
+
+test('interval option: existing ranges unchanged, 1min only for 1d, 4h defaults to 3mo',()=>{
+  assert.deepEqual(Object.fromEntries(Object.entries(RANGES).map(([k,v])=>[k,v.timeframe])),
+    {'1d':'5Min','5d':'15Min','1mo':'1Hour','3mo':'1Day','6mo':'1Day','1y':'1Day','5y':'1Week'});
+  for(const r of Object.keys(RANGES))assert.equal(resolveSpec(r,undefined).spec,RANGES[r]);
+  assert.equal(resolveSpec(undefined,undefined).range,'1d');
+  assert.deepEqual([resolveSpec('1d','1min').spec.timeframe,resolveSpec(undefined,'1min').range],['1Min','1d']);
+  assert.throws(()=>resolveSpec('5d','1min'),/only available with range "1d"/);
+  const fh=resolveSpec(undefined,'4h');
+  assert.deepEqual([fh.range,fh.spec.timeframe,fh.spec.lookbackDays],['3mo','4Hour',92]);
+  assert.equal(resolveSpec('6mo','4h').spec.lookbackDays,183);
+  assert.throws(()=>resolveSpec('1d','4h'),/1mo, 3mo, 6mo/);
+  assert.throws(()=>resolveSpec('1y','4h'),/1mo, 3mo, 6mo/);
+  assert.throws(()=>resolveSpec('1d','2h'),/interval must be one of auto, 1min, 4h/);
+  // 4h bars are labelled by overlap with the regular session.
+  const spec=fh.spec;
+  assert.deepEqual(['2026-10-07T08:00:00Z','2026-10-07T12:00:00Z','2026-10-07T16:00:00Z','2026-10-07T20:00:00Z'].map(t=>sessionOf(t,spec)),
+    ['pre','mixed','regular','post']);
+});
+
+test('analyze_stock interval "1min" on 1d',async()=>{
+  const b={...book,AAPL:{...book.AAPL,byTimeframe:{'1Min':sessionBars(DAY,{seed:9,start:101,minutes:1,count:390,extended:true})}}};
+  const log=[],e=env(),ct=await chartToken(e);
+  const r=await call(e,'analyze_stock',{symbol:'AAPL',range:'1d',interval:'1min'},NOW,fakeAlpaca(b,log));
+  assert.equal(r.isError,undefined,r.content[0].text);
+  const bars=log.map(({url})=>new URL(url)).filter(u=>u.pathname==='/v2/stocks/bars'&&u.searchParams.get('timeframe')!=='1Day');
+  assert.deepEqual(bars.map(u=>u.searchParams.get('timeframe')),['1Min']);
+  assert.match(r.content[0].text,/AAPL · 1d · 1Min bars · 585 bars/); // 04:00 to 13:44 ET inclusive (delayed SIP cut-off)
+  assert.match(r.content[0].text,new RegExp(`/chart/${ct}/AAPL\\?range=1d&interval=1min`));
+  const data=jsonBlock(r,'analysis');
+  assert.equal(data.interval,"1min");assert.equal(data.timeframe,"1Min");assert.equal(data.bars.rows.length,585);
+  assert.ok(data.indicators.vwap>0);
+  const bad=await call(e,'analyze_stock',{symbol:'AAPL',range:'5d',interval:'1min'},NOW,fakeAlpaca(b));
+  assert.equal(bad.isError,true);assert.match(bad.content[0].text,/only available with range "1d"/);
+});
+
+test('analyze_stock interval "4h" over 3 months',async()=>{
+  const b={...book,SRXH:{intraday:[],daily:dailyBars([PREV,DAY],{start:1.3}),byTimeframe:{'4Hour':fourHourBars(DAY,66)}}};
+  const log=[],e=env(),ct=await chartToken(e);
+  const r=await call(e,'analyze_stock',{symbol:'SRXH',interval:'4h'},NOW,fakeAlpaca(b,log));
+  assert.equal(r.isError,undefined,r.content[0].text);
+  const u=log.map(({url})=>new URL(url)).find(x=>x.searchParams.get('timeframe')==='4Hour');
+  assert.ok(u,'requested 4Hour bars');
+  assert.equal(u.searchParams.get('start'),new Date(NOW.getTime()-92*86_400_000).toISOString());
+  assert.match(r.content[0].text,/SRXH · 3mo · 4Hour bars/);
+  assert.match(r.content[0].text,/VWAP: not computed on 4-hour bars/);
+  assert.match(r.content[0].text,new RegExp(`/chart/${ct}/SRXH\\?range=3mo&interval=4h`));
+  assert.equal(r.content[1].type,'image');
+  const data=jsonBlock(r,'analysis');
+  assert.deepEqual([data.range,data.interval,data.timeframe],['3mo','4h','4Hour']);
+  assert.equal(data.indicators.vwap,null);
+  const sess=data.bars.rows.map(x=>x[2]);
+  assert.deepEqual([...new Set(sess)].sort(),['mixed','post','pre','regular']);
+  assert.ok(data.bars.rows.every(x=>x[8]===null),'no per-bar VWAP');
+  // Regular hours only: pre/post bars dropped, the open-straddling bar kept.
+  const reg=jsonBlock(await call(e,'analyze_stock',{symbol:'SRXH',interval:'4h',range:'1mo',extended_hours:false},NOW,fakeAlpaca(b)),'analysis');
+  assert.deepEqual([...new Set(reg.bars.rows.map(x=>x[2]))].sort(),['mixed','regular']);
+  const api=await handle(new Request(`https://x.dev/api/${ct}/analysis/SRXH?range=3mo&interval=4h`),e,fakeAlpaca(b),NOW);
+  assert.equal(api.status,200);assert.equal((await api.json()).analysis.timeframe,'4Hour');
+  const page=await handle(new Request(`https://x.dev/chart/${ct}/SRXH?interval=4h`),e,fakeAlpaca(b),NOW);
+  assert.match(await page.text(),/"interval":"4h"/);
+  assert.equal((await handle(new Request(`https://x.dev/api/${ct}/analysis/SRXH?range=1d&interval=4h`),e,fakeAlpaca(b),NOW)).status,400);
+});
+
+test('ET conversion matches Intl exactly, including across DST changes',()=>{
+  const f=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hourCycle:'h23',weekday:'short',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+  for(const [from,to] of [['2026-03-07','2026-03-10'],['2026-10-31','2026-11-03']])
+    for(let t=Date.parse(from);t<Date.parse(to);t+=7*60000+13000){
+      const p={};for(const x of f.formatToParts(new Date(t)))p[x.type]=x.value;const h=Number(p.hour)%24;
+      assert.deepEqual(etParts(t),{date:`${p.year}-${p.month}-${p.day}`,minutes:h*60+Number(p.minute),weekday:p.weekday,
+        hhmm:`${String(h).padStart(2,'0')}:${p.minute}`,mmdd:`${p.month}/${p.day}`},new Date(t).toISOString());
+    }
 });
