@@ -37,12 +37,31 @@ The analysis is descriptive, not trading advice.
 
 | Tool | What it does |
 | --- | --- |
-| `analyze_stock` | Ranges `1d` (5-min), `5d` (15-min), `1mo` (hourly), `3mo`/`6mo`/`1y` (daily), `5y` (weekly). Returns:<br>• a read-out: trend, EMA 9/21, SMA 20/50, VWAP, RSI 14, MACD, Bollinger 20,2, ATR, relative volume, volume by session, support/resistance, signals<br>• a **PNG chart**<br>• a **JSON block** with every candle (UTC and ET time, session label, OHLCV) and each bar's indicator values<br>• a view-only **live chart link** |
+| `analyze_stock` | Ranges `1d` (5-min), `5d` (15-min), `1mo` (hourly), `3mo`/`6mo`/`1y` (daily), `5y` (weekly). Optional `interval` overrides the bar size: `1min` (range `1d` only) or `4h` (ranges `1mo`/`3mo`/`6mo`, default `3mo`). Returns:<br>• a read-out: trend, EMA 9/21, SMA 20/50, VWAP, RSI 14, MACD, Bollinger 20,2, ATR, relative volume, volume by session, support/resistance, signals<br>• a **PNG chart**<br>• a **JSON block** with every candle (UTC and ET time, session label, OHLCV) and each bar's indicator values<br>• a view-only **live chart link** |
 | `get_quote` | Last price with its as-of time and session, bid/ask, day range and change vs the adjusted previous close. Includes JSON. |
 | `watch_stock` | Add or update a watched symbol with `levels`: single prices (`"1.44"`) and zones (`"1.58-1.65"`). Max 20 symbols, 20 levels each. |
 | `unwatch_stock` / `list_watchlist` | Manage and review the watchlist. |
 | `get_intraday_log` | The watcher's 5-minute timeline for a symbol and day, plus alerts. Each row has price, change, VWAP, RSI, trend, session, signals, and the price's position vs each level. Includes JSON. |
 | `get_alerts` | Recent watcher alerts. Includes JSON. |
+
+### Bar intervals
+
+`interval` is optional and defaults to `auto`, which keeps each range's bar
+size as listed above.
+
+- **`1min`** with `range: "1d"`: one-minute bars for the latest session,
+  premarket through after-hours (up to about 960 bars). The JSON block is
+  large (about 140 KB), so pass `include_data: false` when only the read-out
+  and chart are needed.
+- **`4h`** with `range` `1mo`, `3mo` (default) or `6mo`: four-hour bars.
+  These don't line up with the 9:30 open or 16:00 close, so a bar that
+  covers part of two sessions is labelled `mixed`. Bars entirely inside one
+  session are `pre`, `regular` or `post`. VWAP isn't computed on 4-hour
+  bars. With `extended_hours: false`, pure premarket and after-hours bars are
+  dropped and `mixed` bars are kept.
+
+The live chart page has `1d · 1min` and `3mo · 4h` buttons, and its URL
+takes `&interval=`.
 
 ### The scheduled watcher
 
@@ -140,6 +159,9 @@ page loads Lightweight Charts 4.2.0 from unpkg.
   after the move.
 - Exchange holidays and early closes are not modelled. On those days the
   watcher just finds no new bars.
+- `1min` requests do roughly twice the work of a normal `1d` request
+  (960 bars instead of 192). If they hit the Free plan's CPU limit, pass
+  `chart: false` and/or `include_data: false`.
 - Charting takes about 6–7 ms of CPU (measured locally with 78–320 bars,
   including extended hours). That fits the Free plan's 10 ms per-request
   limit with little room to spare. If `analyze_stock` hits CPU-limit errors,

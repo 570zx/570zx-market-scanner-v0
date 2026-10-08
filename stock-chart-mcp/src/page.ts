@@ -4,8 +4,8 @@
 
 const LIB = 'https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js';
 
-export function livePage(symbol: string, range: string, ext: boolean) {
-  const cfg = JSON.stringify({ symbol, range, ext });
+export function livePage(symbol: string, range: string, ext: boolean, interval = 'auto') {
+  const cfg = JSON.stringify({ symbol, range, ext, interval });
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${symbol} live chart</title>
@@ -39,8 +39,10 @@ const CFG=${cfg};
 const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const $=id=>document.getElementById(id);
 $('sym').textContent=CFG.symbol;
-for(const r of ['1d','5d','1mo','3mo','6mo','1y','5y']){const a=document.createElement('a');a.textContent=r;a.href='?range='+r+(CFG.ext?'':'&ext=0');if(r===CFG.range)a.setAttribute('aria-current','page');$('ranges').append(a);}
-const intraday=['1d','5d','1mo'].includes(CFG.range);
+const VIEWS=[['1d','auto','1d'],['1d','1min','1d · 1min'],['5d','auto','5d'],['1mo','auto','1mo'],['3mo','4h','3mo · 4h'],['3mo','auto','3mo'],['6mo','auto','6mo'],['1y','auto','1y'],['5y','auto','5y']];
+const q=(r,i)=>'?range='+r+(i==='auto'?'':'&interval='+i)+(CFG.ext?'':'&ext=0');
+for(const [r,i,label] of VIEWS){const a=document.createElement('a');a.textContent=label;a.href=q(r,i);if(r===CFG.range&&i===CFG.interval)a.setAttribute('aria-current','page');$('ranges').append(a);}
+const intraday=['1d','5d','1mo'].includes(CFG.range)||CFG.interval!=='auto';
 // Lightweight Charts formats times as UTC, so bars are given ET wall-clock seconds.
 const etFmt=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hourCycle:'h23',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
 const ts=t=>{const p={};for(const x of etFmt.formatToParts(new Date(t)))p[x.type]=+x.value;return Date.UTC(p.year,p.month-1,p.day,p.hour%24,p.minute)/1000;};
@@ -62,7 +64,7 @@ let levelLines=[],first=true;
 const pts=(bars,s)=>s.map((v,i)=>v==null?{time:ts(bars[i].t)}:{time:ts(bars[i].t),value:v});
 async function load(){
   try{
-    const r=await fetch('/api/'+location.pathname.split('/')[2]+'/analysis/'+CFG.symbol+'?range='+CFG.range+(CFG.ext?'':'&ext=0'),{cache:'no-store'});
+    const r=await fetch('/api/'+location.pathname.split('/')[2]+'/analysis/'+CFG.symbol+q(CFG.range,CFG.interval),{cache:'no-store'});
     const j=await r.json();if(!r.ok)throw new Error(j.error||r.status);
     const {bars,series,analysis:a,feed}=j;
     const ext=b=>b.session==='pre'||b.session==='post';

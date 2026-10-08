@@ -9,17 +9,40 @@ const fmt = new Intl.DateTimeFormat('en-US', {
 
 export type EtParts = { date: string; minutes: number; weekday: string; hhmm: string; mmdd: string };
 
-// Intl formatting is the slowest step when charting hundreds of bars; bar
-// timestamps repeat across analysis and drawing, so memoise them.
-const cache = new Map<number, EtParts>();
+// Intl formatting is the slowest step when charting hundreds of bars (about
+// 10 microseconds a call). New York's UTC offset is always a whole number of
+// hours and changes on the hour, so Intl runs once per UTC hour and the
+// minutes within the hour are added arithmetically.
+const HOUR = 3_600_000;
+const hourCache = new Map<number, EtParts>();
+// Bar timestamps arrive as ISO strings and are converted several times per
+// bar; parsing the string costs more than the lookup, so memoise by string.
+const stringCache = new Map<string, EtParts>();
 export function etParts(at: Date | string | number): EtParts {
-  const ms = new Date(at).getTime();
-  const hit = cache.get(ms);
-  if (hit) return hit;
-  if (cache.size > 20_000) cache.clear();
-  const value = computeEtParts(ms);
-  cache.set(ms, value);
-  return value;
+  if (typeof at === 'string') {
+    let hit = stringCache.get(at);
+    if (!hit) {
+      if (stringCache.size > 50_000) stringCache.clear();
+      hit = etPartsMs(Date.parse(at));
+      stringCache.set(at, hit);
+    }
+    return hit;
+  }
+  return etPartsMs(new Date(at).getTime());
+}
+
+function etPartsMs(ms: number): EtParts {
+  const hourStart = ms - (((ms % HOUR) + HOUR) % HOUR);
+  let base = hourCache.get(hourStart);
+  if (!base) {
+    if (hourCache.size > 50_000) hourCache.clear();
+    base = computeEtParts(hourStart);
+    hourCache.set(hourStart, base);
+  }
+  const extra = Math.floor((ms - hourStart) / 60_000);
+  if (!extra) return base;
+  const minutes = base.minutes + extra;
+  return { ...base, minutes, hhmm: `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}` };
 }
 
 function computeEtParts(at: number): EtParts {

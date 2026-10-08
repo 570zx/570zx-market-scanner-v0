@@ -148,7 +148,7 @@ export async function renderChart(a: Analysis, bars: Bar[], feed = ''): Promise<
   const tick = (i: number): [string, string] => {
     const p = et[i], month = MONTHS[Number(p.date.slice(5, 7)) - 1];
     if (a.range === '1d') return [p.hhmm.slice(0, 2), p.hhmm];
-    if (a.range === '5d' || a.range === '1mo') return [p.date, p.mmdd];
+    if (a.range === '5d' || a.range === '1mo' || a.timeframe === '4Hour') return [p.date, p.mmdd];
     if (a.range === '5y') return [p.date.slice(0, 4), p.date.slice(0, 4)];
     return [p.date.slice(0, 7), p.date.slice(5, 7) === '01' ? `${month} ${p.date.slice(0, 4)}` : month];
   };

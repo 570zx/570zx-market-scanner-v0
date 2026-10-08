@@ -7,7 +7,7 @@
 //   GET  /health
 // Anything without a valid token gets 404. Cron (every 5 min): the watcher.
 
-import { Alpaca, UserError, defaultFetch, normalizeSymbol, rangeKey, type FetchLike } from './alpaca.ts';
+import { Alpaca, UserError, defaultFetch, normalizeSymbol, resolveSpec, type FetchLike } from './alpaca.ts';
 import { brief, table } from './analyze.ts';
 import { chartToken, chartTokenOk, mcpTokenOk, MIN_TOKEN_LENGTH } from './auth.ts';
 import { renderChart } from './chart.ts';
@@ -44,14 +44,16 @@ export async function handle(req: Request, env: Env, fetcher: FetchLike = defaul
   const extended = url.searchParams.get('ext') !== '0';
   try {
     if (area === 'chart' && rest.length === 1) {
-      const symbol = normalizeSymbol(rest[0]), range = rangeKey(url.searchParams.get('range') ?? '1d');
-      return new Response(livePage(symbol, range, extended), {
+      const symbol = normalizeSymbol(rest[0]);
+      const { range, interval } = resolveSpec(url.searchParams.get('range') ?? undefined, url.searchParams.get('interval') ?? undefined);
+      return new Response(livePage(symbol, range, extended, interval), {
         headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' },
       });
     }
     if (area === 'api' && rest[0] === 'analysis' && rest.length === 2) {
-      const symbol = normalizeSymbol(rest[1]), range = rangeKey(url.searchParams.get('range') ?? '1d');
-      const { bars, analysis, feed } = await buildAnalysis(new Alpaca(env, fetcher), symbol, range, extended, now);
+      const symbol = normalizeSymbol(rest[1]);
+      const { range, interval, spec } = resolveSpec(url.searchParams.get('range') ?? undefined, url.searchParams.get('interval') ?? undefined);
+      const { bars, analysis, feed } = await buildAnalysis(new Alpaca(env, fetcher), symbol, range, extended, now, interval, spec);
       const s = analysis.series;
       return Response.json({
         feed, analysis: brief(analysis), table: table(analysis, bars),
@@ -60,8 +62,9 @@ export async function handle(req: Request, env: Env, fetcher: FetchLike = defaul
       }, { headers: { 'cache-control': 'no-store' } });
     }
     if (area === 'api' && rest[0] === 'chart' && rest.length === 2 && rest[1].endsWith('.png')) {
-      const symbol = normalizeSymbol(rest[1].slice(0, -4)), range = rangeKey(url.searchParams.get('range') ?? '1d');
-      const { bars, analysis, feed } = await buildAnalysis(new Alpaca(env, fetcher), symbol, range, extended, now);
+      const symbol = normalizeSymbol(rest[1].slice(0, -4));
+      const { range, interval, spec } = resolveSpec(url.searchParams.get('range') ?? undefined, url.searchParams.get('interval') ?? undefined);
+      const { bars, analysis, feed } = await buildAnalysis(new Alpaca(env, fetcher), symbol, range, extended, now, interval, spec);
       return new Response(await renderChart(analysis, bars, feed.short), { headers: { 'content-type': 'image/png', 'cache-control': 'no-store' } });
     }
   } catch (e) {

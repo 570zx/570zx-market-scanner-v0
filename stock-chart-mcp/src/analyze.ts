@@ -3,7 +3,7 @@
 // tells anyone to buy or sell.
 
 import type { Bar, RangeKey } from './alpaca.ts';
-import { RANGES, sessionOf, type Session } from './alpaca.ts';
+import { RANGES, sessionOf, type IntervalKey, type RangeSpec, type Session } from './alpaca.ts';
 import { etParts } from './time.ts';
 import * as ind from './indicators.ts';
 
@@ -15,14 +15,17 @@ export type WatchState = {
 
 export type Analysis = ReturnType<typeof analyze>;
 
-const round = (v: number | null | undefined, d = 2) => (v == null || !Number.isFinite(v) ? null : Number(v.toFixed(d)));
+// Arithmetic rounding: toFixed() is slow across thousands of per-bar values.
+const POW = [1, 10, 100, 1000, 10000];
+const round = (v: number | null | undefined, d = 2) => (v == null || !Number.isFinite(v) ? null : Math.round(v * POW[d]) / POW[d]);
 export const priceDigits = (p: number) => (p >= 1 ? 2 : 4);
 const fmt = (v: number | null, d = 2) => (v == null ? 'n/a' : v.toFixed(d));
 const pct = (v: number | null) => (v == null ? 'n/a' : `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`);
 
-export function analyze(symbol: string, range: RangeKey, bars: Bar[], opts: { prevClose?: number | null } = {}) {
+export function analyze(symbol: string, range: RangeKey, bars: Bar[],
+  opts: { prevClose?: number | null; spec?: RangeSpec; interval?: IntervalKey } = {}) {
   if (bars.length < 2) throw new Error('NOT_ENOUGH_BARS');
-  const spec = RANGES[range];
+  const spec = opts.spec ?? RANGES[range];
   const closes = bars.map(b => b.c);
   const dates = bars.map(b => etParts(b.t).date);
   const sessions: Session[] = bars.map(b => sessionOf(b.t, spec));
@@ -35,7 +38,7 @@ export function analyze(symbol: string, range: RangeKey, bars: Bar[], opts: { pr
     rsi: ind.rsi(closes, 14),
     macd: ind.macd(closes),
     atr: ind.atr(bars, 14),
-    vwap: spec.intraday ? regularVwap(bars, sessions, dates) : null,
+    vwap: spec.intraday && spec.vwap !== false ? regularVwap(bars, sessions, dates) : null,
   };
 
   const lastBar = bars[bars.length - 1];
@@ -131,7 +134,7 @@ export function analyze(symbol: string, range: RangeKey, bars: Bar[], opts: { pr
   });
 
   return {
-    symbol, range, timeframe: spec.timeframe, bar_count: bars.length,
+    symbol, range, interval: opts.interval ?? 'auto', timeframe: spec.timeframe, bar_count: bars.length,
     last_bar_session: lastSession, session_volume: sessionVolume,
     from: bars[0].t, to: lastBar.t,
     price: round(price, d), change: round(change, d), change_pct: round(changePct),
@@ -180,10 +183,11 @@ export function summarize(a: Analysis): string {
     'Indicators',
     `  EMA 9 / 21: ${fmt(i.ema9, d)} / ${fmt(i.ema21, d)}   SMA 20 / 50: ${fmt(i.sma20, d)} / ${fmt(i.sma50, d)}`,
     ...(i.vwap != null ? [`  VWAP (regular session): ${fmt(i.vwap, d)} (price ${a.state.above_vwap ? 'above' : 'below'})`] : []),
+    ...(a.timeframe === '4Hour' ? ['  VWAP: not computed on 4-hour bars. Bars that span the open or close are labelled "mixed".'] : []),
     `  RSI 14: ${fmt(i.rsi14, 1)}   MACD: ${fmt(i.macd.line, 4)} vs signal ${fmt(i.macd.signal, 4)} (hist ${fmt(i.macd.histogram, 4)})`,
     `  Bollinger 20,2: ${fmt(i.bollinger.lower, d)} – ${fmt(i.bollinger.upper, d)}   ATR 14: ${fmt(i.atr14, d)} (${fmt(i.atr_pct)}%)`,
     `  Relative volume (last bar vs same session): ${i.relative_volume == null ? 'n/a' : i.relative_volume + 'x'}`,
-    ...(a.timeframe.endsWith('Min') || a.timeframe === '1Hour' ? [`  Latest day volume by session: ${(['pre', 'regular', 'post'] as const)
+    ...(a.timeframe.endsWith('Min') || a.timeframe.endsWith('Hour') ? [`  Latest day volume by session: ${(['pre', 'mixed', 'regular', 'post'] as const)
       .filter(k => a.session_volume[k]).map(k => `${k} ${a.session_volume[k]!.volume.toLocaleString('en-US')} (${a.session_volume[k]!.bars} bars)`).join(', ')}; last bar is ${a.last_bar_session}`] : []),
     '',
     `Resistance: ${a.levels.resistance.map(l => `${fmt(l.price, d)} (${l.touches}x)`).join(', ') || 'none in view'}`,

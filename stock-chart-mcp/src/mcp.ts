@@ -3,7 +3,7 @@
 // Every tool is read-only towards the broker: only Alpaca market data is
 // read. The watchlist tools write to this server's own database.
 
-import { Alpaca, UserError, loadBars, normalizeSymbol, prevClose, rangeKey, RANGES, sessionOf, type FetchLike, type RangeKey } from './alpaca.ts';
+import { Alpaca, UserError, loadBars, normalizeSymbol, prevClose, resolveSpec, RANGES, INTERVALS, sessionOf, type FetchLike, type IntervalKey, type RangeKey, type RangeSpec } from './alpaca.ts';
 import { analyze, summarize, priceDigits, brief, table } from './analyze.ts';
 import { renderChart } from './chart.ts';
 import { base64 } from './png.ts';
@@ -31,12 +31,13 @@ export const TOOLS = [
   {
     name: 'analyze_stock',
     title: 'Analyze and chart a stock',
-    description: 'Technical analysis of a US stock: trend, EMA 9/21, SMA 20/50, regular-session VWAP, RSI 14, MACD, Bollinger bands, ATR, relative volume, volume by session, support/resistance and notable signals. Returns a read-out, a PNG chart (premarket/after-hours shaded) and JSON with every candle, its session label and indicator values. Ranges: 1d (5-min bars), 5d (15-min), 1mo (hourly), 3mo/6mo/1y (daily), 5y (weekly).',
+    description: 'Technical analysis of a US stock: trend, EMA 9/21, SMA 20/50, regular-session VWAP, RSI 14, MACD, Bollinger bands, ATR, relative volume, volume by session, support/resistance and notable signals. Returns a read-out, a PNG chart (premarket/after-hours shaded) and JSON with every candle, its session label and indicator values. Ranges: 1d (5-min bars), 5d (15-min), 1mo (hourly), 3mo/6mo/1y (daily), 5y (weekly). Optional interval: "1min" (1-minute bars, range 1d only; up to ~960 bars, so consider include_data=false) or "4h" (4-hour bars over 1mo/3mo/6mo, default 3mo; no VWAP, and bars spanning the open/close are labelled mixed).',
     inputSchema: {
       type: 'object',
       properties: {
         symbol: symbolProp,
-        range: { type: 'string', enum: RANGE_ENUM, default: '1d' },
+        range: { type: 'string', enum: RANGE_ENUM, description: 'Default 1d (3mo when interval is "4h")' },
+        interval: { type: 'string', enum: INTERVALS, default: 'auto', description: 'Bar size: auto (the range default), 1min (range 1d only) or 4h (range 1mo, 3mo or 6mo)' },
         extended_hours: { type: 'boolean', default: true, description: 'Include premarket (4:00) and after-hours (to 20:00) bars for intraday ranges' },
         chart: { type: 'boolean', default: true, description: 'Attach a PNG chart' },
         include_data: { type: 'boolean', default: true, description: 'Attach the JSON block with candles and per-bar indicators' },
@@ -275,22 +276,24 @@ async function quoteTool(client: Alpaca, symbol: string, now: Date): Promise<Con
   return [{ type: 'text', text }, json('quote', data)];
 }
 
-export async function buildAnalysis(client: Alpaca, symbol: string, range: RangeKey, extended: boolean, now: Date) {
-  const bars = await loadBars(client, symbol, range, extended, now);
-  if (bars.length < 2) throw new UserError(`No ${range} price data for ${symbol} (unknown ticker, or no trades on the ${client.feed.toUpperCase()} feed).`);
+export async function buildAnalysis(client: Alpaca, symbol: string, range: RangeKey, extended: boolean, now: Date,
+  interval: IntervalKey = 'auto', spec: RangeSpec = RANGES[range]) {
+  const bars = await loadBars(client, symbol, spec, extended, now);
+  if (bars.length < 2) throw new UserError(`No ${range} ${spec.timeframe} price data for ${symbol} (unknown ticker, or no trades on the ${client.feed.toUpperCase()} feed).`);
   let prev: number | null = null;
   if (range === '1d') {
     const daily = (await client.bars([symbol], '1Day', new Date(now.getTime() - 12 * 86_400_000), now))[symbol] ?? [];
     prev = prevClose(daily, etParts(bars[bars.length - 1].t).date);
   }
-  return { bars, analysis: analyze(symbol, range, bars, { prevClose: prev }), feed: client.feedInfo() };
+  return { bars, analysis: analyze(symbol, range, bars, { prevClose: prev, spec, interval }), feed: client.feedInfo() };
 }
 
 async function analyzeTool(args: any, ctx: Ctx): Promise<Content[]> {
-  const symbol = normalizeSymbol(args.symbol), range = rangeKey(args.range), extended = args.extended_hours !== false;
+  const symbol = normalizeSymbol(args.symbol), extended = args.extended_hours !== false;
+  const { range, interval, spec } = resolveSpec(args.range, args.interval);
   const client = new Alpaca(ctx.env, ctx.fetcher);
-  const { bars, analysis, feed } = await buildAnalysis(client, symbol, range, extended, ctx.now);
-  const live = `${ctx.origin}/chart/${ctx.chartToken}/${symbol}?range=${range}${extended ? '' : '&ext=0'}`;
+  const { bars, analysis, feed } = await buildAnalysis(client, symbol, range, extended, ctx.now, interval, spec);
+  const live = `${ctx.origin}/chart/${ctx.chartToken}/${symbol}?range=${range}${interval === 'auto' ? '' : `&interval=${interval}`}${extended ? '' : '&ext=0'}`;
   const asOf = etStamp(bars[bars.length - 1].t);
   const header = `Data: ${feed.label}${feed.fallback_reason ? ` (${feed.fallback_reason})` : ''}. Prices split-adjusted. Latest bar ${asOf} (${analysis.last_bar_session}).`;
   const out: Content[] = [{ type: 'text', text: `${header}\n\n${summarize(analysis)}\n\nLive chart (view-only link, refreshes every minute): ${live}` }];
