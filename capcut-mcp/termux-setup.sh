@@ -3,9 +3,12 @@
 set -e
 
 pkg update -y
-pkg install -y python android-tools nodejs git
+pkg install -y python android-tools nodejs git rust binutils clang make libffi openssl
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
+# mcp depends on Rust-built wheels (pydantic-core, rpds-py); build with Termux's rust
+export ANDROID_API_LEVEL="$(getprop ro.build.version.sdk)"
+export CARGO_BUILD_TARGET="$(rustc -vV | sed -n 's/^host: //p')"
 pip install -r "$DIR/requirements.txt"
 npm install -g @anthropic-ai/claude-code
 
