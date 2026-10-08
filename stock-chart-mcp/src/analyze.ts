@@ -3,7 +3,7 @@
 // tells anyone to buy or sell.
 
 import type { Bar, RangeKey } from './alpaca.ts';
-import { RANGES } from './alpaca.ts';
+import { RANGES, sessionOf, type Session } from './alpaca.ts';
 import { etParts } from './time.ts';
 import * as ind from './indicators.ts';
 
@@ -25,6 +25,7 @@ export function analyze(symbol: string, range: RangeKey, bars: Bar[], opts: { pr
   const spec = RANGES[range];
   const closes = bars.map(b => b.c);
   const dates = bars.map(b => etParts(b.t).date);
+  const sessions: Session[] = bars.map(b => sessionOf(b.t, spec));
   const series = {
     sma20: ind.sma(closes, 20),
     sma50: ind.sma(closes, 50),
@@ -34,7 +35,7 @@ export function analyze(symbol: string, range: RangeKey, bars: Bar[], opts: { pr
     rsi: ind.rsi(closes, 14),
     macd: ind.macd(closes),
     atr: ind.atr(bars, 14),
-    vwap: spec.intraday ? ind.vwap(bars, i => dates[i]) : null,
+    vwap: spec.intraday ? regularVwap(bars, sessions, dates) : null,
   };
 
   const lastBar = bars[bars.length - 1];
@@ -54,8 +55,10 @@ export function analyze(symbol: string, range: RangeKey, bars: Bar[], opts: { pr
     bbUpper: ind.last(series.bb.upper), bbLower: ind.last(series.bb.lower), bbMid: ind.last(series.bb.mid),
   };
 
-  // Relative volume: last bar vs the 20 bars before it.
-  const prior = bars.slice(-21, -1);
+  // Relative volume: last bar vs the previous 20 bars of the same session
+  // type (after-hours bars are not compared with the regular session).
+  const lastSession = sessions[sessions.length - 1];
+  const prior = bars.slice(0, -1).filter((_, i) => sessions[i] === lastSession).slice(-20);
   const avgVol = prior.length ? prior.reduce((a, b) => a + b.v, 0) / prior.length : 0;
   const relVol = avgVol > 0 ? lastBar.v / avgVol : null;
 
@@ -82,6 +85,8 @@ export function analyze(symbol: string, range: RangeKey, bars: Bar[], opts: { pr
 
   const signals: Signal[] = [];
   const add = (key: string, text: string) => signals.push({ key, text });
+  if (lastSession === 'pre' || lastSession === 'post')
+    add(`${lastSession}_market`, `Latest bar is ${lastSession === 'pre' ? 'premarket' : 'after-hours'}: thin liquidity, moves can reverse at the open`);
   if (v.rsi != null) {
     if (v.rsi >= 70) add('rsi_overbought', `RSI ${v.rsi.toFixed(0)}: overbought`);
     else if (v.rsi <= 30) add('rsi_oversold', `RSI ${v.rsi.toFixed(0)}: oversold`);
@@ -116,8 +121,18 @@ export function analyze(symbol: string, range: RangeKey, bars: Bar[], opts: { pr
     session_low: Math.min(...sessionBars.map(b => b.l)),
   };
 
+  // Volume and bar counts per session for the latest day shown.
+  const lastDate = dates[dates.length - 1];
+  const sessionVolume: Partial<Record<Session, { bars: number; volume: number }>> = {};
+  bars.forEach((b, i) => {
+    if (spec.intraday && dates[i] !== lastDate) return;
+    const e = (sessionVolume[sessions[i]] ??= { bars: 0, volume: 0 });
+    e.bars++; e.volume += b.v;
+  });
+
   return {
     symbol, range, timeframe: spec.timeframe, bar_count: bars.length,
+    last_bar_session: lastSession, session_volume: sessionVolume,
     from: bars[0].t, to: lastBar.t,
     price: round(price, d), change: round(change, d), change_pct: round(changePct),
     change_basis: opts.prevClose != null ? 'previous close' : 'first bar open',
@@ -131,12 +146,26 @@ export function analyze(symbol: string, range: RangeKey, bars: Bar[], opts: { pr
       atr14: round(v.atr, d), atr_pct: round(v.atr != null ? (v.atr / price) * 100 : null),
       relative_volume: round(relVol),
     },
-    levels: {
-      resistance: resistance.map(l => ({ price: round(l.price, d), touches: l.touches })),
-      support: support.map(l => ({ price: round(l.price, d), touches: l.touches })),
-    },
-    signals, state, series,
+    levels: { resistance: mergeRounded(resistance, d), support: mergeRounded(support, d) },
+    signals, state, series, sessions,
   };
+}
+
+// VWAP over regular-session bars only, re-anchored each day; null for
+// premarket and after-hours bars.
+function regularVwap(bars: Bar[], sessions: Session[], dates: string[]) {
+  const regular = bars.map((b, i) => (sessions[i] === 'regular' ? b : { ...b, v: 0 }));
+  return ind.vwap(regular, i => dates[i]).map((v, i) => (sessions[i] === 'regular' ? v : null));
+}
+
+// Levels that round to the same displayed price are one level.
+function mergeRounded(levels: { price: number; touches: number }[], d: number) {
+  const out: { price: number | null; touches: number }[] = [];
+  for (const l of levels) {
+    const price = round(l.price, d), same = out.find(o => o.price === price);
+    if (same) same.touches += l.touches; else out.push({ price, touches: l.touches });
+  }
+  return out;
 }
 
 function ago(n: number) { return n === 0 ? 'on the latest bar' : `${n} bar${n === 1 ? '' : 's'} ago`; }
@@ -150,10 +179,12 @@ export function summarize(a: Analysis): string {
     '',
     'Indicators',
     `  EMA 9 / 21: ${fmt(i.ema9, d)} / ${fmt(i.ema21, d)}   SMA 20 / 50: ${fmt(i.sma20, d)} / ${fmt(i.sma50, d)}`,
-    ...(i.vwap != null ? [`  VWAP: ${fmt(i.vwap, d)} (price ${a.state.above_vwap ? 'above' : 'below'})`] : []),
+    ...(i.vwap != null ? [`  VWAP (regular session): ${fmt(i.vwap, d)} (price ${a.state.above_vwap ? 'above' : 'below'})`] : []),
     `  RSI 14: ${fmt(i.rsi14, 1)}   MACD: ${fmt(i.macd.line, 4)} vs signal ${fmt(i.macd.signal, 4)} (hist ${fmt(i.macd.histogram, 4)})`,
     `  Bollinger 20,2: ${fmt(i.bollinger.lower, d)} – ${fmt(i.bollinger.upper, d)}   ATR 14: ${fmt(i.atr14, d)} (${fmt(i.atr_pct)}%)`,
-    `  Relative volume (last bar): ${i.relative_volume == null ? 'n/a' : i.relative_volume + 'x'}`,
+    `  Relative volume (last bar vs same session): ${i.relative_volume == null ? 'n/a' : i.relative_volume + 'x'}`,
+    ...(a.timeframe.endsWith('Min') || a.timeframe === '1Hour' ? [`  Latest day volume by session: ${(['pre', 'regular', 'post'] as const)
+      .filter(k => a.session_volume[k]).map(k => `${k} ${a.session_volume[k]!.volume.toLocaleString('en-US')} (${a.session_volume[k]!.bars} bars)`).join(', ')}; last bar is ${a.last_bar_session}`] : []),
     '',
     `Resistance: ${a.levels.resistance.map(l => `${fmt(l.price, d)} (${l.touches}x)`).join(', ') || 'none in view'}`,
     `Support: ${a.levels.support.map(l => `${fmt(l.price, d)} (${l.touches}x)`).join(', ') || 'none in view'}`,
@@ -164,8 +195,25 @@ export function summarize(a: Analysis): string {
   return lines.join('\n');
 }
 
-// Plain JSON without the full indicator series.
+// Plain JSON without the per-bar series.
 export function brief(a: Analysis) {
-  const { series, ...rest } = a;
+  const { series, sessions, ...rest } = a;
   return rest;
+}
+
+// Candles and indicator values per bar, column-oriented to stay compact.
+export const TABLE_COLUMNS = ['time_utc', 'time_et', 'session', 'open', 'high', 'low', 'close', 'volume',
+  'vwap', 'ema9', 'ema21', 'sma20', 'sma50', 'bb_upper', 'bb_lower', 'rsi14', 'macd', 'macd_signal', 'macd_hist'] as const;
+export function table(a: Analysis, bars: Bar[]) {
+  const d = priceDigits(a.price ?? 1), s = a.series;
+  const r = (v: number | null | undefined, n = d) => round(v, n);
+  return {
+    columns: TABLE_COLUMNS,
+    rows: bars.map((b, i) => {
+      const et = etParts(b.t);
+      return [b.t, `${et.date} ${et.hhmm}`, a.sessions[i], b.o, b.h, b.l, b.c, b.v,
+        r(s.vwap?.[i]), r(s.ema9[i]), r(s.ema21[i]), r(s.sma20[i]), r(s.sma50[i]), r(s.bb.upper[i]), r(s.bb.lower[i]),
+        r(s.rsi[i], 1), r(s.macd.line[i], 4), r(s.macd.signal[i], 4), r(s.macd.hist[i], 4)];
+    }),
+  };
 }

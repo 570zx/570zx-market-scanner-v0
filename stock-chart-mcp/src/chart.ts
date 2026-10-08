@@ -24,20 +24,35 @@ const PALETTE = [
   '#f4c3c2', // 11 volume down
   '#f3f2ee', // 12 RSI 30-70 zone
   '#ffffff', // 13 tag text
+  '#f1f0eb', // 14 extended-hours shading
 ];
-const C = { bg: 0, grid: 1, axis: 2, ink: 3, up: 4, down: 5, vwap: 6, ema: 7, bandFill: 8, band: 9, volUp: 10, volDown: 11, zone: 12, white: 13 };
+const C = { bg: 0, grid: 1, axis: 2, ink: 3, up: 4, down: 5, vwap: 6, ema: 7, bandFill: 8, band: 9, volUp: 10, volDown: 11, zone: 12, white: 13, ext: 14 };
 
 const W = 960, H = 600, S = 2; // S = font scale
 const L = 16, R = 88;
 const PRICE = { top: 72, bottom: 372 }, VOL = { top: 384, bottom: 448 }, RSI = { top: 462, bottom: 560 };
 
-export async function renderChart(a: Analysis, bars: Bar[]): Promise<Uint8Array<ArrayBuffer>> {
+// `feed` is a short label such as "SIP DELAYED 15 MIN", printed on the chart.
+export async function renderChart(a: Analysis, bars: Bar[], feed = ''): Promise<Uint8Array<ArrayBuffer>> {
   const r = new Raster(W, H, PALETTE, C.bg);
   const n = bars.length, plotW = W - L - R, step = plotW / n;
   const xAt = (i: number) => L + step * (i + 0.5);
   const d = priceDigits(a.price ?? 1);
   const s = a.series;
   const et = bars.map(b => etParts(b.t));
+
+  // Premarket / after-hours stretches are shaded across all panels.
+  let shaded = false;
+  for (let i = 0; i < n; i++) {
+    const isExt = (k: number) => a.sessions[k] === 'pre' || a.sessions[k] === 'post';
+    if (!isExt(i)) continue;
+    let j = i;
+    while (j + 1 < n && isExt(j + 1)) j++;
+    shaded = true;
+    const x0 = Math.round(L + step * i), x1 = Math.round(L + step * (j + 1));
+    for (const p of [PRICE, VOL, RSI]) r.rect(x0, p.top, x1 - x0, p.bottom - p.top, C.ext);
+    i = j;
+  }
 
   // ---- header
   const sign = (a.change_pct ?? 0) >= 0 ? '+' : '';
@@ -120,7 +135,6 @@ export async function renderChart(a: Analysis, bars: Bar[]): Promise<Uint8Array<
 
   // ---- RSI panel
   const yR = (v: number) => RSI.bottom - (v / 100) * (RSI.bottom - RSI.top);
-  r.rect(L, yR(70), W - R - L, yR(30) - yR(70), C.zone);
   for (const lvl of [30, 50, 70]) {
     r.hline(L, W - R, Math.round(yR(lvl)), C.grid, lvl === 50 ? 0 : 6);
     text(r, W - R + 8, Math.round(yR(lvl)) - 7, String(lvl), C.axis, S);
@@ -151,7 +165,7 @@ export async function renderChart(a: Analysis, bars: Bar[]): Promise<Uint8Array<
     lastRight = left + w;
   });
   r.hline(L, W - R, RSI.bottom, C.axis);
-  const foot = 'TIMES ET  DATA: ALPACA';
+  const foot = `TIMES ET  ALPACA ${feed}${shaded ? '  SHADED = PRE/AFTER-HOURS' : ''}`.trim();
   text(r, W - R - textWidth(foot), 56, foot, C.band, 1);
 
   return r.png();

@@ -28,7 +28,7 @@ ul{margin:4px 0;padding-left:18px}table{border-collapse:collapse;font-size:13px}
 </style></head><body><main>
 <header><h1 id="sym"></h1><span id="px" style="font-size:22px"></span><span id="chg"></span><span id="meta" class="muted"></span></header>
 <nav id="ranges"></nav>
-<div class="legend"><span><i style="background:var(--vwap)"></i>VWAP</span><span><i style="background:var(--ema)"></i>EMA 21</span><span><i style="background:var(--band)"></i>Bollinger 20,2</span></div>
+<div class="legend"><span><i style="background:var(--vwap)"></i>VWAP</span><span><i style="background:var(--ema)"></i>EMA 21</span><span><i style="background:var(--band)"></i>Bollinger 20,2</span><span>Faded candles = premarket / after-hours · VWAP is regular session only</span></div>
 <div id="price"></div><div class="panel-label">Volume</div><div id="vol"></div><div class="panel-label">RSI 14</div><div id="rsi"></div>
 <div class="grid"><section><h3>Signals</h3><ul id="signals"></ul></section><section><h3>Levels &amp; indicators</h3><table id="ind"></table></section></div>
 <p class="muted" id="status"></p>
@@ -39,7 +39,7 @@ const CFG=${cfg};
 const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const $=id=>document.getElementById(id);
 $('sym').textContent=CFG.symbol;
-for(const r of ['1d','5d','1mo','3mo','6mo','1y','5y']){const a=document.createElement('a');a.textContent=r;a.href='?range='+r+(CFG.ext?'&ext=1':'');if(r===CFG.range)a.setAttribute('aria-current','page');$('ranges').append(a);}
+for(const r of ['1d','5d','1mo','3mo','6mo','1y','5y']){const a=document.createElement('a');a.textContent=r;a.href='?range='+r+(CFG.ext?'':'&ext=0');if(r===CFG.range)a.setAttribute('aria-current','page');$('ranges').append(a);}
 const intraday=['1d','5d','1mo'].includes(CFG.range);
 // Lightweight Charts formats times as UTC, so bars are given ET wall-clock seconds.
 const etFmt=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hourCycle:'h23',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
@@ -62,11 +62,12 @@ let levelLines=[],first=true;
 const pts=(bars,s)=>s.map((v,i)=>v==null?{time:ts(bars[i].t)}:{time:ts(bars[i].t),value:v});
 async function load(){
   try{
-    const r=await fetch('/api/'+location.pathname.split('/')[2]+'/analysis/'+CFG.symbol+'?range='+CFG.range+(CFG.ext?'&ext=1':''),{cache:'no-store'});
+    const r=await fetch('/api/'+location.pathname.split('/')[2]+'/analysis/'+CFG.symbol+'?range='+CFG.range+(CFG.ext?'':'&ext=0'),{cache:'no-store'});
     const j=await r.json();if(!r.ok)throw new Error(j.error||r.status);
-    const {bars,series,analysis:a}=j;
-    candles.setData(bars.map(b=>({time:ts(b.t),open:b.o,high:b.h,low:b.l,close:b.c})));
-    volS.setData(bars.map(b=>({time:ts(b.t),value:b.v,color:b.c>=b.o?css('--up')+'66':css('--down')+'66'})));
+    const {bars,series,analysis:a,feed}=j;
+    const ext=b=>b.session==='pre'||b.session==='post';
+    candles.setData(bars.map(b=>{const c=css(b.c>=b.o?'--up':'--down')+(ext(b)?'59':'');return {time:ts(b.t),open:b.o,high:b.h,low:b.l,close:b.c,color:c,wickColor:c};}));
+    volS.setData(bars.map(b=>({time:ts(b.t),value:b.v,color:css(b.c>=b.o?'--up':'--down')+(ext(b)?'33':'77')})));
     ema.setData(pts(bars,series.ema21));bbU.setData(pts(bars,series.bb_upper));bbL.setData(pts(bars,series.bb_lower));
     vwap.setData(series.vwap?pts(bars,series.vwap).map((p,i)=>i<bars.length-1&&Math.floor(p.time/86400)!==Math.floor(ts(bars[i+1].t)/86400)&&'value' in p?{...p,color:'rgba(0,0,0,0)'}:p):[]);rsiS.setData(pts(bars,series.rsi));
     levelLines.forEach(l=>candles.removePriceLine(l));
@@ -74,13 +75,13 @@ async function load(){
     if(first){charts.forEach(c=>c.timeScale().fitContent());first=false;}
     $('px').textContent=a.price;const up=a.change_pct>=0;
     $('chg').textContent=(up?'+':'')+a.change+' ('+(up?'+':'')+a.change_pct+'%)';$('chg').style.color=css(up?'--up':'--down');
-    $('meta').textContent=a.range+' · '+a.timeframe+' · '+a.trend+' · vs '+a.change_basis;
+    $('meta').textContent=a.range+' · '+a.timeframe+' · '+a.trend+' · vs '+a.change_basis+' · last bar '+a.last_bar_session;
     $('signals').innerHTML='';(a.signals.length?a.signals.map(s=>s.text):['Nothing notable on the latest bars']).forEach(t=>{const li=document.createElement('li');li.textContent=t;$('signals').append(li);});
     const i=a.indicators,rows=[['RSI 14',i.rsi14],['VWAP',i.vwap],['EMA 9 / 21',i.ema9+' / '+i.ema21],['SMA 20 / 50',i.sma20+' / '+i.sma50],
       ['MACD (hist)',i.macd.histogram],['ATR 14',i.atr14+' ('+i.atr_pct+'%)'],['Rel. volume',i.relative_volume],
       ['Resistance',a.levels.resistance.map(l=>l.price).join(', ')||'—'],['Support',a.levels.support.map(l=>l.price).join(', ')||'—']];
     $('ind').innerHTML='';rows.forEach(([k,v])=>{const tr=document.createElement('tr');tr.innerHTML='<td class="muted"></td><td></td>';tr.cells[0].textContent=k;tr.cells[1].textContent=v??'n/a';$('ind').append(tr);});
-    $('status').textContent='Updated '+new Date().toLocaleTimeString()+' · refreshes every 60s · times ET · data: Alpaca';
+    $('status').textContent='Updated '+new Date().toLocaleTimeString()+' · refreshes every 60s · times ET · split-adjusted · data: Alpaca '+feed.label+(feed.fallback_reason?' ('+feed.fallback_reason+')':'');
   }catch(e){$('status').textContent='Update failed: '+e.message+' (retrying in 60s)';}
 }
 load();setInterval(load,60000);

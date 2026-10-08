@@ -15,7 +15,13 @@ export class Raster {
   rect(x: number, y: number, w: number, h: number, c: number) {
     const x0 = Math.max(0, Math.round(x)), y0 = Math.max(0, Math.round(y));
     const x1 = Math.min(this.width, Math.round(x + w)), y1 = Math.min(this.height, Math.round(y + h));
-    for (let yy = y0; yy < y1; yy++) this.px.fill(c, yy * this.width + x0, yy * this.width + x1);
+    const px = this.px, W = this.width;
+    if (x1 - x0 <= 16) {
+      // Narrow (bars, glyph pixels): plain writes beat a fill() call per row.
+      for (let yy = y0; yy < y1; yy++) for (let i = yy * W + x0, end = yy * W + x1; i < end; i++) px[i] = c;
+    } else {
+      for (let yy = y0; yy < y1; yy++) px.fill(c, yy * W + x0, yy * W + x1);
+    }
   }
   hline(x0: number, x1: number, y: number, c: number, dash = 0) {
     for (let x = Math.round(x0); x <= x1; x++) if (!dash || Math.floor(x / dash) % 2 === 0) this.set(x, y, c);
@@ -40,14 +46,21 @@ export class Raster {
   }
 
   async png(): Promise<Uint8Array<ArrayBuffer>> {
-    const { width: w, height: h } = this;
-    const raw = new Uint8Array((w + 1) * h);
-    for (let y = 0; y < h; y++) raw.set(this.px.subarray(y * w, (y + 1) * w), y * (w + 1) + 1); // filter 0
+    const { width: w, height: h, px } = this;
+    // Up to 16 colours: pack 4 bits per pixel (half the bytes to deflate).
+    const bits = this.palette.length <= 16 ? 4 : 8;
+    const rowBytes = bits === 4 ? Math.ceil(w / 2) : w;
+    const raw = new Uint8Array((rowBytes + 1) * h); // filter byte 0 per row
+    for (let y = 0; y < h; y++) {
+      const out = y * (rowBytes + 1) + 1, row = y * w;
+      if (bits === 8) { raw.set(px.subarray(row, row + w), out); continue; }
+      for (let x = 0, o = out; x < w; x += 2, o++) raw[o] = (px[row + x] << 4) | (x + 1 < w ? px[row + x + 1] : 0);
+    }
     const plte = new Uint8Array(this.palette.length * 3);
     this.palette.forEach((hex, i) => plte.set([1, 3, 5].map(o => parseInt(hex.slice(o, o + 2), 16)), i * 3));
     const ihdr = new Uint8Array(13);
     const dv = new DataView(ihdr.buffer);
-    dv.setUint32(0, w); dv.setUint32(4, h); ihdr.set([8, 3, 0, 0, 0], 8); // 8-bit, indexed
+    dv.setUint32(0, w); dv.setUint32(4, h); ihdr.set([bits, 3, 0, 0, 0], 8); // indexed colour
     return concat([
       new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]),
       chunk('IHDR', ihdr), chunk('PLTE', plte), chunk('IDAT', await zlib(raw)), chunk('IEND', new Uint8Array(0)),
