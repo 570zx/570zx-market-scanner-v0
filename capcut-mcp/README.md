@@ -29,3 +29,9 @@ It runs on your computer (not in the cloud), so the phone stays on your network/
 Claude can do anything you can by tapping: delete projects, post/export, open other apps.
 Watch the first sessions, keep the phone unlocked only while you're present, and turn USB debugging off when done.
 Untested against a real device (written without phone access) - report issues and I'll fix them.
+
+## Run it all from the phone (Termux)
+Install Termux from F-Droid, clone this repo, then `bash capcut-mcp/termux-setup.sh`.
+It installs the dependencies and Claude Code, registers the server, and prints the one-time
+wireless-debugging pairing steps (`adb pair localhost:...`, `adb connect localhost:...`).
+Needs Android 11+ and Wi-Fi. Untested on a real device.
