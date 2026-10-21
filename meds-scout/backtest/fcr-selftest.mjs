@@ -64,3 +64,24 @@ const res = await main(['--start', '2023-01-03', '--end', '2023-06-30', '--out',
 assert.ok(res.QQQ.sessions > 100);
 const g = stats(runDays([], {}, {})); assert.equal(g.n, 0);
 console.error('fcr selftest ok');
+
+// Filters: a short day with first candle up is blocked by the 'first'-direction filter only when it disagrees.
+import {enrich} from './lib/fcr.mjs';
+const d1 = {date: '2024-01-02', bars: shortDay, ctx: {firstDir: 1, gapDir: -1, trendDir: -1, atr14: 1.0}};
+assert.equal(findSetup(d1.bars, {dirFilter: 'first'}, d1.ctx), null);      // first candle up, setup is short
+assert.equal(findSetup(d1.bars, {dirFilter: 'gap'}, d1.ctx).dir, 'short'); // gap down agrees
+assert.equal(findSetup(d1.bars, {dirFilter: 'trend'}, d1.ctx).dir, 'short');
+assert.equal(findSetup(d1.bars, {stop: 'orb'}, d1.ctx).stop, 100.5);
+assert.equal(findSetup(d1.bars, {minRiskPct: 0.01}, d1.ctx), null);        // 0.65 risk on ~99 is 0.66%, so 1% blocks it
+assert.ok(findSetup(d1.bars, {minRiskPct: 0.005}, d1.ctx));
+assert.equal(findSetup(d1.bars, {minOrbAtr: 2}, d1.ctx), null);            // opening range 1.0 vs atr 1.0
+// enrich() uses only earlier sessions.
+const ed = enrich([{date: 'a', bars: shortDay}, {date: 'b', bars: shortDay}]);
+assert.equal(ed[0].ctx.gapDir, 0); assert.equal(ed[1].ctx.gapDir, Math.sign(100 - ed[0].bars.at(-1).c));
+console.error('fcr filter checks ok');
+
+// The search runs end to end on fake data and its luck baseline is reported.
+import {main as searchMain} from './fcr-search.mjs';
+const sres = await searchMain(['--start', '2022-01-03', '--end', '2023-12-29', '--out', join(tmp, 's'), '--data', join(tmp, 'd2')], {alpacaImpl: fakeAlpaca()});
+assert.equal(sres.tried, 864);
+console.error('fcr search selftest ok');

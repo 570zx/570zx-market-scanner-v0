@@ -20,6 +20,9 @@ export const DEFAULTS = {
   flat: 15 * 60 + 55,    // exit at this bar's close
   minRisk: 0.02,         // skip setups whose stop is closer than this ($)
   mirror: false,         // control: same entry, trade the opposite side with the same geometry
+  dirFilter: 'none',     // 'none' | 'first' (first candle's colour) | 'gap' (overnight gap) | 'trend' (prior close vs 50-day average)
+  minRiskPct: 0,         // skip setups whose stop is closer than this fraction of price (cost drag is cost / risk)
+  minOrbAtr: 0,          // skip days whose opening candle range is below this multiple of the 14-day average daily range
 };
 
 const ORB_START = 570, ORB_END = 575; // bars with 570 <= m < 575
@@ -35,10 +38,16 @@ const bearEngulf = (p, b) => p.c > p.o && b.c < b.o && b.o >= p.c && b.c <= p.o;
 
 // Find the day's first trade (or null). Returns the entry, stop, target and the
 // index of the entry bar; the exit is resolved separately by resolveExit().
-export function findSetup(bars, opts = {}) {
+export function findSetup(bars, opts = {}, ctx = null) {
   const P = {...DEFAULTS, ...opts};
   const lv = openingLevels(bars);
   if (!lv) return null;
+  if (P.minOrbAtr > 0 && !(ctx?.atr14 > 0 && (lv.high - lv.low) / ctx.atr14 >= P.minOrbAtr)) return null;
+  const allowed = dir => {
+    if (P.dirFilter === 'none') return true;
+    const want = P.dirFilter === 'first' ? ctx?.firstDir : P.dirFilter === 'gap' ? ctx?.gapDir : P.dirFilter === 'trend' ? ctx?.trendDir : 0;
+    return want === (dir === 'long' ? 1 : -1);
+  };
   const idx = bars.findIndex(b => b.m >= ORB_END);
   if (idx < 1) return null;
   let armedShort = null, armedLong = null; // {zoneLo, zoneHi, since}
@@ -48,29 +57,29 @@ export function findSetup(bars, opts = {}) {
     // 1) A gap forms when bar j-1 was the breakout bar: bars j-2, j-1, j.
     if (j >= 2 && bars[j - 1].m >= ORB_END) {
       const a = bars[j - 2], k = bars[j - 1];
-      if (k.c < lv.low && a.l > b.h) armedShort = {zoneLo: b.h, zoneHi: a.l, since: j};
-      if (k.c > lv.high && a.h < b.l) armedLong = {zoneLo: a.h, zoneHi: b.l, since: j};
+      if (k.c < lv.low && a.l > b.h && allowed('short')) armedShort = {zoneLo: b.h, zoneHi: a.l, since: j};
+      if (k.c > lv.high && a.h < b.l && allowed('long')) armedLong = {zoneLo: a.h, zoneHi: b.l, since: j};
     }
     // 2) Engulfing candle after price returns into an armed gap (never on the bar that formed it).
     const p = bars[j - 1];
     if (armedShort && j > armedShort.since) {
       if (b.c > armedShort.zoneHi) armedShort = null; // closed back through the whole gap: setup is dead
-      else if (b.h >= armedShort.zoneLo && bearEngulf(p, b)) return build('short', b, j, armedShort, P);
+      else if (b.h >= armedShort.zoneLo && bearEngulf(p, b)) return build('short', b, j, armedShort, P, lv);
     }
     if (armedLong && j > armedLong.since) {
       if (b.c < armedLong.zoneLo) armedLong = null;
-      else if (b.l <= armedLong.zoneHi && bullEngulf(p, b)) return build('long', b, j, armedLong, P);
+      else if (b.l <= armedLong.zoneHi && bullEngulf(p, b)) return build('long', b, j, armedLong, P, lv);
     }
   }
   return null;
 }
 
-function build(dir, b, j, zone, P) {
+function build(dir, b, j, zone, P, lv) {
   const entry = b.c;
-  let stop = dir === 'short' ? (P.stop === 'fvg' ? Math.max(zone.zoneHi, b.h) : b.h)
-                             : (P.stop === 'fvg' ? Math.min(zone.zoneLo, b.l) : b.l);
+  let stop = dir === 'short' ? (P.stop === 'fvg' ? Math.max(zone.zoneHi, b.h) : P.stop === 'orb' ? lv.high : b.h)
+                             : (P.stop === 'fvg' ? Math.min(zone.zoneLo, b.l) : P.stop === 'orb' ? lv.low : b.l);
   let risk = Math.abs(stop - entry);
-  if (risk < P.minRisk) return null;
+  if (risk < P.minRisk || risk < P.minRiskPct * entry) return null;
   let side = dir;
   if (P.mirror) { side = dir === 'short' ? 'long' : 'short'; stop = side === 'long' ? entry - risk : entry + risk; }
   const target = side === 'long' ? entry + P.rr * risk : entry - P.rr * risk;
@@ -104,7 +113,7 @@ export function tradeR(s, x, costs = {}) {
 export function runDays(days, opts = {}, costs = {}) {
   const trades = [];
   for (const d of days) {
-    const s = findSetup(d.bars, opts);
+    const s = findSetup(d.bars, opts, d.ctx);
     if (!s) continue;
     const x = resolveExit(d.bars, s, opts);
     const r = tradeR(s, x, costs);
@@ -132,4 +141,25 @@ export function byYear(trades, key = 'r') {
   const out = {};
   for (const t of trades) (out[t.date.slice(0, 4)] ??= []).push(t);
   return Object.fromEntries(Object.entries(out).map(([y, ts]) => [y, stats(ts, key)]));
+}
+
+// Per-day context known before 09:35: overnight gap, first-candle colour, trend and typical range.
+// Everything uses only earlier sessions plus the 09:30-09:35 bars, so nothing looks ahead.
+export function enrich(days) {
+  const daily = [];
+  for (const d of days) {
+    const rth = d.bars; if (!rth.length) { d.ctx = null; continue; }
+    const orb = rth.filter(b => b.m >= 570 && b.m < 575);
+    const prev = daily.at(-1), closes = daily.slice(-50).map(x => x.c), last14 = daily.slice(-14);
+    const open = orb[0]?.o, orbClose = orb.at(-1)?.c;
+    const sma50 = closes.length === 50 ? closes.reduce((a, b) => a + b, 0) / 50 : null;
+    d.ctx = {
+      firstDir: orb.length && orbClose !== open ? Math.sign(orbClose - open) : 0,
+      gapDir: prev && open ? Math.sign(open - prev.c) : 0,
+      trendDir: prev && sma50 ? (prev.c > sma50 ? 1 : -1) : 0,
+      atr14: last14.length === 14 ? last14.reduce((a, x) => a + (x.h - x.l), 0) / 14 : null,
+    };
+    daily.push({c: rth.at(-1).c, h: Math.max(...rth.map(b => b.h)), l: Math.min(...rth.map(b => b.l))});
+  }
+  return days;
 }
