@@ -85,3 +85,10 @@ import {main as searchMain} from './fcr-search.mjs';
 const sres = await searchMain(['--start', '2022-01-03', '--end', '2023-12-29', '--out', join(tmp, 's'), '--data', join(tmp, 'd2')], {alpacaImpl: fakeAlpaca()});
 assert.equal(sres.tried, 864);
 console.error('fcr search selftest ok');
+
+// Win-rate gate: a band nothing can meet leaves no eligible configurations, and a wide band keeps them.
+import {GATE} from './fcr-search.mjs';
+GATE.minWin = 0.999; GATE.maxWin = 1; GATE.rrs = [1];
+const none = await searchMain(['--start', '2022-01-03', '--end', '2023-12-29', '--out', join(tmp, 's2'), '--data', join(tmp, 'd2')], {alpacaImpl: fakeAlpaca()});
+assert.equal(none.eligible, 0);
+console.error('fcr gate selftest ok');
