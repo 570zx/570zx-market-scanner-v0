@@ -17,20 +17,22 @@ export const SYMBOLS = ['SPY', 'QQQ', 'IWM', 'DIA', 'XLF', 'XLK', 'XLE', 'TLT', 
 const pct = x => x == null ? '—' : (100 * x).toFixed(1) + '%', f2 = x => x == null ? '—' : x.toFixed(2);
 const same = (a, b) => a.thr === b.thr && a.slots === b.slots && a.exit === b.exit && a.trend === b.trend;
 
-export function analyse(recsBySym, {firstTestYear = '2019', cost = 0.01, stopSlip = 0.01} = {}) {
-  const al = align(recsBySym);
-  const sims = configs().map(cfg => ({cfg, ...simulate(al, cfg, {cost, stopSlip})}));
+export function analyse(recsBySym, {firstTestYear = '2019', cost = 0.01, stopSlip = 0.01, slotList = [3, 5], benchOnly = false, borrow = 0.06} = {}) {
+  const tradable = benchOnly ? Object.fromEntries(Object.entries(recsBySym).filter(([k]) => k !== 'SPY')) : recsBySym;
+  const al = align(tradable);
+  const baseCfg = {...BASELINE, slots: slotList.includes(BASELINE.slots) ? BASELINE.slots : slotList.at(-1)};
+  const sims = configs(slotList).map(cfg => ({cfg, ...simulate(al, cfg, {cost, stopSlip})}));
   sims.forEach(s => { s.cfg = s.cfg; });
   const wf = walkForward(sims, al.dates, {firstTestYear});
   const from = wf.dates[0], to = '9999';
-  const base = sims.find(s => same(s.cfg, BASELINE));
+  const base = sims.find(s => same(s.cfg, baseCfg));
   const baseOos = sliceRange(base, from, to);
   const spy = {rets: [], dates: []};
-  const spyRecs = al.by.SPY;
+  const spyByDate = new Map(recsBySym.SPY.filter(r => r.ok).map(r => [r.date, r]));
   let prev = null;
-  al.dates.forEach((d, i) => { const r = spyRecs[i]; if (!r) return; if (prev && d >= from) { spy.rets.push(r.e955 / prev - 1); spy.dates.push(d); } prev = r.e955; });
+  al.dates.forEach(d => { const r = spyByDate.get(d); if (!r) return; if (prev && d >= from) { spy.rets.push(r.e955 / prev - 1); spy.dates.push(d); } prev = r.e955; });
   const hard = sims.map(s => ({cfg: s.cfg, ...simulate(al, s.cfg, {cost: cost * 2, stopSlip: stopSlip * 2})}));
-  const baseHard = sliceRange(hard.find(s => same(s.cfg, BASELINE)), from, to);
+  const baseHard = sliceRange(hard.find(s => same(s.cfg, baseCfg)), from, to);
   const wfHard = walkForward(hard, al.dates, {firstTestYear});
   const summarise = (rets, dates, trades) => ({...metricsFromReturns(rets), ...monthly(dates, rets), trades: trades ? tradeStats(trades) : null});
   const yearTable = {};
@@ -50,17 +52,19 @@ export function analyse(recsBySym, {firstTestYear = '2019', cost = 0.01, stopSli
     wfHard: summarise(wfHard.rets, wfHard.dates, wfHard.trades), originalHard: summarise(baseHard.rets, baseHard.dates, null),
     perEtf: Object.fromEntries(Object.entries(perEtf).map(([s, t]) => [s, tradeStats(t)])), full,
     exposureWf: null,
+    levTable: [1, 2, 3, 4, 5, 6, 8].map(L => { const r = wf.rets.map(x => Math.max(-0.99, L * x - (L > 1 ? (L - 1) * borrow / 252 : 0))); return {L, ...metricsFromReturns(r)}; }),
+    goal: 0.89, baseSlots: baseCfg.slots,
   };
 }
 
 export function report(r) {
   const row = (name, m) => `| ${name} | ${pct(m.cagr)} | ${f2(m.sharpe)} | ${pct(m.maxDd)} | ${m.trades ? pct(m.trades.winRate) : '—'} | ${m.trades ? m.trades.n : '—'} | ${m.trades ? m.trades.losingStreak : '—'} | ${pct(m.positive)} | ${pct(m.worst)} |`;
   const L = ['# Weak-close ETF strategy: improvement and walk-forward test', ''];
-  L.push(`Paper research only. ${r.nCfg} portfolio configurations (IBS threshold, number of slots, exit rule, trend filter) on 9 ETFs. ` +
+  L.push(`Paper research only. ${r.nCfg} portfolio configurations (IBS threshold, number of slots, exit rule, trend filter). ` +
     `Out-of-sample period starts ${r.from}: each year trades the configuration with the best Sharpe over all EARLIER years, so no result below was chosen with hindsight. ` +
     `Costs: 1 cent per share each way (2 cents round trip), stops add 1 cent of slippage. Sizing: equal share of equity per slot, up to the slot limit, most oversold first.`, '');
   L.push('## Out-of-sample results', '', '| Strategy | CAGR | Sharpe | Max drawdown | Win rate | Trades | Longest losing streak | Positive months | Worst month |', '|---|---:|---:|---:|---:|---:|---:|---:|---:|');
-  L.push(row('Walk-forward selected', r.wf), row('Original idea (IBS ≤ 0.2, hold 3 days, 5 slots)', r.original), row('Hold SPY', r.spy), '');
+  L.push(row('Walk-forward selected', r.wf), row(`Original idea (IBS ≤ 0.2, hold 3 days, ${r.baseSlots} slots)`, r.original), row('Hold SPY', r.spy), '');
   L.push(`Cost stress (2 cents each way): walk-forward CAGR ${pct(r.wfHard.cagr)}, Sharpe ${f2(r.wfHard.sharpe)}, drawdown ${pct(r.wfHard.maxDd)}; original CAGR ${pct(r.originalHard.cagr)}, Sharpe ${f2(r.originalHard.sharpe)}.`, '');
   const years = Object.keys(r.yearTable['walk-forward']);
   L.push('## Calendar years', '', '| Year | Walk-forward | Original | Hold SPY | Configuration used that year |', '|---|---:|---:|---:|---|');
@@ -72,6 +76,10 @@ export function report(r) {
   L.push('', '## All configurations, full period (hindsight, for reference only)', '', '| # | Configuration | CAGR | Sharpe | Max drawdown | Win rate | Trades | Time invested |', '|---:|---|---:|---:|---:|---:|---:|---:|');
   r.full.slice(0, 12).forEach((x, i) => L.push(`| ${i + 1} | ${cfgLabel(x.cfg)} | ${pct(x.m.cagr)} | ${f2(x.m.sharpe)} | ${pct(x.m.maxDd)} | ${pct(x.t.winRate)} | ${x.t.n} | ${pct(x.exposure)} |`));
   const better = r.wf.sharpe > r.original.sharpe && r.wf.maxDd < r.original.maxDd;
+  const reach = r.levTable.find(x => x.cagr >= r.goal);
+  L.push('', `## What leverage would the walk-forward series need for ${pct(r.goal)} a year?`, '', 'Scales the walk-forward daily returns by a leverage multiple L, charging 6% a year on the borrowed part. Illustrative: it assumes returns scale linearly and that you are never forced out, which real margin does not guarantee.', '', '| Leverage | CAGR | Max drawdown | Sharpe |', '|---:|---:|---:|---:|');
+  for (const x of r.levTable) L.push(`| ${x.L}× | ${pct(x.cagr)} | ${pct(x.maxDd)} | ${f2(x.sharpe)} |`);
+  L.push('', reach ? `The first row at or above ${pct(r.goal)} is ${reach.L}× leverage, with a drawdown of ${pct(reach.maxDd)}.` : `No leverage level up to ${r.levTable.at(-1).L}× reaches ${pct(r.goal)} a year.`, '');
   L.push('', '## Verdict', `Walk-forward Sharpe ${f2(r.wf.sharpe)} and drawdown ${pct(r.wf.maxDd)}, against ${f2(r.original.sharpe)} and ${pct(r.original.maxDd)} for the original idea and ${f2(r.spy.sharpe)} and ${pct(r.spy.maxDd)} for holding SPY. ` +
     (better ? 'The improvements held up out of sample: higher risk-adjusted return and a shallower drawdown than the original.' : 'The improvements did not clearly beat the original idea out of sample, so the extra rules are not adding reliable value.'),
     '', '## Limits', '- Costs are assumptions; stops fill at the stop price less 1 cent (or the open if the day gaps through it), which is optimistic in fast markets.', '- Marks and exits use the 15:55 bar open; daily lows are used only to test stops.',
@@ -80,15 +88,16 @@ export function report(r) {
 }
 
 export async function main(argv, {alpacaImpl} = {}) {
-  let start = '2016-01-04', end = '2026-10-19', out = join(HERE, 'out-candle-portfolio'), data = join(HERE, 'data'), first = '2019', symbols = SYMBOLS;
+  let start = '2016-01-04', end = '2026-10-19', out = join(HERE, 'out-candle-portfolio'), data = join(HERE, 'data'), first = '2019', symbols = SYMBOLS, slotList = [3, 5], benchOnly = false, tf = '1Min';
   for (let i = 0; i < argv.length; i++) { const a = argv[i];
     if (a === '--start') start = argv[++i]; else if (a === '--end') end = argv[++i]; else if (a === '--out') out = resolve(argv[++i]); else if (a === '--data') data = resolve(argv[++i]);
-    else if (a === '--first-test-year') first = argv[++i]; else if (a === '--symbols') symbols = argv[++i].split(','); else throw new Error('unknown option ' + a); }
+    else if (a === '--first-test-year') first = argv[++i]; else if (a === '--slots') slotList = argv[++i].split(',').map(Number); else if (a === '--bench-only') benchOnly = argv[++i] === 'SPY'; else if (a === '--timeframe') tf = argv[++i]; else if (a === '--symbols') symbols = argv[++i].split(','); else throw new Error('unknown option ' + a); }
   const log = m => console.error(m), store = new Store(data);
   const alpaca = alpacaImpl ?? new Alpaca({key: process.env.ALPACA_API_KEY, secret: process.env.ALPACA_API_SECRET, rpm: 150, log});
   const recs = {};
-  for (const s of symbols) recs[s] = buildRecords(await loadSymbol(alpaca, store, s, start, end, log));
-  const res = analyse(recs, {firstTestYear: first});
+  const loadList = benchOnly && !symbols.includes('SPY') ? ['SPY', ...symbols] : symbols;
+  for (const s of loadList) recs[s] = buildRecords(await loadSymbol(alpaca, store, s, start, end, log, tf), {minBars: tf === '5Min' ? 60 : 300});
+  const res = analyse(recs, {firstTestYear: first, slotList, benchOnly});
   mkdirSync(out, {recursive: true});
   const text = report(res);
   writeFileSync(join(out, 'summary.md'), text);

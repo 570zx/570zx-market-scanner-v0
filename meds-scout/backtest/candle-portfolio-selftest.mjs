@@ -79,3 +79,19 @@ const res = await main(['--start', '2019-01-02', '--end', '2024-12-30', '--out',
 assert.equal(res.nCfg, configs().length);
 assert.ok(res.wf.sharpe < 1.5, 'noise should not give a high walk-forward Sharpe: ' + res.wf.sharpe);
 console.error('candle-portfolio selftest ok');
+
+// Leveraged-universe options: slots list, benchmark-only SPY (not tradable), 5-minute bars, leverage table.
+const f5 = {requests: 0, async bars([sym], {start, end}) {
+  const rows = []; let px = 50 + sym.length * 5;
+  for (let d = Date.parse(start.slice(0, 10)); d <= Date.parse(end.slice(0, 10)); d += 86400_000) {
+    const dd = new Date(d); if ([0, 6].includes(dd.getUTCDay())) continue;
+    const base = d + (14 * 60 + 30) * 60_000;
+    for (let i = 0; i < 78; i++) { const o = px, c = o * (1 + (rnd() - 0.5) * 0.004); rows.push({t: new Date(base + i * 300_000).toISOString(), o, h: Math.max(o, c) * 1.0005, l: Math.min(o, c) * 0.9995, c, v: 1000}); px = c; }
+  } return {[sym]: rows}; }};
+const tmp2 = mkdtempSync(join(tmpdir(), 'cp5-'));
+const r5 = await main(['--start', '2018-01-02', '--end', '2024-12-30', '--out', join(tmp2, 'o'), '--data', join(tmp2, 'd'), '--symbols', 'XX,YY,ZZ', '--timeframe', '5Min', '--slots', '1,2', '--bench-only', 'SPY', '--first-test-year', '2020'], {alpacaImpl: f5});
+assert.equal(r5.nCfg, configs([1, 2]).length); assert.equal(r5.levTable.length, 7);
+assert.ok(r5.levTable[0].cagr < r5.levTable[4].cagr + 5);
+assert.ok(!r5.picks.some(p => p.cfg.slots > 2), 'only the requested slot counts are used');
+assert.ok(r5.spy.n > 100, 'SPY benchmark computed even though SPY is not tradable');
+console.error('candle-portfolio leveraged-options selftest ok');
