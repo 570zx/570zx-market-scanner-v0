@@ -1,0 +1,88 @@
+name: Paper forward test (weak-close ETFs)
+
+# PAPER ONLY. Forward test of the frozen weak-close ETF rules. It reads market data (GET requests only), keeps a
+# simulated ledger, and commits dated signal records plus a progress report to the `paper-forward` branch.
+# It places no orders and touches no broker account, Cloudflare Worker, or Robinhood connection.
+# Runs after the close on weekdays (two UTC times so it works in both daylight-saving states; the script skips
+# whichever is too early or not a session, and keeps the first signal record of each day).
+# Needs ALPACA_API_KEY and ALPACA_API_SECRET (read-only market data and calendar).
+
+on:
+  schedule:
+    - cron: "20 20 * * 1-5"
+    - cron: "20 21 * * 1-5"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write # commits to the paper-forward branch only
+
+concurrency:
+  group: paper-forward
+  cancel-in-progress: false
+
+jobs:
+  forward:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: meds-scout
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Self-test
+        run: node --disable-warning=ExperimentalWarning backtest/paper-forward-selftest.mjs
+      - name: Check Alpaca secrets
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
+        run: |
+          if [ -z "$ALPACA_API_KEY" ] || [ -z "$ALPACA_API_SECRET" ]; then
+            echo "::error::Add ALPACA_API_KEY and ALPACA_API_SECRET as repository secrets first."
+            exit 1
+          fi
+      - name: Load the paper-forward state branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git ls-remote --exit-code --heads "$remote" paper-forward >/dev/null 2>&1; then
+            git clone --quiet --depth 1 --branch paper-forward "$remote" paper-state
+          else
+            git init --quiet -b paper-forward paper-state
+            git -C paper-state remote add origin "$remote"
+          fi
+          printf '.cache/\n' > paper-state/.gitignore
+      - name: Run the forward paper test
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
+        run: |
+          set -euo pipefail
+          node --disable-warning=ExperimentalWarning backtest/paper-forward.mjs --state paper-state 2>&1 | tee paper-forward-run.log
+      - name: Show the error
+        if: failure()
+        run: echo "::error::$(tail -n 12 paper-forward-run.log 2>/dev/null | cut -c1-300 | tr '\n' '|')"
+      - name: Write job summary
+        if: always()
+        run: |
+          if [ -f paper-state/PAPER-FORWARD.md ]; then cat paper-state/PAPER-FORWARD.md >> "$GITHUB_STEP_SUMMARY"; else echo "No report this run (not a session, too early, or an error)." >> "$GITHUB_STEP_SUMMARY"; fi
+      - name: Commit the state to the paper-forward branch
+        if: success()
+        run: |
+          set -euo pipefail
+          cd paper-state
+          git config user.name "paper-forward"
+          git config user.email "paper-forward@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then echo "Nothing new to commit."; exit 0; fi
+          git commit --quiet -m "Paper forward test $(date -u +%Y-%m-%dT%H:%MZ)"
+          for attempt in 1 2 3 4 5; do
+            if git push --quiet origin HEAD:paper-forward; then exit 0; fi
+            git pull --quiet --rebase origin paper-forward || true
+            sleep $((attempt * 5))
+          done
+          echo "::error::Could not push the paper-forward state after 5 tries"; exit 1
