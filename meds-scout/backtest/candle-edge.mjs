@@ -75,7 +75,7 @@ export function report(r) {
   L.push('## Best on the search period', '', '| # | Configuration | ETFs passing | Years positive | Pooled trades | Win rate | Avg trade (bp) | Median excess t |', '|---:|---|---:|---:|---:|---:|---:|---:|');
   r.real.slice(0, 15).forEach((x, i) => L.push(`| ${i + 1} | ${label(x.cfg)} | ${x.passing}/${r.syms.length} | ${pct(x.yearShare)} | ${x.pooled.n} | ${pct(x.pooled.winRate)} | ${bp(x.pooled.mean)} | ${f3(x.score)} |`));
   L.push('', `## Untouched test: ${SPLIT} onward`, '', 'Each of the top 10, run once. "ETFs good" = win rate at or above the floor with a positive average after 2c costs (30+ trades).', '',
-    '| # | Configuration | ETFs good | Trades | Win rate | Avg trade (bp) | Avg at 4c (bp) | Median t | Years positive | Max drawdown (%) | Passes |', '|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---|');
+    '| # | Configuration | ETFs good | Trades | Win rate | Avg trade (bp) | Avg at 4c (bp) | Median t | Years positive | Worst losing streak, summed trades (%) | Passes |', '|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---|');
   r.top.forEach((x, i) => { const hp = x.holdPooled, hard = summarize(Object.keys(x.hold).flatMap(s => [])), h4 = Object.values(x.hold).reduce((a, h) => a + (h.hard.total ?? 0), 0) / Math.max(1, hp.n);
     L.push(`| ${i + 1} | ${label(x.cfg)} | ${x.goodSyms}/${r.syms.length} | ${hp.n} | ${pct(hp.winRate)} | ${bp(hp.mean)} | ${bp(h4)} | ${f3(x.medT)} | ${pct(x.holdYears.share)} | ${hp.maxDd == null ? '—' : (100 * hp.maxDd).toFixed(1)} | ${x.pass ? '**yes**' : 'no'} |`); });
   const winners = r.top.filter(x => x.pass);
@@ -84,7 +84,7 @@ export function report(r) {
   if (best) { L.push(`${label(best.cfg)}`, '', '| ETF | Trades | Win rate | Avg trade (bp) | t | Same trade every day (bp) |', '|---|---:|---:|---:|---:|---:|');
     for (const [s, h] of Object.entries(best.hold)) L.push(`| ${s} | ${h.cheap.n} | ${pct(h.cheap.winRate)} | ${bp(h.cheap.mean)} | ${f3(h.cheap.t)} | ${bp(h.base)} |`);
     L.push('', '| Year | Pooled trades | Win rate | Avg trade (bp) |', '|---|---:|---:|---:|'); for (const y of best.holdYears.years) L.push(`| ${y.y} | ${y.n} | ${pct(y.win)} | ${bp(y.mean)} |`); }
-  L.push('', '## Verdict', winners.length ? `${winners.length} of the top ${r.top.length} configurations passed every test on data the search never saw: ${winners.map(label).join('; ')}. With ${r.tried} tries and this being one holdout, they are candidates for a forward paper test, not proof.`
+  L.push('', '## Verdict', winners.length ? `${winners.length} of the top ${r.top.length} configurations passed every test on data the search never saw: ${winners.map(w => label(w.cfg)).join('; ')}. With ${r.tried} tries and this being one holdout, they are candidates for a forward paper test, not proof.`
     : `No configuration passed every test on data the search never saw. The win-rate floor was met by many (market drift alone gives long trades a win rate above 50%), but none also beat the same trade taken every day, held up on most ETFs and years, and cleared t of 2.`, '',
     '## Limits', '- Costs are assumptions. Entries and exits use the open of a named minute bar (15:55, 09:30, 10:00, 11:30, 15:30), with no look-ahead; real fills can be worse.',
     '- Signals use only bars before the decision time; daily patterns are decided at 15:55 from bars up to 15:54.', '- ETFs only; single stocks, futures and options are not covered.', `- ${r.tried} tries: a good-looking row is expected by chance, which is why the luck comparison and the untouched test matter.`);
