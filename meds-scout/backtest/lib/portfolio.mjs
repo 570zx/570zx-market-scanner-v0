@@ -25,9 +25,9 @@ export const EXITS = {
   'strength5+stop4': {maxHold: 5, strength: true, stop: 0.04},
   'hold3+stop4': {maxHold: 3, stop: 0.04},
 };
-export function configs() {
+export function configs(slotList = [3, 5]) {
   const out = [];
-  for (const thr of [0.1, 0.2, 0.3]) for (const slots of [3, 5]) for (const exit of Object.keys(EXITS)) for (const trend of ['none', 'sma200up']) out.push({thr, slots, exit, trend});
+  for (const thr of [0.1, 0.2, 0.3]) for (const slots of slotList) for (const exit of Object.keys(EXITS)) for (const trend of ['none', 'sma200up']) out.push({thr, slots, exit, trend});
   return out;
 }
 export const cfgLabel = c => `IBS ≤ ${c.thr}, ${c.slots} slots, exit ${c.exit}, trend ${c.trend}`;
