@@ -28,14 +28,14 @@ const f2 = x => x == null ? '—' : x.toFixed(3);
 const pct = x => x == null ? '—' : (100 * x).toFixed(1) + '%';
 const hhmm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
-export async function loadSymbol(alpaca, store, sym, start, end, log) {
+export async function loadSymbol(alpaca, store, sym, start, end, log, timeframe = '1Min') {
   const days = [];
   for (let y = Number(start.slice(0, 4)); y <= Number(end.slice(0, 4)); y++) {
     const a = y === Number(start.slice(0, 4)) ? start : `${y}-01-01`, b = y === Number(end.slice(0, 4)) ? end : `${y}-12-31`;
-    const name = `fcr-${sym}-${a}-${b}.json.gz`;
+    const name = timeframe === '1Min' ? `fcr-${sym}-${a}-${b}.json.gz` : `fcr-${timeframe}-${sym}-${a}-${b}.json.gz`;
     let packed = store.has(name) ? store.read(name) : null;
     if (!packed) {
-      const got = await alpaca.bars([sym], {timeframe: '1Min', start: new Date(etWall(a, '09:30')).toISOString(), end: new Date(etWall(b, '16:00')).toISOString(), adjustment: 'split', feed: 'sip'});
+      const got = await alpaca.bars([sym], {timeframe, start: new Date(etWall(a, '09:30')).toISOString(), end: new Date(etWall(b, '16:00')).toISOString(), adjustment: 'split', feed: 'sip'});
       const byDate = new Map();
       for (const r of got[sym] ?? []) {
         const ms = Date.parse(r.t), p = etParts(ms), m = p.hour * 60 + p.minute;
