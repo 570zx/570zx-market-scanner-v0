@@ -28,7 +28,7 @@ const f2 = x => x == null ? '—' : x.toFixed(3);
 const pct = x => x == null ? '—' : (100 * x).toFixed(1) + '%';
 const hhmm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
-async function loadSymbol(alpaca, store, sym, start, end, log) {
+export async function loadSymbol(alpaca, store, sym, start, end, log) {
   const days = [];
   for (let y = Number(start.slice(0, 4)); y <= Number(end.slice(0, 4)); y++) {
     const a = y === Number(start.slice(0, 4)) ? start : `${y}-01-01`, b = y === Number(end.slice(0, 4)) ? end : `${y}-12-31`;
