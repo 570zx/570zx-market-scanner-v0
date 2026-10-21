@@ -33,10 +33,10 @@ export function configs() {
 export const cfgLabel = c => `IBS ≤ ${c.thr}, ${c.slots} slots, exit ${c.exit}, trend ${c.trend}`;
 export const BASELINE = {thr: 0.2, slots: 5, exit: 'hold3', trend: 'none'};
 
-export function simulate(al, cfg, {cost = 0.01, stopSlip = 0.01} = {}) {
+export function simulate(al, cfg, {cost = 0.01, stopSlip = 0.01, from = '0000'} = {}) {
   const ex = EXITS[cfg.exit], trend = TRENDS[cfg.trend], N = al.dates.length;
   let cash = 1, positions = [];
-  const daily = new Array(N).fill(0), equity = new Array(N).fill(1), invested = new Array(N).fill(0), trades = [];
+  const daily = new Array(N).fill(0), equity = new Array(N).fill(1), invested = new Array(N).fill(0), trades = [], entries = [];
   let prevEq = 1;
   const value = t => cash + positions.reduce((a, p) => { const r = al.by[p.sym][t]; if (r) p.mark = r.e955; return a + p.shares * p.mark; }, 0);
   for (let t = 0; t < N; t++) {
@@ -57,7 +57,7 @@ export function simulate(al, cfg, {cost = 0.01, stopSlip = 0.01} = {}) {
     }
     // 2) entries, best (lowest IBS) first, sized as an equal share of today's equity
     const pre = value(t);
-    if (positions.length < cfg.slots) {
+    if (positions.length < cfg.slots && al.dates[t] >= from) {
       const held = new Set(positions.map(p => p.sym));
       const cands = al.syms.map(s => ({s, r: al.by[s][t]})).filter(x => x.r && !held.has(x.s) && x.r.ibs != null && x.r.ibs <= cfg.thr && trend(x.r)).sort((a, b) => (a.r.ibs - b.r.ibs) || ((a.r.ret1 ?? 0) - (b.r.ret1 ?? 0)));
       for (const c of cands) {
@@ -67,13 +67,14 @@ export function simulate(al, cfg, {cost = 0.01, stopSlip = 0.01} = {}) {
         const shares = size / (c.r.e955 + cost);
         cash -= shares * (c.r.e955 + cost);
         positions.push({sym: c.s, shares, entry: c.r.e955, entryIdx: t, mark: c.r.e955});
+        entries.push({date: al.dates[t], sym: c.s, ibs: c.r.ibs, px: c.r.e955, rank: positions.length});
       }
     }
     // 3) mark to market
     const v = value(t);
     equity[t] = v; daily[t] = v / prevEq - 1; invested[t] = v > 0 ? (v - cash) / v : 0; prevEq = v;
   }
-  return {daily, equity, invested, trades, dates: al.dates};
+  return {daily, equity, invested, trades, entries, open: positions.map(p => ({sym: p.sym, entry: p.entry, mark: p.mark, shares: p.shares, entryDate: al.dates[p.entryIdx], days: N - 1 - p.entryIdx})), dates: al.dates};
 }
 
 export function metricsFromReturns(rets) {
