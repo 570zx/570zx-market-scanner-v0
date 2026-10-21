@@ -54,7 +54,18 @@ export function analyse(recsBySym, {firstTestYear = '2019', cost = 0.01, stopSli
     exposureWf: null,
     levTable: [1, 2, 3, 4, 5, 6, 8].map(L => { const r = wf.rets.map(x => Math.max(-0.99, L * x - (L > 1 ? (L - 1) * borrow / 252 : 0))); return {L, ...metricsFromReturns(r)}; }),
     goal: 0.89, baseSlots: baseCfg.slots,
+    sixMonth: [1, 2, 3, 4, 5, 6, 8].map(L => { const r = wf.rets.map(x => Math.max(-0.99, L * x - (L > 1 ? (L - 1) * borrow / 252 : 0))); return {L, ...rolling(r, 126)}; }),
   };
+}
+
+// Rolling windows of `w` trading days (about 6 months at 126): how often did the account double, and how often did it lose 30% or more?
+export function rolling(rets, w) {
+  const out = [];
+  let eq = [1]; for (const r of rets) eq.push(eq.at(-1) * (1 + r));
+  for (let i = w; i < eq.length; i++) out.push(eq[i] / eq[i - w] - 1);
+  if (!out.length) return {windows: 0};
+  const s = out.slice().sort((a, b) => a - b);
+  return {windows: out.length, doubled: out.filter(x => x >= 1).length / out.length, lost30: out.filter(x => x <= -0.3).length / out.length, median: s[Math.floor(s.length / 2)], best: s.at(-1), worst: s[0]};
 }
 
 export function report(r) {
@@ -80,6 +91,9 @@ export function report(r) {
   L.push('', `## What leverage would the walk-forward series need for ${pct(r.goal)} a year?`, '', 'Scales the walk-forward daily returns by a leverage multiple L, charging 6% a year on the borrowed part. Illustrative: it assumes returns scale linearly and that you are never forced out, which real margin does not guarantee.', '', '| Leverage | CAGR | Max drawdown | Sharpe |', '|---:|---:|---:|---:|');
   for (const x of r.levTable) L.push(`| ${x.L}× | ${pct(x.cagr)} | ${pct(x.maxDd)} | ${f2(x.sharpe)} |`);
   L.push('', reach ? `The first row at or above ${pct(r.goal)} is ${reach.L}× leverage, with a drawdown of ${pct(reach.maxDd)}.` : `No leverage level up to ${r.levTable.at(-1).L}× reaches ${pct(r.goal)} a year.`, '');
+  L.push('## Doubling every 6 months?', '', 'Every rolling 126-trading-day window of the walk-forward series at each leverage. "Doubled" means the account at least doubled over the window (the goal: +100% every 6 months).', '', '| Leverage | Windows | Doubled | Lost 30%+ | Median | Best | Worst |', '|---:|---:|---:|---:|---:|---:|---:|');
+  for (const x of r.sixMonth) L.push(`| ${x.L}× | ${x.windows} | ${pct(x.doubled)} | ${pct(x.lost30)} | ${pct(x.median)} | ${pct(x.best)} | ${pct(x.worst)} |`);
+  L.push('');
   L.push('', '## Verdict', `Walk-forward Sharpe ${f2(r.wf.sharpe)} and drawdown ${pct(r.wf.maxDd)}, against ${f2(r.original.sharpe)} and ${pct(r.original.maxDd)} for the original idea and ${f2(r.spy.sharpe)} and ${pct(r.spy.maxDd)} for holding SPY. ` +
     (better ? 'The improvements held up out of sample: higher risk-adjusted return and a shallower drawdown than the original.' : 'The improvements did not clearly beat the original idea out of sample, so the extra rules are not adding reliable value.'),
     '', '## Limits', '- Costs are assumptions; stops fill at the stop price less 1 cent (or the open if the day gaps through it), which is optimistic in fast markets.', '- Marks and exits use the 15:55 bar open; daily lows are used only to test stops.',
