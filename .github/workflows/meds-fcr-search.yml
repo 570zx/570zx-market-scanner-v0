@@ -11,6 +11,10 @@ on:
         description: "First day of data, YYYY-MM-DD"
         required: true
         default: "2016-01-04"
+      args:
+        description: "Extra search options, e.g. --min-win 0.5 --max-win 0.7 --rr 0.5,0.75,1,1.5,2"
+        required: false
+        default: ""
 
 permissions:
   contents: write # publishes the report to the backtest-results branch
@@ -53,9 +57,10 @@ jobs:
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
           ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
           START: ${{ inputs.start }}
+          EXTRA: ${{ inputs.args }}
         run: |
           set -euo pipefail
-          node --max-old-space-size=5500 --disable-warning=ExperimentalWarning backtest/fcr-search.mjs --start "$START" 2>&1 | tee fcr-search-run.log
+          node --max-old-space-size=5500 --disable-warning=ExperimentalWarning backtest/fcr-search.mjs --start "$START" $EXTRA 2>&1 | tee fcr-search-run.log
       - name: Show the error
         if: failure()
         run: echo "::error::$(tail -n 12 fcr-search-run.log 2>/dev/null | cut -c1-300 | tr '\n' '|')"

@@ -15,11 +15,12 @@ import {loadSymbol, COSTS} from './fcr.mjs';
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 export const SPLIT = '2023-01-01';
 const MIN_TRADES = 150;
+export const GATE = {minWin: 0, maxWin: 1, rrs: [1, 1.5, 2, 3]}; // set from --min-win/--max-win/--rr
 const cheap = COSTS[1], hard = COSTS[2], gross = COSTS[0];
 
 export function grid() {
   const out = [];
-  for (const stop of ['engulf', 'fvg', 'orb']) for (const rr of [1, 1.5, 2, 3]) for (const cutoff of [10 * 60 + 30, 11 * 60 + 30, 13 * 60 + 30])
+  for (const stop of ['engulf', 'fvg', 'orb']) for (const rr of GATE.rrs) for (const cutoff of [10 * 60 + 30, 11 * 60 + 30, 13 * 60 + 30])
     for (const dirFilter of ['none', 'first', 'gap', 'trend']) for (const minRiskPct of [0, 0.0005, 0.001]) for (const minOrbAtr of [0, 0.3])
       out.push({stop, rr, cutoff, dirFilter, minRiskPct, minOrbAtr});
   return out;
@@ -34,6 +35,7 @@ export function search(daysBySym) {
   const score = (cfg, mirror) => {
     const per = syms.map(s => stats(runDays(train[s], {...cfg, mirror}, cheap)));
     if (per.some(p => p.n < MIN_TRADES)) return null;
+    if (per.some(p => p.winRate < GATE.minWin || p.winRate > GATE.maxWin)) return null; // win-rate band applies to every ETF
     return {cfg, per, score: Math.min(...per.map(p => p.t))};
   };
   const real = grid().map(c => score(c, false)).filter(Boolean).sort((a, b) => b.score - a.score);
@@ -45,6 +47,7 @@ export function search(daysBySym) {
 
 export function report(r) {
   const L = ['# First candle rule: searching for a version with an edge', ''];
+  if (GATE.minWin > 0 || GATE.maxWin < 1) L.push(`**Win-rate gate:** only configurations with a ${Math.round(GATE.minWin * 100)}% to ${Math.round(GATE.maxWin * 100)}% win rate (after costs) on both ETFs in the search period are eligible. "Win" means the trade closed above break-even, including trades that ran to the 15:55 exit in profit.`, '');
   L.push(`Paper research only. ${r.tried} configurations were tried on sessions before ${SPLIT} (${Object.entries(r.trainN).map(([s, n]) => `${s} ${n}`).join(', ')}); ${r.eligible} had enough trades (${MIN_TRADES}+ on both ETFs). ` +
     `Results are net of the 2c round-trip cost scenario. Ranking uses the worse of the QQQ and SPY t-statistics, so a config must work on both.`, '');
   const bestLuck = r.luck[0];
@@ -53,8 +56,8 @@ export function report(r) {
   r.real.slice(0, 15).forEach((x, i) => L.push(`| ${i + 1} | ${label(x.cfg)} | ${x.per.map(p => `${p.n} | ${f2(p.avgR)} | ${f2(p.t)}`).join(' | ')} | ${f2(x.score)} |`));
   L.push('', `## The untouched test: ${SPLIT} onward (${Object.entries(r.holdN).map(([s, n]) => `${s} ${n} sessions`).join(', ')})`, '',
     'Each of the top 8 configurations, run once on sessions the search never saw. Avg R is per trade; 2c and 4c are the cost scenarios.', '',
-    '| # | Configuration | Symbol | Trades | Win rate | Avg R gross | Avg R 2c | t (2c) | Avg R 4c |', '|---:|---|---|---:|---:|---:|---:|---:|---:|');
-  r.top.forEach((x, i) => { for (const s of r.syms) { const h = x.hold[s]; L.push(`| ${i + 1} | ${label(x.cfg)} | ${s} | ${h.cheap.n} | ${pct(h.cheap.winRate)} | ${f2(h.gross.avgR)} | ${f2(h.cheap.avgR)} | ${f2(h.cheap.t)} | ${f2(h.hard.avgR)} |`); } });
+    '| # | Configuration | Symbol | Trades | Win rate | Hit target | Hit stop | Avg R gross | Avg R 2c | t (2c) | Avg R 4c |', '|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---:|');
+  r.top.forEach((x, i) => { for (const s of r.syms) { const h = x.hold[s]; L.push(`| ${i + 1} | ${label(x.cfg)} | ${s} | ${h.cheap.n} | ${pct(h.cheap.winRate)} | ${pct(h.cheap.targetPct)} | ${pct(h.cheap.stopPct)} | ${f2(h.gross.avgR)} | ${f2(h.cheap.avgR)} | ${f2(h.cheap.t)} | ${f2(h.hard.avgR)} |`); } });
   const pass = r.top.filter(x => r.syms.every(s => x.hold[s].cheap.avgR > 0 && x.hold[s].cheap.t >= 2));
   L.push('', '## Verdict', pass.length ? `${pass.length} of the top ${r.top.length} configurations stayed profitable after 2c costs with t of 2 or more on BOTH ETFs in the untouched period: ${pass.map(x => label(x.cfg)).join('; ')}. With ${r.tried} tries, treat even these as candidates for paper trading, not proof.`
     : `None of the top ${r.top.length} configurations stayed profitable with t of 2 or more on both ETFs in the untouched period. The search found no version of this strategy with an edge that survives costs on QQQ or SPY shares.`, '',
@@ -64,8 +67,9 @@ export function report(r) {
 }
 
 export async function main(argv, {alpacaImpl} = {}) {
+  const num = (a, i) => { const v = Number(a[i]); if (!Number.isFinite(v)) throw new Error('bad number for ' + a[i - 1]); return v; };
   let start = '2016-01-04', end = '2026-10-19', out = join(HERE, 'out-fcr-search'), data = join(HERE, 'data');
-  for (let i = 0; i < argv.length; i++) { const a = argv[i]; if (a === '--start') start = argv[++i]; else if (a === '--end') end = argv[++i]; else if (a === '--out') out = resolve(argv[++i]); else if (a === '--data') data = resolve(argv[++i]); else throw new Error('unknown option ' + a); }
+  for (let i = 0; i < argv.length; i++) { const a = argv[i]; if (a === '--start') start = argv[++i]; else if (a === '--end') end = argv[++i]; else if (a === '--min-win') GATE.minWin = num(argv, ++i); else if (a === '--max-win') GATE.maxWin = num(argv, ++i); else if (a === '--rr') GATE.rrs = argv[++i].split(',').map(Number); else if (a === '--out') out = resolve(argv[++i]); else if (a === '--data') data = resolve(argv[++i]); else throw new Error('unknown option ' + a); }
   const log = m => console.error(m), store = new Store(data);
   const alpaca = alpacaImpl ?? new Alpaca({key: process.env.ALPACA_API_KEY, secret: process.env.ALPACA_API_SECRET, log});
   const daysBySym = {};
