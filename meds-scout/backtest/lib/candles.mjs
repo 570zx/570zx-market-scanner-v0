@@ -27,26 +27,25 @@ function rsi2(closes) { // Wilder RSI(2) on the last close, null until there is 
 }
 
 // One record per session. rec.ok is false for sessions without a usable open and 15:55 bar (early closes, gaps in data).
-export function buildRecords(days) {
-  const recs = [], closes = [];
+export function buildRecords(days, {minBars = 300} = {}) {
+  const recs = [], closes = [], okList = [];
   for (const d of days) {
     const bars = d.bars, first = px(bars, T.open), ent = px(bars, T.entry);
     const rec = {date: d.date, ok: false};
     recs.push(rec);
     if (!first || !ent) continue;
     const upto = bars.filter(b => b.m < T.entry);
-    if (upto.length < 300) continue;
+    if (upto.length < minBars) continue;
     const h = Math.max(...upto.map(b => b.h)), l = Math.min(...upto.map(b => b.l)), c = upto.at(-1).c, o = first.o;
-    const prev = closes.at(-1) ?? null, prevRec = [...recs].reverse().slice(1).find(r => r.ok) ?? null;
+    const prevRec = okList.at(-1) ?? null;
     const sma = n => closes.length >= n - 1 ? (closes.slice(-(n - 1)).reduce((a, b) => a + b, 0) + c) / n : null;
     const s200 = sma(200), s50 = sma(50);
     const first30 = bars.filter(b => b.m >= T.open && b.m < T.d30);
-    const f30 = first30.length >= 25 ? {h: Math.max(...first30.map(b => b.h)), l: Math.min(...first30.map(b => b.l)), c: first30.at(-1).c} : null;
+    const f30 = first30.length >= Math.round(minBars / 12) ? {h: Math.max(...first30.map(b => b.h)), l: Math.min(...first30.map(b => b.l)), c: first30.at(-1).c} : null;
     const e600 = px(bars, T.d30), e690 = px(bars, T.mid), e930 = px(bars, T.late);
-    let down = 0; // consecutive lower closes ending today
-    if (prevRec) { let k = recs.length - 1, cur = c; for (const r of [...recs.slice(0, -1)].reverse()) { if (!r.ok) continue; if (cur < r.c) { down++; cur = r.c; } else break; } }
-    let up = 0;
-    if (prevRec) { let cur = c; for (const r of [...recs.slice(0, -1)].reverse()) { if (!r.ok) continue; if (cur > r.c) { up++; cur = r.c; } else break; } }
+    let down = 0, up = 0; // consecutive lower / higher closes ending today
+    { let cur = c; for (let k = okList.length - 1; k >= 0; k--) { if (cur < okList[k].c) { down++; cur = okList[k].c; } else break; } }
+    { let cur = c; for (let k = okList.length - 1; k >= 0; k--) { if (cur > okList[k].c) { up++; cur = okList[k].c; } else break; } }
     Object.assign(rec, {
       ok: true, o, h, l, c, open570: o, e955: ent.o, e600: e600?.o ?? null, e690: e690?.o ?? null, e930: e930?.o ?? null,
       ibs: h > l ? (c - l) / (h - l) : null,
@@ -59,7 +58,7 @@ export function buildRecords(days) {
       r30: f30 ? f30.c / o - 1 : null, ibs30: f30 && f30.h > f30.l ? (f30.c - f30.l) / (f30.h - f30.l) : null,
       r930: e930 ? e930.o / o - 1 : null,
     });
-    closes.push(c);
+    closes.push(c); okList.push(rec);
   }
   // Forward returns (long, as decimals) and the entry price used for costs.
   const okIdx = recs.map((r, i) => r.ok ? i : -1).filter(i => i >= 0);

@@ -59,7 +59,7 @@ export function simulate(al, cfg, {cost = 0.01, stopSlip = 0.01} = {}) {
     const pre = value(t);
     if (positions.length < cfg.slots) {
       const held = new Set(positions.map(p => p.sym));
-      const cands = al.syms.map(s => ({s, r: al.by[s][t]})).filter(x => x.r && !held.has(x.s) && x.r.ibs != null && x.r.ibs <= cfg.thr && trend(x.r)).sort((a, b) => a.r.ibs - b.r.ibs);
+      const cands = al.syms.map(s => ({s, r: al.by[s][t]})).filter(x => x.r && !held.has(x.s) && x.r.ibs != null && x.r.ibs <= cfg.thr && trend(x.r)).sort((a, b) => (a.r.ibs - b.r.ibs) || ((a.r.ret1 ?? 0) - (b.r.ret1 ?? 0)));
       for (const c of cands) {
         if (positions.length >= cfg.slots) break;
         const size = Math.min(pre / cfg.slots, cash);
