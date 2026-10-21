@@ -1,0 +1,110 @@
+name: MEDS candle edge search
+
+# Paper research only. Searches daily, first-30-minute and late-day candle patterns across 9 liquid ETFs for a predictable edge
+# (win rate 50%+, works on most ETFs and years), tested on sessions the search never saw. No orders are placed.
+# Needs ALPACA_API_KEY and ALPACA_API_SECRET. Manual trigger.
+
+on:
+  workflow_dispatch:
+    inputs:
+      start:
+        description: "First day of data, YYYY-MM-DD"
+        required: true
+        default: "2016-01-04"
+      args:
+        description: "Extra search options, e.g. --min-win 0.55 --symbols SPY,QQQ,IWM"
+        required: false
+        default: ""
+
+permissions:
+  contents: write # publishes the report to the backtest-results branch
+
+concurrency:
+  group: meds-candle-edge
+  cancel-in-progress: false
+
+jobs:
+  edge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    defaults:
+      run:
+        working-directory: meds-scout
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Self-test
+        run: node --disable-warning=ExperimentalWarning backtest/candle-edge-selftest.mjs
+      - name: Check Alpaca secrets
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
+        run: |
+          if [ -z "$ALPACA_API_KEY" ] || [ -z "$ALPACA_API_SECRET" ]; then
+            echo "::error::Add ALPACA_API_KEY and ALPACA_API_SECRET as repository secrets first."
+            exit 1
+          fi
+      - name: Restore cached market data
+        uses: actions/cache/restore@v4
+        with:
+          path: meds-scout/backtest/data
+          key: meds-fcr-data-v1-${{ github.run_id }}
+          restore-keys: meds-fcr-data-v1-
+      - name: Run candle edge search
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
+          START: ${{ inputs.start }}
+          EXTRA: ${{ inputs.args }}
+        run: |
+          set -euo pipefail
+          node --max-old-space-size=5500 --disable-warning=ExperimentalWarning backtest/candle-edge.mjs --start "$START" $EXTRA 2>&1 | tee candle-edge-run.log
+      - name: Show the error
+        if: failure()
+        run: echo "::error::$(tail -n 12 candle-edge-run.log 2>/dev/null | cut -c1-300 | tr '\n' '|')"
+      - name: Save market data for the next run
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: meds-scout/backtest/data
+          key: meds-fcr-data-v1-${{ github.run_id }}
+      - name: Write job summary
+        if: always()
+        run: |
+          if [ -f backtest/out-candle-edge/summary.md ]; then cat backtest/out-candle-edge/summary.md >> "$GITHUB_STEP_SUMMARY"; else echo "No report was produced; see the Run step." >> "$GITHUB_STEP_SUMMARY"; fi
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: meds-candle-edge-${{ github.run_id }}
+          path: meds-scout/backtest/out-candle-edge
+          if-no-files-found: ignore
+      - name: Publish report to the backtest-results branch
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          dest="runs/candle-edge-$(date -u +%Y-%m-%d)-${GITHUB_RUN_ID}"
+          for attempt in 1 2 3 4 5; do
+            work="$RUNNER_TEMP/results-$attempt"
+            if git ls-remote --exit-code --heads "$remote" backtest-results >/dev/null 2>&1; then
+              git clone --quiet --depth 1 --branch backtest-results "$remote" "$work"
+            else
+              git init --quiet -b backtest-results "$work"
+              git -C "$work" remote add origin "$remote"
+            fi
+            mkdir -p "$work/$dest"
+            cp -r backtest/out-candle-edge/. "$work/$dest/"
+            cp backtest/out-candle-edge/summary.md "$work/CANDLE-EDGE.md"
+            git -C "$work" config user.name "meds-backtest"
+            git -C "$work" config user.email "meds-backtest@users.noreply.github.com"
+            git -C "$work" add -A
+            git -C "$work" commit --quiet -m "MEDS candle edge search ${dest}"
+            if git -C "$work" push --quiet origin HEAD:backtest-results; then exit 0; fi
+            sleep $((attempt * 5))
+          done
+          echo "::error::Could not publish the report after 5 tries"; exit 1
