@@ -1,8 +1,9 @@
 name: MEDS Runtime Watchdog
 
+# Schedule paused 2026-10-22 together with the MEDS worker (its cron was removed). Restore the schedule block when the worker is resumed:
+#   schedule:
+#     - cron: '*/15 * * * *'
 on:
-  schedule:
-    - cron: '*/15 * * * *'
   workflow_dispatch: {}
 
 permissions:
