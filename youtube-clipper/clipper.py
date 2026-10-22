@@ -9,6 +9,8 @@ Examples:
 
 clips.txt: one clip per line, "start end [name]"; blank lines and # comments ignored.
 Requires ffmpeg on PATH; yt-dlp (pip install yt-dlp) for URLs.
+Quality: downloads the best source once, cuts frame-accurately with one
+H.264 CRF16 encode, -14 LUFS audio, 256k AAC, faststart MP4.
 """
 import argparse
 import re
@@ -49,46 +51,71 @@ def is_url(source):
     return re.match(r"https?://", source) is not None
 
 
-def fetch_section(url, start, end, workdir):
-    """Download only [start, end] of the video with yt-dlp; return the file path."""
-    template = str(Path(workdir) / "section.%(ext)s")
-    run([
-        "yt-dlp", "-f", "bv*[height<=1080]+ba/b[height<=1080]/b",
-        "--merge-output-format", "mp4",
-        "--download-sections", f"*{fmt_time(start)}-{fmt_time(end)}",
-        "--force-keyframes-at-cuts",
-        "-o", template, url,
-    ])
-    files = list(Path(workdir).glob("section.*"))
-    if not files:
+def fetch_source(url, cache):
+    """Download the best-quality video+audio once (cached) so every clip is cut
+    from the original streams with a single encode."""
+    cache.mkdir(parents=True, exist_ok=True)
+    video_id = subprocess.run(["yt-dlp", "--get-id", url], check=True,
+                              capture_output=True, text=True).stdout.split()[0]
+    hits = [p for p in cache.glob(f"{video_id}.*") if p.suffix not in (".part", ".ytdl")]
+    if hits:
+        return hits[0]
+    run(["yt-dlp", "-f", "bv*+ba/b", "-S", "res,fps,hdr:sdr,vcodec,acodec",
+         "--merge-output-format", "mkv", "-o", str(cache / "%(id)s.%(ext)s"), url])
+    hits = [p for p in cache.glob(f"{video_id}.*") if p.suffix not in (".part", ".ytdl")]
+    if not hits:
         sys.exit("yt-dlp produced no output")
-    return files[0]
+    return hits[0]
 
 
-def encode(src, dest, start, end, vertical, fast):
-    """Cut src from start..end (seconds, relative to src) into dest."""
-    cmd = ["ffmpeg", "-y", "-ss", fmt_time(start), "-i", str(src), "-t", fmt_time(end - start)]
+def build_filter(vertical, fade, length):
+    """Video filter graph; returns (-vf/-filter_complex flag, graph)."""
+    fades = f",fade=t=in:d={fade},fade=t=out:st={max(length - fade, 0):.3f}:d={fade}" if fade else ""
+    if vertical == "crop":  # fill the frame, centre-crop
+        g = f"crop='min(iw,ih*9/16)':ih,scale=1080:1920:flags=lanczos,setsar=1{fades}"
+        return "-vf", g
+    if vertical == "blur":  # whole frame on top of a blurred copy of itself
+        g = ("split[a][b];"
+             "[a]scale=1080:1920:force_original_aspect_ratio=increase:flags=bilinear,"
+             "crop=1080:1920,boxblur=30:5[bg];"
+             "[b]scale=1080:-2:flags=lanczos[fg];"
+             f"[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1{fades}")
+        return "-filter_complex", g
+    g = f"scale=-2:'max(ih,1080)':flags=lanczos,setsar=1{fades}"  # never ship below 1080p
+    return "-vf", g
+
+
+def encode(src, dest, start, end, vertical, fast, fade, loudnorm):
+    """Cut src from start..end (seconds) into dest, ready to upload."""
+    length = end - start
+    cmd = ["ffmpeg", "-y", "-ss", fmt_time(start), "-i", str(src), "-t", fmt_time(length)]
     if fast and not vertical:
         cmd += ["-c", "copy", "-avoid_negative_ts", "make_zero"]
     else:
-        if vertical:  # centre-crop to 9:16 for Shorts/Reels/TikTok
-            cmd += ["-vf", "crop=ih*9/16:ih,scale=1080:1920"]
-        cmd += ["-c:v", "libx264", "-preset", "medium", "-crf", "20",
-                "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart"]
+        flag, graph = build_filter(vertical, fade, length)
+        cmd += [flag, graph,
+                "-c:v", "libx264", "-preset", "slow", "-crf", "16", "-profile:v", "high",
+                "-pix_fmt", "yuv420p", "-colorspace", "bt709", "-color_primaries", "bt709",
+                "-color_trc", "bt709", "-movflags", "+faststart"]
+        af = []
+        if loudnorm:  # YouTube/Shorts/Reels/TikTok all sit around -14 LUFS
+            af.append("loudnorm=I=-14:TP=-1.5:LRA=11")
+        if fade:
+            af.append(f"afade=t=in:d={fade},afade=t=out:st={max(length - fade, 0):.3f}:d={fade}")
+        if af:
+            cmd += ["-af", ",".join(af)]
+        cmd += ["-c:a", "aac", "-b:a", "256k", "-ar", "48000"]
     cmd.append(str(dest))
     run(cmd)
 
 
-def make_clip(source, start, end, dest, vertical, fast):
+def make_clip(source, start, end, dest, args):
     if end <= start:
         sys.exit(f"end ({end}s) must be after start ({start}s)")
     dest.parent.mkdir(parents=True, exist_ok=True)
     if is_url(source):
-        with tempfile.TemporaryDirectory() as tmp:
-            section = fetch_section(source, start, end, tmp)
-            encode(section, dest, 0, end - start, vertical, fast=False)
-    else:
-        encode(source, dest, start, end, vertical, fast)
+        source = fetch_source(source, Path(args.cache))
+    encode(source, dest, start, end, args.vertical, args.fast, args.fade, not args.no_loudnorm)
     print(f"saved {dest}")
 
 
@@ -115,7 +142,12 @@ def main():
     ap.add_argument("--clips", help="file with many clips: 'start end [name]' per line")
     ap.add_argument("--out", default="clips", help="output directory (default: clips)")
     ap.add_argument("--name", help="output file name (single clip, no extension)")
-    ap.add_argument("--vertical", action="store_true", help="centre-crop to 9:16 (1080x1920)")
+    ap.add_argument("--vertical", nargs="?", const="crop", choices=["crop", "blur"],
+                    help="9:16 1080x1920 for Shorts/Reels/TikTok: 'crop' fills the frame "
+                         "(default), 'blur' keeps the whole frame over a blurred background")
+    ap.add_argument("--fade", type=float, default=0.25, help="fade in/out seconds (default 0.25, 0 = off)")
+    ap.add_argument("--no-loudnorm", action="store_true", help="skip -14 LUFS loudness normalisation")
+    ap.add_argument("--cache", default="downloads", help="where full source downloads are kept")
     ap.add_argument("--fast", action="store_true",
                     help="local files only: stream-copy, instant but cuts snap to keyframes")
     args = ap.parse_args()
@@ -139,7 +171,7 @@ def main():
     out = Path(args.out)
     for i, (start, end, name) in enumerate(clips, 1):
         name = slug(name) if name else f"clip_{i:02d}_{int(start)}-{int(end)}"
-        make_clip(args.source, start, end, out / f"{name}.mp4", args.vertical, args.fast)
+        make_clip(args.source, start, end, out / f"{name}.mp4", args)
 
 
 if __name__ == "__main__":
