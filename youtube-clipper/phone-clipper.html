@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+:root { color-scheme: light dark; }
+body { margin: 0; font-size: 14px; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+</style>
+<title>Phone Clipper</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: one phone-width column. Pick file, mark clips on the player, set the output, render and save. */
+:root {
+  --bg: #eef1f5;
+  --surface: #ffffff;
+  --ink: #131c26;
+  --muted: #5a6776;
+  --line: #d5dce5;
+  --accent: #2457d6;
+  --accent-ink: #ffffff;
+  --warn: #a45a00;
+  --warn-bg: #fff2dc;
+  --bad: #b3261e;
+  --ok: #17794a;
+  --stage: #0b1016;
+  --font-body: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f151c; --surface: #18212b; --ink: #e8edf3; --muted: #94a2b2; --line: #2b3745;
+    --accent: #6f98ff; --accent-ink: #0b1220; --warn: #f0b45a; --warn-bg: #33270f; --bad: #ff8a80; --ok: #5fd39a;
+    --stage: #05080c; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f151c; --surface: #18212b; --ink: #e8edf3; --muted: #94a2b2; --line: #2b3745;
+  --accent: #6f98ff; --accent-ink: #0b1220; --warn: #f0b45a; --warn-bg: #33270f; --bad: #ff8a80; --ok: #5fd39a;
+  --stage: #05080c; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.45;
+  padding-block: 20px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+main { max-width: 720px; margin: 0 auto; display: grid; gap: 20px; }
+h1 { font-size: 1.6rem; line-height: 1.15; margin: 0; text-wrap: balance; }
+h2 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+p { margin: 0; }
+.lede { color: var(--muted); margin-top: 6px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0; }
+label { display: grid; gap: 4px; font-size: .85rem; color: var(--muted); font-weight: 500; min-width: 0; }
+input, select, button { font: inherit; color: inherit; }
+input[type=text], input[type=number], select {
+  background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; min-height: 44px; width: 100%; min-width: 0; color: var(--ink);
+}
+input.mono { font-family: var(--font-mono); font-size: .92rem; }
+input[type=range] { width: 100%; min-height: 44px; accent-color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.check { display: flex; align-items: center; gap: 10px; color: var(--ink); font-size: 1rem; min-height: 44px; }
+.check input { width: 22px; height: 22px; accent-color: var(--accent); }
+button, .btn { cursor: pointer; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 0 14px; min-height: 44px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; text-align: center; }
+button.primary, .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+button.ghost { color: var(--muted); }
+button:disabled { opacity: .5; cursor: default; }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: space-between; }
+.row.start { justify-content: flex-start; }
+.mono { font-family: var(--font-mono); }
+.dim { color: var(--muted); font-size: .9rem; }
+.stage { background: var(--stage); border-radius: 8px; overflow: hidden; }
+.stage video { display: block; width: 100%; max-height: 60vh; background: var(--stage); }
+.clock { font-family: var(--font-mono); font-size: 1.3rem; font-weight: 600; }
+.clip { display: grid; gap: 10px; padding: 14px 0; border-top: 1px solid var(--line); }
+.clip:first-child { border-top: 0; padding-top: 0; }
+.times { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.stepper { display: grid; grid-template-columns: 40px minmax(0, 1fr) 40px; gap: 4px; }
+.stepper button { padding: 0; font-family: var(--font-mono); }
+.stepper input { text-align: center; padding-inline: 4px; }
+.dur.warn { color: var(--warn); }
+.dur.bad { color: var(--bad); }
+.status { font-size: .9rem; font-weight: 600; }
+.status.ok { color: var(--ok); }
+.status.bad { color: var(--bad); }
+.bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.bar > span { display: block; height: 100%; width: 0; background: var(--accent); }
+.result { display: grid; gap: 8px; }
+.result video { width: 100%; max-width: 260px; border-radius: 8px; background: var(--stage); }
+.note { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 10px 12px; font-size: .9rem; }
+.preview { display: grid; gap: 6px; justify-items: start; }
+.preview canvas { max-width: 100%; border-radius: 6px; border: 1px solid var(--line); background: var(--stage); }
+details summary { cursor: pointer; font-weight: 600; min-height: 44px; display: flex; align-items: center; }
+ul { margin: 0; padding-left: 1.2rem; display: grid; gap: 6px; }
+input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+</style>
+
+</head>
+<body>
+<main>
+  <header>
+    <h1>Phone Clipper</h1>
+    <p class="lede">Choose your video, mark the moments, and save finished clips. Everything happens on this device.</p>
+  </header>
+
+  <p id="unsupported" class="note" hidden>This browser cannot record video from a page. Try Safari 15 or newer, or Chrome.</p>
+
+  <section class="panel" aria-labelledby="h-video">
+    <h2 id="h-video">1. Video</h2>
+    <div class="row start">
+      <label class="btn primary" for="file" id="pick">Choose video file</label>
+      <input id="file" type="file" accept="video/*">
+      <span id="fileinfo" class="dim">Use your original video file, saved on this device.</span>
+    </div>
+    <div id="player-wrap" hidden style="margin-top:14px; display:none; gap:12px">
+      <div class="stage"><video id="video" controls playsinline preload="auto"></video></div>
+      <div class="row">
+        <span class="clock" id="clock">0:00</span>
+        <span class="dim" id="pending"></span>
+      </div>
+      <div class="grid">
+        <button id="mark-start" type="button">Mark start here</button>
+        <button id="mark-end" type="button" class="primary">Mark end, add clip</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-clips">
+    <h2 id="h-clips">2. Clips <span id="count" class="mono"></span></h2>
+    <div id="clips"><p class="dim">Marked clips appear here. Play the video, tap Mark start, then Mark end.</p></div>
+    <div class="row start" style="margin-top:12px">
+      <button id="add" type="button" class="ghost">Add clip by hand</button>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-out">
+    <h2 id="h-out">3. Output</h2>
+    <div class="grid">
+      <label>Shape
+        <select id="fmt">
+          <option value="vertical">Vertical 9:16 (Shorts, TikTok, Reels)</option>
+          <option value="original">Same shape as the video</option>
+        </select>
+      </label>
+      <label id="mode-wrap">Framing
+        <select id="mode">
+          <option value="crop">Fill the frame</option>
+          <option value="blur">Whole frame, blurred sides</option>
+        </select>
+      </label>
+      <label>Size
+        <select id="quality">
+          <option value="1080">1080p, sharpest</option>
+          <option value="720">720p, lighter on the phone</option>
+        </select>
+      </label>
+    </div>
+    <label id="pos-wrap" style="margin-top:12px">Horizontal position of the crop
+      <input id="pos" type="range" min="0" max="100" value="50">
+    </label>
+    <div class="preview" style="margin-top:8px">
+      <span class="dim">Preview of the current frame</span>
+      <canvas id="preview" width="180" height="320"></canvas>
+    </div>
+    <label class="check"><input id="fades" type="checkbox" checked> Fade in and out (0.25 s)</label>
+    <p class="dim" id="fmtinfo"></p>
+  </section>
+
+  <section class="panel" aria-labelledby="h-render">
+    <h2 id="h-render">4. Render and save</h2>
+    <div class="row start">
+      <button id="render-all" type="button" class="primary" disabled>Render all clips</button>
+      <button id="cancel" type="button" hidden>Stop</button>
+    </div>
+    <p class="note" style="margin-top:12px">Clips record in real time, so a 30 second clip takes 30 seconds. Keep this screen on and this page open while it runs.</p>
+    <div id="results" style="display:grid; gap:14px; margin-top:14px"></div>
+  </section>
+
+  <section class="panel">
+    <details>
+      <summary>What this page does not do</summary>
+      <ul style="padding-top:6px">
+        <li>It cannot download from YouTube. Use the original file of your video.</li>
+        <li>No automatic captions and no speaker tracking. Pick the crop position yourself.</li>
+        <li>Quality is set by your phone's video recorder, not the studio-grade encode of the computer clipper.</li>
+        <li>iPhone saves MP4. Some Android browsers save WebM, which TikTok and Instagram may refuse.</li>
+      </ul>
+    </details>
+  </section>
+</main>
+
+<script>
+(function () {
+  function $(id) { return document.getElementById(id); }
+  var video = $("video"), canvasPrev = $("preview"), gPrev = canvasPrev.getContext("2d");
+  var clips = [], pendingStart = null, busy = false, cancelled = false, objectUrl = null, audio = null, wake = null;
+
+  /* ---------- helpers ---------- */
+  function pad(n) { return (n < 10 ? "0" : "") + n; }
+  function fmt(sec) {
+    var T = Math.max(0, Math.round(sec * 10));
+    var h = Math.floor(T / 36000), m = Math.floor((T % 36000) / 600), sT = T % 600;
+    var whole = Math.floor(sT / 10), frac = sT % 10;
+    var st = pad(whole) + (frac ? "." + frac : "");
+    return h ? h + ":" + pad(m) + ":" + st : m + ":" + st;
+  }
+  function parseTime(t) {
+    var str = String(t).trim(), parts = str.split(":");
+    if (!str || parts.length > 3) return NaN;
+    var s = 0;
+    for (var i = 0; i < parts.length; i++) { var v = parseFloat(parts[i]); if (isNaN(v) || v < 0) return NaN; s = s * 60 + v; }
+    return s;
+  }
+  function slug(n) { return String(n || "").trim().replace(/[^A-Za-z0-9_.-]+/g, "_").replace(/^_+|_+$/g, ""); }
+  function even(n) { return Math.max(2, Math.round(n / 2) * 2); }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+  function pickMime() {
+    if (!window.MediaRecorder) return null;
+    var list = [
+      ["video/mp4;codecs=avc1.640028,mp4a.40.2", "mp4", "MP4 (H.264)"],
+      ["video/mp4;codecs=avc1,mp4a.40.2", "mp4", "MP4 (H.264)"],
+      ["video/mp4", "mp4", "MP4"],
+      ["video/webm;codecs=vp9,opus", "webm", "WebM (VP9)"],
+      ["video/webm;codecs=vp8,opus", "webm", "WebM (VP8)"],
+      ["video/webm", "webm", "WebM"]
+    ];
+    for (var i = 0; i < list.length; i++) {
+      try { if (MediaRecorder.isTypeSupported(list[i][0])) return { mime: list[i][0], ext: list[i][1], label: list[i][2] }; } catch (e) {}
+    }
+    return null;
+  }
+  var recFmt = pickMime();
+  if (!recFmt || !HTMLCanvasElement.prototype.captureStream) { $("unsupported").hidden = false; }
+  $("fmtinfo").textContent = recFmt ? "This device saves clips as " + recFmt.label + "." : "";
+
+  /* ---------- output config + drawing ---------- */
+  function cfg() {
+    var vw = video.videoWidth || 1920, vh = video.videoHeight || 1080;
+    var q = +$("quality").value;
+    var vertical = $("fmt").value === "vertical";
+    if (vertical) return { w: q === 1080 ? 1080 : 720, h: q === 1080 ? 1920 : 1280, vbr: q === 1080 ? 12e6 : 8e6, vertical: true };
+    var scale = Math.min(1, q / Math.min(vw, vh));
+    return { w: even(vw * scale), h: even(vh * scale), vbr: q === 1080 ? 12e6 : 8e6, vertical: false };
+  }
+  var small = document.createElement("canvas"); small.width = 36; small.height = 64;
+  var gSmall = small.getContext("2d");
+
+  function cover(g, w, h, pos) {
+    var vw = video.videoWidth, vh = video.videoHeight, ta = w / h, sa = vw / vh, sx, sy, sw, sh;
+    if (sa > ta) { sh = vh; sw = vh * ta; sx = (vw - sw) * pos; sy = 0; }
+    else { sw = vw; sh = vw / ta; sx = 0; sy = (vh - sh) / 2; }
+    g.drawImage(video, sx, sy, sw, sh, 0, 0, w, h);
+  }
+  function drawFrame(g, w, h) {
+    if (!video.videoWidth) { g.fillStyle = "#000"; g.fillRect(0, 0, w, h); return; }
+    var c = cfg();
+    if (!c.vertical) { g.drawImage(video, 0, 0, w, h); return; }
+    if ($("mode").value === "blur") {
+      cover(gSmall, small.width, small.height, 0.5);
+      g.imageSmoothingEnabled = true; g.imageSmoothingQuality = "high";
+      g.drawImage(small, 0, 0, w, h);
+      g.fillStyle = "rgba(0,0,0,.25)"; g.fillRect(0, 0, w, h);
+      var vw = video.videoWidth, vh = video.videoHeight, fw = w, fh = vh * w / vw;
+      if (fh > h) { fh = h; fw = vw * h / vh; }
+      g.drawImage(video, 0, 0, vw, vh, (w - fw) / 2, (h - fh) / 2, fw, fh);
+    } else {
+      cover(g, w, h, +$("pos").value / 100);
+    }
+  }
+  function drawPreview() {
+    var c = cfg(), pw = c.vertical ? 180 : 280, ph = Math.round(pw * c.h / c.w);
+    if (canvasPrev.width !== pw || canvasPrev.height !== ph) { canvasPrev.width = pw; canvasPrev.height = ph; }
+    drawFrame(gPrev, pw, ph);
+  }
+  function syncOutputUi() {
+    var vertical = $("fmt").value === "vertical", crop = $("mode").value === "crop";
+    $("mode-wrap").hidden = !vertical;
+    $("pos-wrap").hidden = !(vertical && crop);
+    drawPreview();
+  }
+  ["fmt", "mode", "quality"].forEach(function (id) { $(id).addEventListener("change", syncOutputUi); });
+  $("pos").addEventListener("input", drawPreview);
+
+  /* ---------- video loading and marking ---------- */
+  $("file").addEventListener("change", function (e) {
+    var f = e.target.files && e.target.files[0]; if (!f) return;
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    objectUrl = URL.createObjectURL(f);
+    video.src = objectUrl;
+    clips.forEach(function (c) { clearResult(c); });
+    $("fileinfo").textContent = f.name + " (" + (f.size / 1048576).toFixed(0) + " MB)";
+    $("player-wrap").hidden = false; $("player-wrap").style.display = "grid";
+  });
+  video.addEventListener("loadedmetadata", function () {
+    $("fileinfo").textContent += " · " + video.videoWidth + "×" + video.videoHeight + " · " + fmt(video.duration);
+    syncOutputUi(); renderClips();
+  });
+  video.addEventListener("error", function () { $("fileinfo").textContent = "This file could not be opened. Try an MP4 or MOV."; });
+  ["loadeddata", "seeked", "timeupdate"].forEach(function (ev) {
+    video.addEventListener(ev, function () { $("clock").textContent = fmt(video.currentTime); if (!busy) drawPreview(); });
+  });
+
+  $("mark-start").addEventListener("click", function () {
+    pendingStart = video.currentTime;
+    $("pending").textContent = "Start marked at " + fmt(pendingStart);
+  });
+  $("mark-end").addEventListener("click", function () {
+    var t = video.currentTime;
+    if (pendingStart === null || t <= pendingStart) { $("pending").textContent = "Mark a start first, then play on and mark the end."; return; }
+    clips.push(newClip(pendingStart, t));
+    pendingStart = null; $("pending").textContent = "Clip added"; renderClips();
+  });
+  var seq = 0;
+  function newClip(s, e) { seq++; return { id: seq, name: "", start: fmt(s), end: fmt(e), status: "", blob: null, url: null, ext: "", progress: 0 }; }
+  $("add").addEventListener("click", function () {
+    var last = clips[clips.length - 1], s = last ? parseTime(last.end) : video.currentTime || 0;
+    clips.push(newClip(s, s + 30)); renderClips();
+  });
+
+  /* ---------- clip rows ---------- */
+  function durInfo(c) {
+    var s = parseTime(c.start), e = parseTime(c.end), d = video.duration;
+    if (isNaN(s) || isNaN(e) || e <= s) return { ok: false, cls: " bad", text: "End must be after start" };
+    if (d && e > d + 0.2) return { ok: false, cls: " bad", text: "End is past the end of the video" };
+    var len = e - s;
+    return { ok: true, cls: len > 180 ? " warn" : "", text: fmt(len) + " long" + (len > 180 ? " (over the 3 min Shorts/Reels limit)" : "") };
+  }
+  function stepper(side, label, c) {
+    var f = side === "s" ? "start" : "end";
+    return '<label>' + label + '<div class="stepper">' +
+      '<button type="button" data-step="-0.5" data-f="' + f + '" data-id="' + c.id + '" aria-label="' + label + ' half a second earlier">−</button>' +
+      '<input type="text" class="mono" data-f="' + f + '" data-id="' + c.id + '" inputmode="decimal" autocomplete="off" value="' + esc(c[f]) + '">' +
+      '<button type="button" data-step="0.5" data-f="' + f + '" data-id="' + c.id + '" aria-label="' + label + ' half a second later">+</button></div></label>';
+  }
+  function byId(id) { for (var i = 0; i < clips.length; i++) if (clips[i].id === id) return clips[i]; }
+
+  function renderClips() {
+    var el = $("clips");
+    el.innerHTML = "";
+    if (!clips.length) {
+      el.innerHTML = '<p class="dim">Marked clips appear here. Play the video, tap Mark start, then Mark end.</p>';
+    }
+    clips.forEach(function (c, i) {
+      var d = durInfo(c), row = document.createElement("div");
+      row.className = "clip"; row.dataset.row = c.id;
+      row.innerHTML =
+        '<label>Name<input type="text" data-f="name" data-id="' + c.id + '" placeholder="clip ' + (i + 1) + '" autocomplete="off" value="' + esc(c.name) + '"></label>' +
+        '<div class="times">' + stepper("s", "Start", c) + stepper("e", "End", c) + '</div>' +
+        '<div class="row"><span class="mono dim dur' + d.cls + '" data-dur="' + c.id + '">' + d.text + '</span>' +
+          '<span class="row" style="gap:8px"><button type="button" data-go="' + c.id + '">Jump to start</button>' +
+          '<button type="button" class="ghost" data-del="' + c.id + '">Delete</button></span></div>';
+      el.appendChild(row);
+    });
+    $("count").textContent = clips.length ? "(" + clips.length + ")" : "";
+    renderResults();
+    updateButtons();
+  }
+
+  $("clips").addEventListener("input", function (ev) {
+    var t = ev.target, f = t.dataset.f; if (!f) return;
+    var c = byId(+t.dataset.id); c[f] = t.value; clearResult(c); refreshDur(c); renderResults();
+  });
+  $("clips").addEventListener("click", function (ev) {
+    var b = ev.target.closest("button"); if (!b) return;
+    if (b.dataset.del) { var c = byId(+b.dataset.del); clearResult(c); clips.splice(clips.indexOf(c), 1); renderClips(); return; }
+    if (b.dataset.go) { var s = parseTime(byId(+b.dataset.go).start); if (!isNaN(s)) video.currentTime = s; window.scrollTo({ top: 0, behavior: "smooth" }); return; }
+    if (b.dataset.step) {
+      var c2 = byId(+b.dataset.id), v = parseTime(c2[b.dataset.f]);
+      c2[b.dataset.f] = fmt(Math.max(0, (isNaN(v) ? 0 : v) + (+b.dataset.step)));
+      clearResult(c2); renderClips();
+      if (b.dataset.f === "start" && !isNaN(parseTime(c2.start))) video.currentTime = parseTime(c2.start);
+    }
+  });
+  function refreshDur(c) {
+    var d = durInfo(c), el = document.querySelector('[data-dur="' + c.id + '"]');
+    if (el) { el.className = "mono dim dur" + d.cls; el.textContent = d.text; }
+    updateButtons();
+  }
+  function clearResult(c) {
+    if (c.url) URL.revokeObjectURL(c.url);
+    c.blob = null; c.url = null; c.status = ""; c.progress = 0;
+  }
+  function updateButtons() {
+    var ready = !!video.src && clips.some(function (c) { return durInfo(c).ok; }) && !!recFmt && !busy;
+    $("render-all").disabled = !ready;
+  }
+
+  /* ---------- results ---------- */
+  function clipLabel(c, i) { return slug(c.name) || "clip_" + pad(i + 1); }
+  function renderResults() {
+    var box = $("results"); box.innerHTML = "";
+    clips.forEach(function (c, i) {
+      var d = durInfo(c); if (!d.ok && !c.blob && !c.status) return;
+      var div = document.createElement("div"); div.className = "result"; div.dataset.res = c.id;
+      var html = '<div class="row"><strong>' + esc(c.name || "clip " + (i + 1)) + '</strong>' +
+        '<span class="status' + (c.blob ? " ok" : c.status.indexOf("Failed") === 0 ? " bad" : "") + '" data-status="' + c.id + '">' + esc(c.status || (d.ok ? "Ready" : d.text)) + '</span></div>';
+      if (c.progress && !c.blob) html += '<div class="bar"><span data-bar="' + c.id + '" style="width:' + Math.round(c.progress * 100) + '%"></span></div>';
+      if (c.blob) {
+        html += '<video src="' + c.url + '" controls playsinline preload="metadata"></video>' +
+          '<div class="row start"><button type="button" class="primary" data-save="' + c.id + '">Save clip</button>' +
+          '<span class="dim mono">' + (c.blob.size / 1048576).toFixed(1) + " MB · " + c.ext.toUpperCase() + '</span></div>';
+      } else if (d.ok && !busy) {
+        html += '<div class="row start"><button type="button" data-render="' + c.id + '">Render this clip</button></div>';
+      }
+      div.innerHTML = html; box.appendChild(div);
+    });
+  }
+  function setStatus(c, text, progress) {
+    c.status = text; if (progress != null) c.progress = progress;
+    var s = document.querySelector('[data-status="' + c.id + '"]'); if (s) s.textContent = text;
+    var b = document.querySelector('[data-bar="' + c.id + '"]');
+    if (b) b.style.width = Math.round(c.progress * 100) + "%";
+    else if (progress != null) renderResults();
+  }
+  $("results").addEventListener("click", function (ev) {
+    var b = ev.target.closest("button"); if (!b) return;
+    if (b.dataset.render) { runQueue([byId(+b.dataset.render)]); }
+    if (b.dataset.save) saveClip(byId(+b.dataset.save), b);
+  });
+  async function saveClip(c, btn) {
+    var dl = null;
+    try { dl = window.claude && window.claude.use ? await window.claude.use("downloads") : null; } catch (e) {}
+    var i = clips.indexOf(c);
+    if (!dl) {
+      var a = document.createElement("a");
+      a.href = c.url; a.download = clipLabel(c, i) + ($("fmt").value === "vertical" ? "_vertical" : "") + "." + c.ext;
+      document.body.appendChild(a); a.click(); a.remove();
+      setStatus(c, "Saved (check your downloads, or press and hold the preview)"); return;
+    }
+    try {
+      await dl.save({ filename: clipLabel(c, i) + ($("fmt").value === "vertical" ? "_vertical" : "") + "." + c.ext, data: c.blob });
+      setStatus(c, "Saved");
+    } catch (e) {
+      setStatus(c, e && e.code === "declined" ? "Not saved" : "Could not save: " + (e && e.message ? e.message : "unknown error"));
+    }
+  }
+
+  /* ---------- rendering ---------- */
+  function ensureAudio() {
+    if (audio) return audio;
+    try {
+      var AC = window.AudioContext || window.webkitAudioContext, ctx = new AC();
+      var src = ctx.createMediaElementSource(video), gain = ctx.createGain(), dest = ctx.createMediaStreamDestination();
+      var monitor = ctx.createGain();
+      src.connect(gain); gain.connect(dest); src.connect(monitor); monitor.connect(ctx.destination);
+      audio = { ctx: ctx, gain: gain, dest: dest, monitor: monitor };
+    } catch (e) { audio = { none: true }; }
+    return audio;
+  }
+  function seekTo(t) {
+    return new Promise(function (res) {
+      if (Math.abs(video.currentTime - t) < 0.01) return res();
+      var done = function () { video.removeEventListener("seeked", done); res(); };
+      video.addEventListener("seeked", done); video.currentTime = t;
+    });
+  }
+  async function renderClip(c, index, total) {
+    var i = clips.indexOf(c), s = parseTime(c.start), e = parseTime(c.end), o = cfg(), a = ensureAudio();
+    var canvas = document.createElement("canvas"); canvas.width = o.w; canvas.height = o.h;
+    var g = canvas.getContext("2d", { alpha: false });
+    var stream = canvas.captureStream(30);
+    if (a && !a.none) {
+      a.monitor.gain.value = 0; a.ctx.resume();
+      a.dest.stream.getAudioTracks().forEach(function (t) { stream.addTrack(t); });
+    }
+    var opts = { mimeType: recFmt.mime, videoBitsPerSecond: o.vbr, audioBitsPerSecond: 192000 }, rec, chunks = [];
+    try { rec = new MediaRecorder(stream, opts); } catch (err) { rec = new MediaRecorder(stream); }
+    rec.ondataavailable = function (ev) { if (ev.data && ev.data.size) chunks.push(ev.data); };
+    var stopped = new Promise(function (res) { rec.onstop = res; });
+
+    video.pause(); video.muted = false;
+    setStatus(c, "Preparing " + (total > 1 ? "(" + (index + 1) + " of " + total + ")" : ""), 0.001);
+    await seekTo(s);
+    drawFrame(g, o.w, o.h);
+    rec.start(1000);
+    await video.play();
+    var fadeOn = $("fades").checked, len = e - s;
+
+    await new Promise(function (resolve) {
+      function tick() {
+        if (cancelled) return resolve();
+        var t = video.currentTime;
+        if (t >= e || video.ended) return resolve();
+        drawFrame(g, o.w, o.h);
+        var k = 1;
+        if (fadeOn) k = Math.max(0, Math.min(1, (t - s) / 0.25, (e - t) / 0.25));
+        if (k < 1) { g.fillStyle = "rgba(0,0,0," + (1 - k).toFixed(3) + ")"; g.fillRect(0, 0, o.w, o.h); }
+        if (a && !a.none) a.gain.gain.value = k;
+        setStatus(c, "Recording " + fmt(t - s) + " of " + fmt(len), Math.max(0.01, (t - s) / len));
+        requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    });
+
+    video.pause();
+    if (rec.state !== "inactive") rec.stop();
+    await stopped;
+    stream.getVideoTracks().forEach(function (t) { t.stop(); });
+    if (a && !a.none) { a.gain.gain.value = 1; a.monitor.gain.value = 1; }
+    if (cancelled) { setStatus(c, "Stopped", 0); return; }
+    var blob = new Blob(chunks, { type: recFmt.mime.split(";")[0] });
+    if (!blob.size) throw new Error("nothing was recorded");
+    if (c.url) URL.revokeObjectURL(c.url);
+    c.blob = blob; c.url = URL.createObjectURL(blob); c.ext = recFmt.ext; c.status = "Done"; c.progress = 1;
+  }
+
+  async function runQueue(list) {
+    list = list.filter(function (c) { return c && durInfo(c).ok; });
+    if (!list.length || busy || !recFmt) return;
+    busy = true; cancelled = false; $("cancel").hidden = false; $("render-all").disabled = true;
+    try { if (navigator.wakeLock) wake = await navigator.wakeLock.request("screen"); } catch (e) {}
+    list.forEach(function (c) { clearResult(c); });
+    renderResults();
+    for (var k = 0; k < list.length && !cancelled; k++) {
+      try { await renderClip(list[k], k, list.length); }
+      catch (err) { list[k].status = "Failed: " + (err && err.message ? err.message : "could not record"); }
+      renderResults();
+    }
+    busy = false; $("cancel").hidden = true;
+    try { if (wake) { wake.release(); wake = null; } } catch (e) {}
+    renderClips();
+  }
+  $("render-all").addEventListener("click", function () { runQueue(clips.slice()); });
+  $("cancel").addEventListener("click", function () { cancelled = true; });
+
+  syncOutputUi();
+})();
+</script>
+
+</body>
+</html>

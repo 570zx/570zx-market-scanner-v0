@@ -30,3 +30,8 @@ Cut upload-ready clips from a YouTube video (or local file) for YouTube, Shorts,
 
 Notes: face tracking uses OpenCV's Haar cascades (front/profile faces; holds position when no face is
 seen). Clips over 3 minutes trigger a warning for the Shorts/Reels limit.
+
+## Phone version
+`phone-clipper.html` is a single self-contained page: open it in a phone browser, pick the video file,
+mark clips and render them on the device (no install, no captions or speaker tracking, real-time
+recording, quality limited by the phone's recorder). It needs to be served over https or opened as a file.
