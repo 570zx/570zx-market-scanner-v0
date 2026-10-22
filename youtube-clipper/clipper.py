@@ -20,6 +20,9 @@ import sys
 import tempfile
 from pathlib import Path
 
+import captions
+import reframe
+
 
 def parse_time(text):
     """'90', '1:30', '01:02:03' or '1:30.5' -> seconds."""
@@ -68,40 +71,68 @@ def fetch_source(url, cache):
     return hits[0]
 
 
-def build_filter(vertical, fade, length):
-    """Video filter graph; returns (-vf/-filter_complex flag, graph)."""
-    fades = f",fade=t=in:d={fade},fade=t=out:st={max(length - fade, 0):.3f}:d={fade}" if fade else ""
-    if vertical == "crop":  # fill the frame, centre-crop
-        g = f"crop='min(iw,ih*9/16)':ih,scale=1080:1920:flags=lanczos,setsar=1{fades}"
-        return "-vf", g
-    if vertical == "blur":  # whole frame on top of a blurred copy of itself
-        g = ("split[a][b];"
-             "[a]scale=1080:1920:force_original_aspect_ratio=increase:flags=bilinear,"
-             "crop=1080:1920,boxblur=30:5[bg];"
-             "[b]scale=1080:-2:flags=lanczos[fg];"
-             f"[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1{fades}")
-        return "-filter_complex", g
-    g = f"scale=-2:'max(ih,1080)':flags=lanczos,setsar=1{fades}"  # never ship below 1080p
-    return "-vf", g
+def ass_filter(path):
+    esc = str(path).replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
+    return f"ass='{esc}'"
 
 
-def encode(src, dest, start, end, vertical, fast, fade, loudnorm):
+def build_filter(mode, length, fade, ass, crop_x):
+    """Video filter graph for one output: returns (ffmpeg flag, graph)."""
+    tail = ",setsar=1"
+    if ass:
+        tail += "," + ass_filter(ass)
+    if fade:
+        tail += f",fade=t=in:d={fade},fade=t=out:st={max(length - fade, 0):.3f}:d={fade}"
+    if mode == "follow":  # face-tracking crop
+        return "-vf", f"crop=w='min(iw,ih*9/16)':h=ih:x='{crop_x}':y=0,scale=1080:1920:flags=lanczos" + tail
+    if mode == "crop":    # fill the frame, centre crop
+        return "-vf", "crop='min(iw,ih*9/16)':ih,scale=1080:1920:flags=lanczos" + tail
+    if mode == "blur":    # whole frame on top of a blurred copy of itself
+        return "-filter_complex", (
+            "split[a][b];[a]scale=1080:1920:force_original_aspect_ratio=increase:flags=bilinear,"
+            "crop=1080:1920,boxblur=30:5[bg];[b]scale=1080:-2:flags=lanczos[fg];"
+            "[bg][fg]overlay=(W-w)/2:(H-h)/2" + tail)
+    return "-vf", "scale=-2:'max(ih,1080)':flags=lanczos" + tail  # landscape, never below 1080p
+
+
+def encode(src, dest, start, end, mode, args, words, workdir):
     """Cut src from start..end (seconds) into dest, ready to upload."""
     length = end - start
-    cmd = ["ffmpeg", "-y", "-ss", fmt_time(start), "-i", str(src), "-t", fmt_time(length)]
-    if fast and not vertical:
+    cmd = ["ffmpeg", "-y", "-loglevel", "warning", "-stats", "-ss", fmt_time(start), "-i", str(src),
+           "-t", fmt_time(length)]
+    if args.fast and mode == "landscape" and not words:
         cmd += ["-c", "copy", "-avoid_negative_ts", "make_zero"]
     else:
-        flag, graph = build_filter(vertical, fade, length)
+        vertical = mode != "landscape"
+        w, h = (1080, 1920) if vertical else (None, None)
+        if not vertical:
+            sw, sh = reframe.probe_size(src)
+            h = max(sh, 1080)
+            w = round(sw * h / sh)
+        ass = None
+        if words:
+            ass = Path(workdir) / f"captions_{mode}.ass"
+            ass.write_text(captions.build_ass(words, w, h, vertical, args.font), encoding="utf-8")
+        crop_x = None
+        if mode == "follow":
+            sw, sh = reframe.probe_size(src)
+            crop_w = min(sw, int(sh * 9 / 16))
+            track = reframe.face_track(src, start, length)
+            if track is None:
+                sys.exit("--vertical follow needs opencv: pip install opencv-python-headless")
+            found = sum(1 for _, x in track if x is not None)
+            print(f"face found in {found}/{len(track)} samples", file=sys.stderr)
+            crop_x = reframe.crop_x_expr(reframe.smooth(track, crop_w / sw), length, sw, crop_w)
+        flag, graph = build_filter(mode, length, args.fade, ass, crop_x)
         cmd += [flag, graph,
                 "-c:v", "libx264", "-preset", "slow", "-crf", "16", "-profile:v", "high",
                 "-pix_fmt", "yuv420p", "-colorspace", "bt709", "-color_primaries", "bt709",
                 "-color_trc", "bt709", "-movflags", "+faststart"]
         af = []
-        if loudnorm:  # YouTube/Shorts/Reels/TikTok all sit around -14 LUFS
+        if not args.no_loudnorm:  # YouTube/Shorts/Reels/TikTok all sit around -14 LUFS
             af.append("loudnorm=I=-14:TP=-1.5:LRA=11")
-        if fade:
-            af.append(f"afade=t=in:d={fade},afade=t=out:st={max(length - fade, 0):.3f}:d={fade}")
+        if args.fade:
+            af.append(f"afade=t=in:d={args.fade},afade=t=out:st={max(length - args.fade, 0):.3f}:d={args.fade}")
         if af:
             cmd += ["-af", ",".join(af)]
         cmd += ["-c:a", "aac", "-b:a", "256k", "-ar", "48000"]
@@ -109,14 +140,31 @@ def encode(src, dest, start, end, vertical, fast, fade, loudnorm):
     run(cmd)
 
 
-def make_clip(source, start, end, dest, args):
+def make_clip(source, start, end, name, out, args):
     if end <= start:
         sys.exit(f"end ({end}s) must be after start ({start}s)")
-    dest.parent.mkdir(parents=True, exist_ok=True)
+    out.mkdir(parents=True, exist_ok=True)
     if is_url(source):
         source = fetch_source(source, Path(args.cache))
-    encode(source, dest, start, end, args.vertical, args.fast, args.fade, not args.no_loudnorm)
-    print(f"saved {dest}")
+    vertical = args.vertical or "follow"
+    jobs = []  # (mode, output file)
+    if args.platforms:
+        jobs = [("landscape", f"{name}_youtube.mp4"), (vertical, f"{name}_vertical.mp4")]
+    elif args.vertical:
+        jobs = [(args.vertical, f"{name}.mp4")]
+    else:
+        jobs = [("landscape", f"{name}.mp4")]
+    if any(m != "landscape" for m, _ in jobs) and end - start > 180:
+        print(f"warning: {end - start:.0f}s is over the 3-minute Shorts/Reels limit", file=sys.stderr)
+    with tempfile.TemporaryDirectory() as tmp:
+        words = None
+        if args.captions:
+            print("transcribing...", file=sys.stderr)
+            words = captions.transcribe(source, start, end - start, args.whisper_model, args.language, tmp)
+            print(f"{len(words)} words", file=sys.stderr)
+        for mode, fname in jobs:
+            encode(source, out / fname, start, end, mode, args, words, tmp)
+            print(f"saved {out / fname}")
 
 
 def read_clips(path):
@@ -142,9 +190,17 @@ def main():
     ap.add_argument("--clips", help="file with many clips: 'start end [name]' per line")
     ap.add_argument("--out", default="clips", help="output directory (default: clips)")
     ap.add_argument("--name", help="output file name (single clip, no extension)")
-    ap.add_argument("--vertical", nargs="?", const="crop", choices=["crop", "blur"],
-                    help="9:16 1080x1920 for Shorts/Reels/TikTok: 'crop' fills the frame "
-                         "(default), 'blur' keeps the whole frame over a blurred background")
+    ap.add_argument("--vertical", nargs="?", const="follow", choices=["follow", "crop", "blur"],
+                    help="9:16 1080x1920 output: 'follow' keeps the speaker's face in frame "
+                         "(default), 'crop' centre-crops, 'blur' keeps the whole frame over a blurred background")
+    ap.add_argument("--platforms", action="store_true",
+                    help="make both versions: NAME_youtube.mp4 (16:9) and NAME_vertical.mp4 "
+                         "(9:16, works for Shorts, TikTok and Reels)")
+    ap.add_argument("--captions", action="store_true", help="burn in word-by-word captions (Whisper)")
+    ap.add_argument("--whisper-model", default="small",
+                    help="tiny/base/small/medium/large-v3: bigger is more accurate, slower (default small)")
+    ap.add_argument("--language", help="spoken language code, e.g. en (default: auto-detect)")
+    ap.add_argument("--font", default="Arial", help="caption font (default Arial)")
     ap.add_argument("--fade", type=float, default=0.25, help="fade in/out seconds (default 0.25, 0 = off)")
     ap.add_argument("--no-loudnorm", action="store_true", help="skip -14 LUFS loudness normalisation")
     ap.add_argument("--cache", default="downloads", help="where full source downloads are kept")
@@ -171,7 +227,7 @@ def main():
     out = Path(args.out)
     for i, (start, end, name) in enumerate(clips, 1):
         name = slug(name) if name else f"clip_{i:02d}_{int(start)}-{int(end)}"
-        make_clip(args.source, start, end, out / f"{name}.mp4", args)
+        make_clip(args.source, start, end, name, out, args)
 
 
 if __name__ == "__main__":

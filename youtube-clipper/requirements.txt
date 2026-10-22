@@ -1,0 +1,4 @@
+yt-dlp
+faster-whisper
+av<17
+opencv-python-headless<5
