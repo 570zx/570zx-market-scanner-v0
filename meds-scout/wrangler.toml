@@ -12,7 +12,8 @@ binding = "CF_VERSION_METADATA"
 # live exits keep running even if the paper cycle fails. Outside the regular
 # session the live step runs every ten minutes.
 [triggers]
-crons = ["* * * * *"]
+# PAUSED 2026-10-22 at the owner's request to stop Cloudflare usage. To resume, restore: crons = ["* * * * *"] and SCOUT_ENABLED = "false", then run "MEDS deploy".
+crons = []
 
 [[d1_databases]]
 binding = "MEDS_DB"
@@ -21,7 +22,7 @@ database_id = "4c51e6c1-6d95-4002-800a-a7c74da64b24"
 
 [vars]
 TRADING_MODE = "shadow"
-SCOUT_ENABLED = "true"
+SCOUT_ENABLED = "false"
 LEADER_ONLY = "true"
 PAPER_ENABLED = "false"
 ENGINE_CADENCE = "session"
