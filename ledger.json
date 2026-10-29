@@ -5,10 +5,10 @@
    {
     "sym": "XLF",
     "entry": 56.015,
-    "mark": 55.94,
+    "mark": 56.145,
     "shares": 0.0035698348951361003,
     "entryDate": "2026-10-26",
-    "days": 1
+    "days": 2
    }
   ],
   "entries": [
@@ -36,18 +36,18 @@
    {
     "sym": "TLT",
     "entry": 81.315,
-    "mark": 81.68,
+    "mark": 80.895,
     "shares": 0.002456300579393028,
     "entryDate": "2026-10-23",
-    "days": 2
+    "days": 3
    },
    {
     "sym": "XLF",
     "entry": 56.015,
-    "mark": 55.94,
+    "mark": 56.145,
     "shares": 0.003571251511107849,
     "entryDate": "2026-10-26",
-    "days": 1
+    "days": 2
    }
   ],
   "entries": [
