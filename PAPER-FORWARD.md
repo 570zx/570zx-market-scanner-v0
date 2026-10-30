@@ -1,32 +1,32 @@
 # Weak-close ETF strategy: forward paper test
 
-**Paper only: no orders are placed and no broker account is touched.** Go-live 2026-10-21; last update 2026-10-28 (6 sessions so far). Costs assumed: 1 cent per share each way. Rules are frozen; do not change them while this runs.
+**Paper only: no orders are placed and no broker account is touched.** Go-live 2026-10-21; last update 2026-10-29 (7 sessions so far). Costs assumed: 1 cent per share each way. Rules are frozen; do not change them while this runs.
 
 ## Account A: IBS ≤ 0.1, above 200-day average, hold 5 sessions
 
-No new signals on 2026-10-28.
+No new signals on 2026-10-29.
 
 
-Equity since go-live: 0.04% (hold SPY: 0.44%). Max drawdown 0.03%. Closed trades 0. Progress to the 100-trade review: 0/100.
+Equity since go-live: 0.31% (hold SPY: 0.07%). Max drawdown 0.03%. Closed trades 0. Progress to the 100-trade review: 0/100.
 
 | Open position | Entered | Entry | Last | P&L | Sessions held |
 |---|---|---:|---:|---:|---:|
-| XLF | 2026-10-26 | $56.02 | $56.15 | 0.23% | 2 |
+| XLF | 2026-10-26 | $56.02 | $56.89 | 1.56% | 3 |
 
 ## Account B: IBS ≤ 0.1, no trend filter, sell on strength (max 5 sessions)
 
-No new signals on 2026-10-28.
+No new signals on 2026-10-29.
+Exits on 2026-10-29: XLF 1.53% (strength).
 
-
-Equity since go-live: 0.12% (hold SPY: 0.44%). Max drawdown 0.12%. Closed trades 1, win rate 100.00%, average 0.89%, longest losing streak 0. Progress to the 100-trade review: 1/100.
+Equity since go-live: 0.52% (hold SPY: 0.07%). Max drawdown 0.12%. Closed trades 2, win rate 100.00%, average 1.21%, longest losing streak 0. Progress to the 100-trade review: 2/100.
 
 | Open position | Entered | Entry | Last | P&L | Sessions held |
 |---|---|---:|---:|---:|---:|
-| TLT | 2026-10-23 | $81.31 | $80.89 | -0.52% | 3 |
-| XLF | 2026-10-26 | $56.02 | $56.15 | 0.23% | 2 |
+| TLT | 2026-10-23 | $81.31 | $81.49 | 0.22% | 4 |
 
 | Closed trade | Entered | Exited | Return | Exit reason |
 |---|---|---|---:|---|
+| XLF | 2026-10-26 | 2026-10-29 | 1.53% | strength |
 | GLD | 2026-10-22 | 2026-10-27 | 0.89% | strength |
 
 ## What the backtests led us to expect
