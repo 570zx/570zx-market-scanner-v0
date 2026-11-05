@@ -1,20 +1,21 @@
 # Weak-close ETF strategy: forward paper test
 
-**Paper only: no orders are placed and no broker account is touched.** Go-live 2026-10-21; last update 2026-11-03 (10 sessions so far). Costs assumed: 1 cent per share each way. Rules are frozen; do not change them while this runs.
+**Paper only: no orders are placed and no broker account is touched.** Go-live 2026-10-21; last update 2026-11-04 (11 sessions so far). Costs assumed: 1 cent per share each way. Rules are frozen; do not change them while this runs.
 
 ## Account A: IBS ≤ 0.1, above 200-day average, hold 5 sessions
 
-No new signals on 2026-11-03.
+Signals logged 2026-11-04: **XLK** (IBS 0.083, paper buy at $176.10).
 
 
-Equity since go-live: 0.49% (hold SPY: -1.88%). Max drawdown 0.12%. Closed trades 1, win rate 100.00%, average 2.69%, longest losing streak 0. Progress to the 100-trade review: 1/100.
+Equity since go-live: 0.31% (hold SPY: -0.29%). Max drawdown 0.23%. Closed trades 1, win rate 100.00%, average 2.69%, longest losing streak 0. Progress to the 100-trade review: 1/100.
 
 | Open position | Entered | Entry | Last | P&L | Sessions held |
 |---|---|---:|---:|---:|---:|
-| IWM | 2026-11-02 | $279.45 | $279.55 | 0.03% | 1 |
-| XLE | 2026-11-02 | $67.39 | $66.77 | -0.91% | 1 |
-| SPY | 2026-11-02 | $752.97 | $754.15 | 0.16% | 1 |
-| QQQ | 2026-11-02 | $682.05 | $685.45 | 0.50% | 1 |
+| IWM | 2026-11-02 | $279.45 | $283.74 | 1.53% | 2 |
+| XLE | 2026-11-02 | $67.39 | $63.49 | -5.77% | 2 |
+| SPY | 2026-11-02 | $752.97 | $766.36 | 1.78% | 2 |
+| QQQ | 2026-11-02 | $682.05 | $691.14 | 1.33% | 2 |
+| XLK | 2026-11-04 | $176.10 | $176.10 | 0.00% | 0 |
 
 | Closed trade | Entered | Exited | Return | Exit reason |
 |---|---|---|---:|---|
@@ -22,20 +23,21 @@ Equity since go-live: 0.49% (hold SPY: -1.88%). Max drawdown 0.12%. Closed trade
 
 ## Account B: IBS ≤ 0.1, no trend filter, sell on strength (max 5 sessions)
 
-No new signals on 2026-11-03.
+Signals logged 2026-11-04: **XLK** (IBS 0.083, paper buy at $176.10).
+Exits on 2026-11-04: IWM 1.53% (strength), SPY 1.78% (strength), QQQ 1.33% (strength).
 
-
-Equity since go-live: 0.52% (hold SPY: -1.88%). Max drawdown 0.12%. Closed trades 3, win rate 100.00%, average 0.95%, longest losing streak 0. Progress to the 100-trade review: 3/100.
+Equity since go-live: 0.34% (hold SPY: -0.29%). Max drawdown 0.23%. Closed trades 6, win rate 100.00%, average 1.25%, longest losing streak 0. Progress to the 100-trade review: 6/100.
 
 | Open position | Entered | Entry | Last | P&L | Sessions held |
 |---|---|---:|---:|---:|---:|
-| IWM | 2026-11-02 | $279.45 | $279.55 | 0.03% | 1 |
-| XLE | 2026-11-02 | $67.39 | $66.77 | -0.91% | 1 |
-| SPY | 2026-11-02 | $752.97 | $754.15 | 0.16% | 1 |
-| QQQ | 2026-11-02 | $682.05 | $685.45 | 0.50% | 1 |
+| XLE | 2026-11-02 | $67.39 | $63.49 | -5.77% | 2 |
+| XLK | 2026-11-04 | $176.10 | $176.10 | 0.00% | 0 |
 
 | Closed trade | Entered | Exited | Return | Exit reason |
 |---|---|---|---:|---|
+| QQQ | 2026-11-02 | 2026-11-04 | 1.33% | strength |
+| SPY | 2026-11-02 | 2026-11-04 | 1.78% | strength |
+| IWM | 2026-11-02 | 2026-11-04 | 1.53% | strength |
 | TLT | 2026-10-23 | 2026-10-30 | 0.45% | time |
 | XLF | 2026-10-26 | 2026-10-29 | 1.53% | strength |
 | GLD | 2026-10-22 | 2026-10-27 | 0.89% | strength |
