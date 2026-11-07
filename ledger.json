@@ -14,42 +14,42 @@
    {
     "sym": "IWM",
     "entry": 279.455,
-    "mark": 271.61,
+    "mark": 273.59,
     "shares": 0.0007194980419853507,
     "entryDate": "2026-11-02",
-    "days": 3
+    "days": 4
    },
    {
     "sym": "XLE",
     "entry": 67.385,
-    "mark": 61.95,
+    "mark": 61.635,
     "shares": 0.0029835228177674303,
     "entryDate": "2026-11-02",
-    "days": 3
+    "days": 4
    },
    {
     "sym": "SPY",
     "entry": 752.97,
-    "mark": 735.76,
+    "mark": 735.24,
     "shares": 0.00026703832811420756,
     "entryDate": "2026-11-02",
-    "days": 3
+    "days": 4
    },
    {
     "sym": "QQQ",
     "entry": 682.05,
-    "mark": 651.54,
+    "mark": 655.88,
     "shares": 0.00029480473903092984,
     "entryDate": "2026-11-02",
-    "days": 3
+    "days": 4
    },
    {
     "sym": "XLK",
     "entry": 176.1,
-    "mark": 163.731,
+    "mark": 164.56,
     "shares": 0.0011391318113882726,
     "entryDate": "2026-11-04",
-    "days": 1
+    "days": 2
    }
   ],
   "entries": [
@@ -152,42 +152,42 @@
    {
     "sym": "XLE",
     "entry": 67.385,
-    "mark": 61.95,
+    "mark": 61.635,
     "shares": 0.0029845781718063616,
     "entryDate": "2026-11-02",
-    "days": 3
+    "days": 4
    },
    {
     "sym": "XLK",
     "entry": 176.1,
-    "mark": 163.731,
+    "mark": 164.56,
     "shares": 0.0011395201968781965,
     "entryDate": "2026-11-04",
-    "days": 1
+    "days": 2
    },
    {
     "sym": "DIA",
     "entry": 515.63,
-    "mark": 515.63,
+    "mark": 512.2,
     "shares": 0.00038192817297668904,
     "entryDate": "2026-11-05",
-    "days": 0
+    "days": 1
    },
    {
     "sym": "SPY",
     "entry": 735.76,
-    "mark": 735.76,
+    "mark": 735.24,
     "shares": 0.0002676616919875776,
     "entryDate": "2026-11-05",
-    "days": 0
+    "days": 1
    },
    {
     "sym": "IWM",
     "entry": 271.61,
-    "mark": 271.61,
+    "mark": 273.59,
     "shares": 0.0007250476515488547,
     "entryDate": "2026-11-05",
-    "days": 0
+    "days": 1
    }
   ],
   "entries": [
