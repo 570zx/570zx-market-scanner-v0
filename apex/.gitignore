@@ -7,7 +7,6 @@ results/paper_replay_equity.json
 results/dashboard/replay_equity.csv
 results/dashboard/replay_trades.csv
 results/equity_summary_dev.json
-results/ledger_smoke_tests.jsonl
 __pycache__/
 .pytest_cache/
 *.sqlite
