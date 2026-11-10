@@ -1,0 +1,20 @@
+{
+ "title": "ETF forward paper test, closed trades",
+ "description": "Every closed paper trade since the forward test started.",
+ "source": {
+  "kind": "file",
+  "url": "/_blob/ba7c00e9a7d68aa443d70297f2caf324",
+  "name": "forward_trades.csv",
+  "format": "csv"
+ },
+ "updated": {
+  "at": "2026-11-10T02:58:00Z",
+  "by": "Claude"
+ },
+ "edit": {
+  "via": "claude",
+  "at": "2026-11-10T02:58:00Z"
+ },
+ "schedule": "Copied by hand from the paper-forward branch of the MEDS repository on GitHub. Ask Claude to refresh it after new trading sessions.",
+ "staleAfterHours": 96
+}

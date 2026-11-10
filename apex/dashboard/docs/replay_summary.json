@@ -1,0 +1,19 @@
+{
+ "title": "BTC replay, results by run",
+ "description": "End result of the paper engine with and without limits, the backtest of the same rules and holding BTC.",
+ "source": {
+  "kind": "file",
+  "url": "/_blob/9465319222bcd6bac0275cfdb2475364",
+  "name": "replay_summary.csv",
+  "format": "csv"
+ },
+ "updated": {
+  "at": "2026-11-10T02:45:00Z",
+  "by": "Claude"
+ },
+ "edit": {
+  "via": "claude",
+  "at": "2026-11-10T02:45:00Z"
+ },
+ "fixed": true
+}

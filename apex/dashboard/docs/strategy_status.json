@@ -1,0 +1,19 @@
+{
+ "title": "Strategy status, every family tested",
+ "description": "One row per strategy family tested in APEX round one or re-scored from MEDS's stored backtests, with its verdict and results on data it was not tuned on.",
+ "source": {
+  "kind": "file",
+  "url": "/_blob/cd9c19d94b8b9d9e03e4ad96a9a5cff5",
+  "name": "strategy_status.csv",
+  "format": "csv"
+ },
+ "updated": {
+  "at": "2026-11-10T02:45:00Z",
+  "by": "Claude"
+ },
+ "edit": {
+  "via": "claude",
+  "at": "2026-11-10T02:45:00Z"
+ },
+ "fixed": true
+}

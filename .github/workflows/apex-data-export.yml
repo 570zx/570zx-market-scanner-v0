@@ -1,0 +1,77 @@
+name: APEX data export
+
+# Research only. Downloads historical price bars from Alpaca (GET requests), encrypts them with
+# apex/tools/pub.pem and publishes the encrypted bundle to the apex-data branch. The repository is
+# public and vendor market data must not be republished, so only the holder of the private key can
+# read the result. Places no orders and touches no broker account, Worker or Robinhood connection.
+# Needs ALPACA_API_KEY and ALPACA_API_SECRET (read-only market data).
+
+on:
+  push:
+    branches: [apex-research]
+    paths: [apex/tools/**, .github/workflows/apex-data-export.yml]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write # publishes to the apex-data branch only
+
+concurrency:
+  group: apex-data-export
+  cancel-in-progress: true
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install numpy
+        run: pip install --quiet numpy
+      - name: Check Alpaca secrets
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
+        run: |
+          if [ -z "$ALPACA_API_KEY" ] || [ -z "$ALPACA_API_SECRET" ]; then
+            echo "::error::Add ALPACA_API_KEY and ALPACA_API_SECRET as repository secrets first."
+            exit 1
+          fi
+      - name: Export bars
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
+        run: |
+          set -o pipefail
+          python3 apex/tools/export_alpaca.py --out export 2>&1 | tee export.log
+      - name: Encrypt
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p publish
+          tail -n 250 export.log > publish/export.log 2>/dev/null || echo "no log" > publish/export.log
+          if [ -f export/meta.json ]; then
+            tar -cf bundle.tar -C export .
+            openssl rand -hex 32 > key.txt
+            openssl enc -aes-256-cbc -pbkdf2 -salt -pass file:key.txt -in bundle.tar -out bundle.tar.enc
+            openssl pkeyutl -encrypt -pubin -inkey apex/tools/pub.pem -pkeyopt rsa_padding_mode:oaep -in key.txt -out publish/key.enc
+            sha256sum bundle.tar.enc | cut -d' ' -f1 > publish/bundle.sha256
+            split -b 40m -d bundle.tar.enc publish/bundle.tar.enc.part
+            rm -f key.txt bundle.tar bundle.tar.enc
+          fi
+          ls -la publish
+      - name: Publish to the apex-data branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cd publish
+          git init -q -b apex-data
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "APEX encrypted data export $(date -u +%FT%TZ)"
+          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" apex-data

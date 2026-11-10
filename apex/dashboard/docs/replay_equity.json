@@ -1,0 +1,19 @@
+{
+ "title": "BTC replay, account equity",
+ "description": "Equity every third day for the paper engine with and without risk limits and for holding BTC, each starting from the same amount.",
+ "source": {
+  "kind": "file",
+  "url": "/_blob/ba152745a0c106d87737037eb8848075",
+  "name": "replay_equity.csv",
+  "format": "csv"
+ },
+ "updated": {
+  "at": "2026-11-10T02:45:00Z",
+  "by": "Claude"
+ },
+ "edit": {
+  "via": "claude",
+  "at": "2026-11-10T02:45:00Z"
+ },
+ "fixed": true
+}

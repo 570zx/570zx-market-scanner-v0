@@ -1,0 +1,9 @@
+n,time,account,severity,alert,equity
+1,2023-03-14 00:00,BTC paper engine (replay with limits),stop,Drawdown limit hit (12%): trading stopped until a person clears it,322.19
+2,2023-03-03 02:00,BTC paper engine (replay with limits),warning,Daily loss limit hit (2%): no new buys until the next UTC day,325.65
+3,2023-02-24 16:00,BTC paper engine (replay with limits),warning,Daily loss limit hit (2%): no new buys until the next UTC day,343.0
+4,2023-02-22 07:00,BTC paper engine (replay with limits),warning,Daily loss limit hit (2%): no new buys until the next UTC day,351.88
+5,2023-02-21 22:00,BTC paper engine (replay with limits),warning,Daily loss limit hit (2%): no new buys until the next UTC day,355.45
+6,2023-02-09 17:00,BTC paper engine (replay with limits),warning,Daily loss limit hit (2%): no new buys until the next UTC day,330.6
+7,2023-02-05 18:00,BTC paper engine (replay with limits),warning,Daily loss limit hit (2%): no new buys until the next UTC day,335.8
+8,2023-01-30 10:00,BTC paper engine (replay with limits),warning,Daily loss limit hit (2%): no new buys until the next UTC day,340.71

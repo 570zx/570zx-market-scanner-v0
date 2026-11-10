@@ -1,0 +1,20 @@
+{
+ "title": "ETF forward paper test, account totals",
+ "description": "Equity change, largest drop and trade counts for the two paper accounts of the MEDS weak-close ETF forward test.",
+ "source": {
+  "kind": "file",
+  "url": "/_blob/1b4fc62151d6bdeec7f27b861791a634",
+  "name": "forward_accounts.csv",
+  "format": "csv"
+ },
+ "updated": {
+  "at": "2026-11-10T02:58:00Z",
+  "by": "Claude"
+ },
+ "edit": {
+  "via": "claude",
+  "at": "2026-11-10T02:58:00Z"
+ },
+ "schedule": "Copied by hand from the paper-forward branch of the MEDS repository on GitHub. Ask Claude to refresh it after new trading sessions.",
+ "staleAfterHours": 96
+}

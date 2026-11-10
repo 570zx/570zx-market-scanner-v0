@@ -1,0 +1,19 @@
+{
+ "title": "BTC replay, trade history",
+ "description": "Each completed trade of the paper engine run without limits, newest first, after fees.",
+ "source": {
+  "kind": "file",
+  "url": "/_blob/d3dec74aa30cf04ec719dcc71fa1147b",
+  "name": "replay_trades.csv",
+  "format": "csv"
+ },
+ "updated": {
+  "at": "2026-11-10T02:45:00Z",
+  "by": "Claude"
+ },
+ "edit": {
+  "via": "claude",
+  "at": "2026-11-10T02:45:00Z"
+ },
+ "fixed": true
+}

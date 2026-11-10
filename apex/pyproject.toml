@@ -1,0 +1,10 @@
+[project]
+name = "apex"
+version = "0.1.0"
+description = "APEX: research-first trading engine (research, validation, paper execution, Robinhood adapter)"
+requires-python = ">=3.11"
+dependencies = ["numpy", "pandas", "scipy", "scikit-learn", "cryptography"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

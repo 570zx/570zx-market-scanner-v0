@@ -1,0 +1,20 @@
+{
+ "title": "Risk alerts",
+ "description": "Risk-limit events from the BTC replay with limits, and open forward-test positions down 5% or more at the last update.",
+ "source": {
+  "kind": "file",
+  "url": "/_blob/a9918f32c5e3b896f1cd025fdbd25a19",
+  "name": "alerts.csv",
+  "format": "csv"
+ },
+ "updated": {
+  "at": "2026-11-10T02:58:00Z",
+  "by": "Claude"
+ },
+ "edit": {
+  "via": "claude",
+  "at": "2026-11-10T02:58:00Z"
+ },
+ "schedule": "Copied by hand from the paper-forward branch of the MEDS repository on GitHub. Ask Claude to refresh it after new trading sessions.",
+ "staleAfterHours": 96
+}

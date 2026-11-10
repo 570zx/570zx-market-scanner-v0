@@ -1,0 +1,20 @@
+{
+ "title": "ETF forward paper test, open positions",
+ "description": "Positions the two paper accounts held at the last update.",
+ "source": {
+  "kind": "file",
+  "url": "/_blob/8d3682d3caa06570a90de73a7e7f02af",
+  "name": "forward_positions.csv",
+  "format": "csv"
+ },
+ "updated": {
+  "at": "2026-11-10T02:58:00Z",
+  "by": "Claude"
+ },
+ "edit": {
+  "via": "claude",
+  "at": "2026-11-10T02:58:00Z"
+ },
+ "schedule": "Copied by hand from the paper-forward branch of the MEDS repository on GitHub. Ask Claude to refresh it after new trading sessions.",
+ "staleAfterHours": 96
+}
