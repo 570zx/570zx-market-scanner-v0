@@ -1,0 +1,49 @@
+name: APEX daily history export
+
+# One-off research export: long daily histories from Stooq's public CSV links, encrypted for the
+# research session and published to the apex-data-daily branch. Uses no secrets. Read-only.
+on:
+  push:
+    branches: [apex-research]
+    paths:
+      - apex/daily_tools/**
+      - .github/workflows/apex-daily-history.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Download
+        run: python3 apex/daily_tools/export_stooq.py export_daily 2>&1 | tee export.log
+      - name: Encrypt
+        if: always()
+        run: |
+          mkdir -p publish export_daily
+          cp export.log publish/export.log || true
+          if [ -n "$(ls -A export_daily 2>/dev/null)" ]; then
+            tar -cf bundle.tar -C export_daily .
+            openssl rand -hex 32 > key.txt
+            openssl enc -aes-256-cbc -pbkdf2 -salt -pass file:key.txt -in bundle.tar -out publish/bundle.tar.enc
+            openssl pkeyutl -encrypt -pubin -inkey apex/tools/pub.pem -pkeyopt rsa_padding_mode:oaep -in key.txt -out publish/key.enc
+            sha256sum publish/bundle.tar.enc | cut -d' ' -f1 > publish/bundle.sha256
+            rm -f key.txt bundle.tar
+          fi
+      - name: Publish
+        if: always()
+        run: |
+          cd publish
+          git init -q -b apex-data-daily
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "APEX daily history export (encrypted)"
+          git push -q --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" apex-data-daily
