@@ -1,0 +1,8 @@
+# Market data never goes into this public repository (vendor terms); neither do per-day return series.
+data/
+results/series/E*.csv
+results/equity_summary_dev.json
+results/ledger_smoke_tests.jsonl
+__pycache__/
+.pytest_cache/
+*.sqlite
