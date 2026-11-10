@@ -3,6 +3,8 @@ its backtest? A strategy that drifts below what the backtest allows goes back to
 changed strategy is a new strategy and must pass every validation gate again."""
 from __future__ import annotations
 
+import math
+
 import numpy as np
 from scipy import stats
 
@@ -35,3 +37,14 @@ def win_rate_check(wins: int, n: int, expected: float) -> dict:
     p_low = float(stats.binom.cdf(wins, n, expected))          # chance of this few wins or fewer if nothing changed
     status = "TOO_EARLY" if n < MIN_TRADES else "DEGRADED" if p_low < 0.05 else "WATCH" if p_low < 0.20 else "OK"
     return {"trades": n, "wins": wins, "expected_win_rate": expected, "p_this_few_wins_or_fewer": p_low, "status": status}
+
+
+def mean_check(mean: float, n: int, expected_mean: float, expected_sd: float) -> dict:
+    """How likely is an average trade this low if the backtest still held? Normal approximation from the
+    backtest's mean and standard deviation per trade. Trade returns are skewed (many small wins, a few large
+    losses), so for a small count this is rough and errs toward raising the alarm."""
+    if n == 0:
+        return {"trades": 0, "status": "TOO_EARLY"}
+    p_low = float(stats.norm.cdf((mean - expected_mean) / (expected_sd / math.sqrt(n))))
+    status = "TOO_EARLY" if n < MIN_TRADES else "DEGRADED" if p_low < 0.05 else "WATCH" if p_low < 0.20 else "OK"
+    return {"trades": n, "avg_trade": mean, "expected_avg_trade": expected_mean, "p_this_low_or_lower": p_low, "status": status}

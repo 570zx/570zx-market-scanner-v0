@@ -44,7 +44,7 @@ def replay(p: E.Panel, vehicle: str, cfg: RiskConfig, workdir: Path, label: str)
     day0 = p.dates.values.astype("datetime64[s]").astype(np.int64)
     off = I.ny_offset(day0 + 17 * 3600)
     t_open = day0 + 570 * 60 - off
-    t_late = day0 + np.where(np.asarray(p.cal["half"]), 780, 955) * 60 - off
+    t_late = day0 + np.where(np.asarray(p.cal["half"]), 775 if "p775" in p.f else 780, 955) * 60 - off
     broker.set_price(vehicle, float(op[0]), float(t_open[0]))
     eng = Engine(broker, Store(workdir / f"{label}_engine.sqlite"), RiskGovernor(cfg, base_dir=workdir), "weak close", vehicle, fee_buffer=0.0)
     entry_day, marks, trips = None, [], []

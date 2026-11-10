@@ -1,0 +1,241 @@
+{
+ "early_close_days": [
+  "2016-11-25",
+  "2017-07-03",
+  "2017-11-24",
+  "2018-07-03",
+  "2018-11-23",
+  "2018-12-24",
+  "2019-07-03",
+  "2019-11-29",
+  "2019-12-24",
+  "2020-11-27",
+  "2020-12-24",
+  "2021-11-26",
+  "2022-11-25",
+  "2023-07-03",
+  "2023-11-24",
+  "2024-07-03",
+  "2024-11-29",
+  "2024-12-24",
+  "2025-07-03",
+  "2025-11-28",
+  "2025-12-24"
+ ],
+ "part1_exact": {
+  "signal QQQ": {
+   "days_where_the_published_range_included_later_trades": 14,
+   "buy_signals_published": 3,
+   "buy_signals_exact": 5,
+   "days_where_the_signal_differs": [
+    "2018-12-24",
+    "2021-11-26"
+   ],
+   "median_abs_price_gap_1255_vs_1300": 0.000715
+  },
+  "signal SPY": {
+   "days_where_the_published_range_included_later_trades": 14,
+   "buy_signals_published": 0,
+   "buy_signals_exact": 3,
+   "days_where_the_signal_differs": [
+    "2018-07-03",
+    "2018-12-24",
+    "2021-11-26"
+   ],
+   "median_abs_price_gap_1255_vs_1300": 0.000524
+  },
+  "signal IWM": {
+   "days_where_the_published_range_included_later_trades": 11,
+   "buy_signals_published": 2,
+   "buy_signals_exact": 1,
+   "days_where_the_signal_differs": [
+    "2018-12-24",
+    "2019-11-29",
+    "2024-07-03"
+   ],
+   "median_abs_price_gap_1255_vs_1300": 0.000874
+  },
+  "QQQ signal, QQQ traded": {
+   "published": {
+    "trades": 306,
+    "win_rate": 0.849673,
+    "avg_trade": 0.005153,
+    "total_return": 3.574329,
+    "cagr": 0.150736,
+    "sharpe": 1.172437,
+    "max_drawdown": 0.281144
+   },
+   "exact": {
+    "trades": 306,
+    "win_rate": 0.849673,
+    "avg_trade": 0.005143,
+    "total_return": 3.560386,
+    "cagr": 0.150411,
+    "sharpe": 1.173956,
+    "max_drawdown": 0.281144
+   },
+   "entries_that_differ": []
+  },
+  "QQQ signal, TQQQ traded": {
+   "published": {
+    "trades": 307,
+    "win_rate": 0.846906,
+    "avg_trade": 0.0145,
+    "total_return": 50.76314,
+    "cagr": 0.439711,
+    "sharpe": 1.148328,
+    "max_drawdown": 0.672699
+   },
+   "exact": {
+    "trades": 307,
+    "win_rate": 0.846906,
+    "avg_trade": 0.014475,
+    "total_return": 50.370469,
+    "cagr": 0.438699,
+    "sharpe": 1.149355,
+    "max_drawdown": 0.672699
+   },
+   "entries_that_differ": []
+  },
+  "SPY signal, SPY traded": {
+   "published": {
+    "trades": 284,
+    "win_rate": 0.859155,
+    "avg_trade": 0.00406,
+    "total_return": 2.075474,
+    "cagr": 0.109314,
+    "sharpe": 1.125781,
+    "max_drawdown": 0.155489
+   },
+   "exact": {
+    "trades": 285,
+    "win_rate": 0.859649,
+    "avg_trade": 0.004098,
+    "total_return": 2.121612,
+    "cagr": 0.11084,
+    "sharpe": 1.142576,
+    "max_drawdown": 0.155489
+   },
+   "entries_that_differ": [
+    "2021-11-26"
+   ]
+  },
+  "SPY signal, UPRO traded": {
+   "published": {
+    "trades": 284,
+    "win_rate": 0.852113,
+    "avg_trade": 0.011098,
+    "total_return": 16.800566,
+    "cagr": 0.304569,
+    "sharpe": 1.057272,
+    "max_drawdown": 0.416756
+   },
+   "exact": {
+    "trades": 285,
+    "win_rate": 0.852632,
+    "avg_trade": 0.011217,
+    "total_return": 17.602609,
+    "cagr": 0.309889,
+    "sharpe": 1.073281,
+    "max_drawdown": 0.416756
+   },
+   "entries_that_differ": [
+    "2021-11-26"
+   ]
+  },
+  "IWM signal, IWM traded": {
+   "published": {
+    "trades": 304,
+    "win_rate": 0.799342,
+    "avg_trade": 0.003118,
+    "total_return": 1.428853,
+    "cagr": 0.085397,
+    "sharpe": 0.714162,
+    "max_drawdown": 0.243671
+   },
+   "exact": {
+    "trades": 304,
+    "win_rate": 0.799342,
+    "avg_trade": 0.003112,
+    "total_return": 1.42416,
+    "cagr": 0.085203,
+    "sharpe": 0.713764,
+    "max_drawdown": 0.243671
+   },
+   "entries_that_differ": [
+    "2017-11-27",
+    "2019-11-29",
+    "2019-12-02",
+    "2024-07-03"
+   ]
+  }
+ },
+ "part2_blind": {
+  "E01": {
+   "verdict_published": "FAILS: no better than holding",
+   "verdict_blind": "FAILS: no better than holding",
+   "holdout_sharpe_published": 1.052976,
+   "holdout_sharpe_blind": 1.08519,
+   "holdout_cagr_published": 0.260881,
+   "holdout_cagr_blind": 0.271503
+  },
+  "E02": {
+   "verdict_published": "FAILS: no better than holding",
+   "verdict_blind": "FAILS: no better than holding",
+   "holdout_sharpe_published": 0.747074,
+   "holdout_sharpe_blind": 0.747074,
+   "holdout_cagr_published": 0.250768,
+   "holdout_cagr_blind": 0.250768
+  },
+  "E04a": {
+   "verdict_published": "FAILS: no better than holding",
+   "verdict_blind": "FAILS: no better than holding",
+   "holdout_sharpe_published": 0.807863,
+   "holdout_sharpe_blind": 0.807863,
+   "holdout_cagr_published": 0.082027,
+   "holdout_cagr_blind": 0.082027
+  },
+  "E04b": {
+   "verdict_published": "FAILS: no better than holding",
+   "verdict_blind": "FAILS: no better than holding",
+   "holdout_sharpe_published": 1.127977,
+   "holdout_sharpe_blind": 1.127977,
+   "holdout_cagr_published": 0.715425,
+   "holdout_cagr_blind": 0.715425
+  },
+  "E10": {
+   "verdict_published": "FAILS: no better than holding",
+   "verdict_blind": "FAILS: no better than holding",
+   "holdout_sharpe_published": 1.113019,
+   "holdout_sharpe_blind": 1.113019,
+   "holdout_cagr_published": 0.164536,
+   "holdout_cagr_blind": 0.164536
+  },
+  "E16a": {
+   "verdict_published": "FAILS: loses money after costs",
+   "verdict_blind": "FAILS: loses money after costs",
+   "holdout_sharpe_published": -0.614474,
+   "holdout_sharpe_blind": -0.614474,
+   "holdout_cagr_published": -0.026357,
+   "holdout_cagr_blind": -0.026357
+  },
+  "E16b": {
+   "verdict_published": "FAILS: loses money after costs",
+   "verdict_blind": "FAILS: loses money after costs",
+   "holdout_sharpe_published": -0.608076,
+   "holdout_sharpe_blind": -0.608076,
+   "holdout_cagr_published": -0.08148,
+   "holdout_cagr_blind": -0.08148
+  },
+  "E12": {
+   "verdict_published": "FAILS: no better than holding",
+   "verdict_blind": "FAILS: no better than holding",
+   "holdout_sharpe_published": 1.299943,
+   "holdout_sharpe_blind": 1.233888,
+   "holdout_cagr_published": 0.275995,
+   "holdout_cagr_blind": 0.254871
+  },
+  "verdicts_unchanged": "8 of 8"
+ },
+ "not_covered": "Part 2 removes the information from the future but cannot restore the exact 12:55 values for symbols without 5-minute bars, and every family still uses the 13:00 print as its price on early-close days for those symbols. The machine-learning ranker (E12) is refitted on the blinded panel; small changes to its inputs move its picks, so its numbers shift more than the others."
+}

@@ -11,9 +11,13 @@ then (only with explicit approval) trade it for real.
 * One pattern held on every sample, including 1999-2015 data that no other test touched: the weak-close bounce
   in index ETFs. It is real, it is small, and it did not beat holding in 2023-2026.
 
+* A forward paper test of that one rule is written and frozen (`scripts/forward_test.py`, go-live 2026-11-11).
+  It is **not switched on**: its workflow only runs from the default branch, and merging is the owner's decision.
+
 The findings are in the report "APEX — Feasibility and First-Round Research". The numbers behind it are in
 `results/summary.json` (round one), `results/equity_summary.json` (round two), `results/older_sample.json`,
-`results/equity_deep_dive.json`, `results/paper_replay_equity.json` and the append-only `results/ledger.jsonl`.
+`results/equity_deep_dive.json`, `results/early_close_check.json` and the append-only `results/ledger.jsonl`.
+(`results/paper_replay_equity.json` is produced locally and not committed: it holds trade prices.)
 
 ## What is here
 
@@ -29,7 +33,7 @@ The findings are in the report "APEX — Feasibility and First-Round Research". 
 | `src/apex/metrics.py` | Trade and equity statistics, Wilson intervals, deflated Sharpe |
 | `src/apex/feasibility.py` | Arithmetic of the win-rate, annual-doubling and monthly-doubling targets |
 | `src/apex/risk.py` | Sizing rules and the risk governor (0.5% per position, 2% daily, 12% drawdown by default) |
-| `src/apex/monitor.py` | Forward-versus-backtest degradation check |
+| `src/apex/monitor.py` | Forward-versus-backtest checks: resampling, win count, average trade |
 | `src/apex/equities.py` | Stock and ETF research: session panel with two tradable moments a day (open, 15:55), early closes, weight and slot engines, family evaluation, lookahead test, exact one-account replay |
 | `src/apex/intraday.py` | 5-minute grid, noise-area and opening-range rules, next-bar-open fills |
 | `src/apex/execution/` | Broker interface, paper broker, execution engine, SQLite store, Robinhood crypto adapter |
@@ -40,10 +44,12 @@ The findings are in the report "APEX — Feasibility and First-Round Research". 
 | `scripts/older_sample_test.py` | The two leading rules on 1999-2015 daily bars, rules and failure conditions fixed first |
 | `scripts/equity_deep_dive.py` | After the holdout: stress tests, sizing, the entry-versus-exit control (descriptive only) |
 | `scripts/paper_replay_equity.py` | The weak-close rule through the paper engine, with and without the risk limits |
+| `scripts/early_close_check.py` | Measures what the handling of the 21 early-close days does to the results |
+| `scripts/forward_test.py` | Forward paper test of the frozen weak-close rule: a stateless replay from the go-live date, with alarms |
 | `tools/export_alpaca.py` | Read-only export of Alpaca bars, run in GitHub Actions and encrypted before it leaves the runner |
 | `scripts/build_dashboard_data.py` | Flatten results into the dashboard's CSV files |
 | `dashboard/` | The dashboard page and its data-source documents |
-| `tests/` | 43 tests |
+| `tests/` | 55 tests |
 | `results/` | Outputs of the last run, including the append-only experiment ledger |
 
 ## Reproduce
@@ -84,8 +90,33 @@ python3 scripts/run_equity_experiments.py          # about 90 seconds; --discove
 python3 scripts/older_sample_test.py
 python3 scripts/equity_deep_dive.py
 python3 scripts/paper_replay_equity.py
+python3 scripts/early_close_check.py               # needs the 5-minute files; add --record to append to the ledger
 python3 scripts/build_dashboard_data.py
 ```
+
+The private key that reads the `apex-data` branch exists only in the research session that made it. A new session
+makes a new key pair, replaces `tools/pub.pem` and asks for a fresh export by changing `tools/export_request.txt`
+(the export takes about two hours and is the only thing that file is for).
+
+### Forward paper test of the weak-close rule
+
+```bash
+python3 scripts/forward_test.py --data data/equities --go-live 2026-09-01 --out /tmp/rehearsal   # rehearsal on local data
+python3 scripts/forward_test.py --fetch --out forward-state --previous forward-state/ledger.json  # what the scheduled job runs
+```
+
+* **Paper only.** It reads prices and writes a report; there is no order code in it.
+* The rule, the go-live date (2026-11-11) and the expectations are constants at the top of the script, committed
+  before the first session they are judged on. A changed rule is a new test with a new go-live date.
+* Every run replays the rule from the go-live date with the backtest's own code, so there is no state to drift.
+  The previous report is read only to check that no published trade has changed.
+* Account C trades QQQ; account D trades TQQQ on the same QQQ signal. They sit beside MEDS's accounts A and B,
+  which test a different weak-close variant (nine ETFs, a 10% threshold, other exits).
+* `.github/workflows/apex-forward.yml` runs it after each close and commits the report to the `apex-forward`
+  branch. Scheduled and manual runs only start from the default branch, so the job does nothing until this
+  branch is merged.
+* What to expect: about 30 trades a year. The alarms can catch a breakdown within a year. Confirming an edge from
+  the forward record alone takes several years; the script's `REVIEW_RULE` says so in numbers.
 
 ## Rules the engine enforces
 
@@ -128,7 +159,14 @@ python3 scripts/build_dashboard_data.py
   wrong closes on some volatile days and are not used for trading rules.
 * Options were not tested (no data). Shorting was not tested (the account cannot short); inverse ETFs stand in.
 * Ten large stocks in the round-two universe were picked in 2026, which flatters any rule that is long them.
-* On early-close days the 15:55 decision is approximated by the 13:00 print (21 sessions in 11 years).
+* Early-close days (21 sessions in 11 years). The round-two data has no 12:55 sample, so on those days the panel
+  used the 13:00 print as its price and a day's range that runs to 15:30. The range therefore included
+  after-hours trades that had not happened yet: on 14 of the 21 days for QQQ. `scripts/early_close_check.py`
+  measured it: rebuilt exactly from 5-minute bars, the weak-close rule in QQQ takes the same 306 trades and its
+  return moves from 15.07% to 15.04% a year (2016-2026); made blind on those days, all 8 families that read the
+  day's range keep their verdicts (the machine-learning family's holdout Sharpe moves from 1.30 to 1.23, further
+  below holding). The exporter now samples 12:55 and the panel uses it when present, so new exports and the
+  forward test are exact.
 * Coin tests use coins listed today (survivorship flatters them) and daily reference prices.
 * The coin panel assumes weights are held constant between rebalances; the small daily drift is not costed.
 * The paper broker fills market orders at the quote with a fixed half-spread. Real fills in fast markets are worse.

@@ -1,0 +1,4 @@
+Changing this file on the apex-research branch starts the Alpaca data export
+(.github/workflows/apex-data-export.yml, about two hours). Nothing else reads it.
+
+Last request: 2026-11-10 (file created; no export requested).

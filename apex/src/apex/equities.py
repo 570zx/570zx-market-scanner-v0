@@ -3,7 +3,8 @@
 Two tradable moments per day keep the simulation honest:
   LATE  15:55 New York (the open of the 15:55 bar). A rule deciding here may use the day's high and low
         so far and the 15:55 price. It cannot use the official close, because the order has to be in
-        before the close exists. On early-close days LATE is the 13:00 print (see EARLY_CLOSE).
+        before the close exists. On early-close days LATE is 12:55 when the data has that sample, and
+        the 13:00 print in data exported before it was added (see finish_panel).
   OPEN  the first regular trade (field o). A rule trading here must decide from the previous day or the
         premarket. Rules that need to see the first minutes trade at a later sample (09:35, 10:00, ...).
 
@@ -26,12 +27,23 @@ PPY = 252.0
 HOLDOUT = pd.Timestamp("2023-01-01")
 WF_FIRST_YEAR = 2019
 
-# Sessions that closed at 13:00 New York. Checked against the data: on each of these days less than a quarter
-# of SPY's 09:30-16:00 volume traded after 13:05 (every other day: more than 27%).
-EARLY_CLOSE = pd.DatetimeIndex([
-    "2016-11-25", "2017-07-03", "2017-11-24", "2018-07-03", "2018-11-23", "2018-12-24", "2019-07-03", "2019-11-29", "2019-12-24",
-    "2020-11-27", "2020-12-24", "2021-11-26", "2022-11-25", "2023-07-03", "2023-11-24", "2024-07-03", "2024-11-29", "2024-12-24",
-    "2025-07-03", "2025-11-28", "2025-12-24", "2026-11-27", "2026-12-24"])
+# Sessions that close at 13:00 New York: the day after Thanksgiving, and July 3 and December 24 when they fall on
+# Monday to Thursday. Checked against the data for 2016-2026: on each of these days less than a quarter of SPY's
+# 09:30-16:00 volume traded after 13:05 (every other day: more than 27%). The exchange publishes its calendar a
+# few years ahead and can change it, so later years should be re-checked against that calendar.
+def early_closes(first_year: int = 2016, last_year: int = 2040) -> pd.DatetimeIndex:
+    out = []
+    for y in range(first_year, last_year + 1):
+        nov1 = pd.Timestamp(y, 11, 1)
+        thanksgiving = nov1 + pd.Timedelta(days=(3 - nov1.dayofweek) % 7 + 21)       # fourth Thursday of November
+        out.append(thanksgiving + pd.Timedelta(days=1))
+        for d in (pd.Timestamp(y, 7, 3), pd.Timestamp(y, 12, 24)):
+            if d.dayofweek <= 3:
+                out.append(d)
+    return pd.DatetimeIndex(sorted(out))
+
+
+EARLY_CLOSE = early_closes()
 AFTERNOON_FIELDS = ["p840", "p900", "p930", "p945", "p950", "p955", "h945", "l945", "v945", "h955", "l955", "v955"]
 
 # One-way cost as a fraction of price. Robinhood charges no commission on stocks and ETFs, so this is half the
@@ -67,6 +79,11 @@ class Panel:
     def truncate(self, last: pd.Timestamp) -> "Panel":
         """The panel as it would have looked on `last` (used by the lookahead test)."""
         m = self.dates <= last
+        return Panel(self.dates[m], self.symbols, {k: v.loc[m] for k, v in self.f.items()}, None if self.cal is None else self.cal.loc[m])
+
+    def since(self, first: pd.Timestamp) -> "Panel":
+        """Only the sessions from `first` on (used by the forward test, which starts flat on its go-live date)."""
+        m = self.dates >= first
         return Panel(self.dates[m], self.symbols, {k: v.loc[m] for k, v in self.f.items()}, None if self.cal is None else self.cal.loc[m])
 
 
@@ -117,8 +134,15 @@ def finish_panel(p: Panel) -> Panel:
     has = f["p955"].notna()
     late = f["p955"].where(has, f["c"].where(f["t_last"] < 955))    # no 15:55 bar: the last trade before it
     hi, lo = f["h955"].where(has, f["h"]), f["l955"].where(has, f["l"])
-    late = late.where(~half, f["p780"])                             # early close: the 13:00 print
-    hi, lo = hi.where(~half, f["h930"]), lo.where(~half, f["l930"])
+    if "p775" in f:                                                 # early close: 12:55, five minutes before the 13:00 close,
+        late = late.where(~half, f["p775"])                         # with the range of the bars before it
+        hi, lo = hi.where(~half, f["h775"]), lo.where(~half, f["l775"])
+    else:
+        # Data exported before the 12:55 fields existed. Two approximations, on about two days a year: the price is
+        # the 13:00 print (the closing price, which needs an on-close order), and the range runs to 15:30 and so
+        # includes after-hours trades that had not happened yet. scripts/early_close_check.py measures the effect.
+        late = late.where(~half, f["p780"])
+        hi, lo = hi.where(~half, f["h930"]), lo.where(~half, f["l930"])
     hi, lo = np.fmax(hi, late), np.fmin(lo, late)
     f["late"], f["hi_late"], f["lo_late"] = late, hi, lo
     rng = hi - lo
@@ -474,7 +498,7 @@ def simulate_stack(p: Panel, mr_signal: str | None, mr_vehicle: str | None, nigh
             sh, paid, ed = mr_pos
             if lv[d] * (1 - c_mr) > paid or d - ed >= max_hold:
                 cash += sh * lv[d] * (1 - c_mr)
-                mr_tr.append((ed, lv[d] * (1 - c_mr) / paid - 1))
+                mr_tr.append((ed, lv[d] * (1 - c_mr) / paid - 1, d))
                 mr_pos = None
         if mr_pos is None:
             equity = cash
@@ -494,6 +518,9 @@ def simulate_stack(p: Panel, mr_signal: str | None, mr_vehicle: str | None, nigh
     (mr_r, mr_e), (n_r, n_e) = f(mr_tr), f(night_tr)
     all_e = np.concatenate([mr_e, n_e])
     order = np.argsort(all_e, kind="stable")
-    return {"ret": ret, "expo": (held > 0) * size * np.where(held == 2, 0.73, 1.0), "held": held, "dec": held.astype(float),
-            "mr_trade_ret": mr_r, "mr_trade_entry": mr_e, "night_trade_ret": n_r, "night_trade_entry": n_e,
+    still_open = None if mr_pos is None else {"entry_day": int(mr_pos[2]), "paid": float(mr_pos[1]),
+                                              "return_so_far": float(lv[n - 1] * (1 - c_mr) / mr_pos[1] - 1) if np.isfinite(lv[n - 1]) else None}
+    return {"ret": ret, "expo": (held > 0) * size * np.where(held == 2, 0.73, 1.0), "held": held, "dec": held.astype(float), "mr_open": still_open,
+            "mr_trade_ret": mr_r, "mr_trade_entry": mr_e, "mr_trade_exit": np.array([x[2] for x in mr_tr], dtype=int),
+            "night_trade_ret": n_r, "night_trade_entry": n_e,
             "trade_ret": np.concatenate([mr_r, n_r])[order], "trade_entry": all_e[order]}

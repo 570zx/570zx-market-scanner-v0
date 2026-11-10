@@ -6,10 +6,13 @@ name: APEX data export
 # read the result. Places no orders and touches no broker account, Worker or Robinhood connection.
 # Needs ALPACA_API_KEY and ALPACA_API_SECRET (read-only market data).
 
+# The export takes about two hours, so it starts only when asked: change apex/tools/export_request.txt on the
+# apex-research branch, or run it by hand once this file is on the default branch.
+
 on:
   push:
     branches: [apex-research]
-    paths: [apex/tools/**, .github/workflows/apex-data-export.yml]
+    paths: [apex/tools/export_request.txt]
   workflow_dispatch: {}
 
 permissions:

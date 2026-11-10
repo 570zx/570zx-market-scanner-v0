@@ -31,8 +31,10 @@ BASE = "https://data.alpaca.markets"
 RPM = 150                      # the free plan allows 200 a minute; stay under it
 
 # Prices sampled at these Eastern times (minutes after midnight): the open of the first regular bar at or after T.
-SAMPLE_TIMES = [575, 585, 600, 630, 660, 720, 780, 840, 900, 930, 945, 950, 955]
-RUN_HL_TIMES = [600, 930, 945, 955]            # running high/low of regular bars that START before T
+# 775 (12:55) is the decision moment on a day that closes at 13:00: the same five minutes before the close that 955 is
+# on a normal day. On such a day the bars from 13:00 on are after-hours trading, so h930/l930 are NOT known at 13:00.
+SAMPLE_TIMES = [575, 585, 600, 630, 660, 720, 775, 780, 840, 900, 930, 945, 950, 955]
+RUN_HL_TIMES = [600, 775, 930, 945, 955]       # running high/low of regular bars that START before T
 FIELDS = (["o", "h", "l", "c", "v", "vwap", "n_reg", "t_first", "t_last", "pc5", "h_pre5", "l_pre5", "v_pre5"]
           + [f"p{t}" for t in SAMPLE_TIMES]
           + [f"h{t}" for t in RUN_HL_TIMES] + [f"l{t}" for t in RUN_HL_TIMES] + [f"v{t}" for t in RUN_HL_TIMES]
