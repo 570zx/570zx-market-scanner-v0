@@ -1,19 +1,19 @@
 {
  "title": "Strategy status, every family tested",
- "description": "One row per strategy family tested in APEX round one or re-scored from MEDS's stored backtests, with its verdict and results on data it was not tuned on.",
+ "description": "One row per strategy family: APEX round one (crypto), APEX round two (stocks and ETFs, tested on 2023 to 2026), the older-sample test (years before 2016) and MEDS's stored backtests re-scored, each with its verdict and its results on data it was not tuned on.",
  "source": {
   "kind": "file",
-  "url": "/_blob/cd9c19d94b8b9d9e03e4ad96a9a5cff5",
+  "url": "/_blob/00aab757bb73843189a13aa7a458f31e",
   "name": "strategy_status.csv",
   "format": "csv"
  },
  "updated": {
-  "at": "2026-11-10T02:45:00Z",
+  "at": "2026-11-10T12:55:00Z",
   "by": "Claude"
  },
  "edit": {
   "via": "claude",
-  "at": "2026-11-10T02:45:00Z"
+  "at": "2026-11-10T12:55:00Z"
  },
  "fixed": true
 }

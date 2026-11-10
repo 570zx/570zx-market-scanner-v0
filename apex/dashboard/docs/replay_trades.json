@@ -1,19 +1,19 @@
 {
- "title": "BTC replay, trade history",
- "description": "Each completed trade of the paper engine run without limits, newest first, after fees.",
+ "title": "Weak-close replay, trade history",
+ "description": "Each completed trade of the QQQ paper engine run without limits, newest first, after costs.",
  "source": {
   "kind": "file",
-  "url": "/_blob/d3dec74aa30cf04ec719dcc71fa1147b",
+  "url": "/_blob/df01d57a62000673604c1455947665c2",
   "name": "replay_trades.csv",
   "format": "csv"
  },
  "updated": {
-  "at": "2026-11-10T02:45:00Z",
+  "at": "2026-11-10T12:55:00Z",
   "by": "Claude"
  },
  "edit": {
   "via": "claude",
-  "at": "2026-11-10T02:45:00Z"
+  "at": "2026-11-10T12:55:00Z"
  },
  "fixed": true
 }
