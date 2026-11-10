@@ -1,0 +1,4593 @@
+{
+ "what_this_is": "Run after the holdout was seen. Descriptive only; nothing here is proof.",
+ "families_vs_market": {
+  "E01": {
+   "family": "Weak close, index and sector ETFs",
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": 0.142154,
+    "sharpe": 0.716402,
+    "max_drawdown": 0.276161,
+    "ann_vol": 0.219252,
+    "vs_QQQ": {
+     "alpha_per_year": 0.055052,
+     "t": 0.73421,
+     "beta": 0.565886
+    }
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": 0.260881,
+    "sharpe": 1.052976,
+    "max_drawdown": 0.232292,
+    "ann_vol": 0.249011,
+    "vs_QQQ": {
+     "alpha_per_year": 0.029876,
+     "t": 0.348266,
+     "beta": 0.857904
+    }
+   },
+   "2019-2026": {
+    "years": 7.837302,
+    "cagr": 0.198819,
+    "sharpe": 0.890238,
+    "max_drawdown": 0.276161,
+    "ann_vol": 0.234259,
+    "vs_QQQ": {
+     "alpha_per_year": 0.05761,
+     "t": 1.00601,
+     "beta": 0.672004
+    }
+   }
+  },
+  "E02": {
+   "family": "Weak close, 3x leveraged ETFs",
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": 0.451571,
+    "sharpe": 0.985343,
+    "max_drawdown": 0.655083,
+    "ann_vol": 0.512825,
+    "vs_QQQ": {
+     "alpha_per_year": 0.277901,
+     "t": 1.5505,
+     "beta": 1.261388
+    }
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": 0.250768,
+    "sharpe": 0.747074,
+    "max_drawdown": 0.384359,
+    "ann_vol": 0.406695,
+    "vs_QQQ": {
+     "alpha_per_year": -0.05491,
+     "t": -0.364864,
+     "beta": 1.324712
+    }
+   },
+   "2019-2026": {
+    "years": 7.837302,
+    "cagr": 0.349518,
+    "sharpe": 0.876742,
+    "max_drawdown": 0.655083,
+    "ann_vol": 0.463832,
+    "vs_QQQ": {
+     "alpha_per_year": 0.118295,
+     "t": 0.999848,
+     "beta": 1.283876
+    }
+   }
+  },
+  "E03a": {
+   "family": "RSI(2) pullback, index ETFs",
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": 0.031378,
+    "sharpe": 0.363864,
+    "max_drawdown": 0.124035,
+    "ann_vol": 0.098154,
+    "vs_QQQ": {
+     "alpha_per_year": 0.01018,
+     "t": 0.246616,
+     "beta": 0.141637
+    }
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": 0.134284,
+    "sharpe": 1.236435,
+    "max_drawdown": 0.067989,
+    "ann_vol": 0.106517,
+    "vs_QQQ": {
+     "alpha_per_year": 0.058036,
+     "t": 1.491461,
+     "beta": 0.272022
+    }
+   },
+   "2019-2026": {
+    "years": 7.837302,
+    "cagr": 0.08054,
+    "sharpe": 0.808104,
+    "max_drawdown": 0.124035,
+    "ann_vol": 0.102353,
+    "vs_QQQ": {
+     "alpha_per_year": 0.040236,
+     "t": 1.411262,
+     "beta": 0.189112
+    }
+   }
+  },
+  "E03b": {
+   "family": "RSI(2) pullback, 3x ETFs",
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": 0.060123,
+    "sharpe": 0.346119,
+    "max_drawdown": 0.355813,
+    "ann_vol": 0.294469,
+    "vs_QQQ": {
+     "alpha_per_year": 0.025349,
+     "t": 0.204435,
+     "beta": 0.42473
+    }
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": 0.365631,
+    "sharpe": 1.137777,
+    "max_drawdown": 0.209392,
+    "ann_vol": 0.318865,
+    "vs_QQQ": {
+     "alpha_per_year": 0.142297,
+     "t": 1.218587,
+     "beta": 0.814232
+    }
+   },
+   "2019-2026": {
+    "years": 7.837302,
+    "cagr": 0.200061,
+    "sharpe": 0.74881,
+    "max_drawdown": 0.355813,
+    "ann_vol": 0.306689,
+    "vs_QQQ": {
+     "alpha_per_year": 0.102409,
+     "t": 1.196308,
+     "beta": 0.566514
+    }
+   }
+  },
+  "E04a": {
+   "family": "Overnight only, index ETFs",
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": 0.066149,
+    "sharpe": 0.75456,
+    "max_drawdown": 0.103044,
+    "ann_vol": 0.09026,
+    "vs_QQQ": {
+     "alpha_per_year": 0.055807,
+     "t": 1.228315,
+     "beta": 0.068221
+    }
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": 0.082027,
+    "sharpe": 0.807863,
+    "max_drawdown": 0.122804,
+    "ann_vol": 0.104356,
+    "vs_QQQ": {
+     "alpha_per_year": 0.014944,
+     "t": 0.337174,
+     "beta": 0.256127
+    }
+   },
+   "2019-2026": {
+    "years": 7.837302,
+    "cagr": 0.073894,
+    "sharpe": 0.780729,
+    "max_drawdown": 0.209197,
+    "ann_vol": 0.097393,
+    "vs_QQQ": {
+     "alpha_per_year": 0.045387,
+     "t": 1.411417,
+     "beta": 0.136466
+    }
+   }
+  },
+  "E04b": {
+   "family": "Overnight only, 3x ETFs",
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": 0.594768,
+    "sharpe": 1.236643,
+    "max_drawdown": 0.528501,
+    "ann_vol": 0.467817,
+    "vs_QQQ": {
+     "alpha_per_year": 0.44556,
+     "t": 2.153407,
+     "beta": 0.737516
+    }
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": 0.715425,
+    "sharpe": 1.127977,
+    "max_drawdown": 0.491622,
+    "ann_vol": 0.693539,
+    "vs_QQQ": {
+     "alpha_per_year": 0.339501,
+     "t": 1.266458,
+     "beta": 1.635095
+    }
+   },
+   "2019-2026": {
+    "years": 7.837302,
+    "cagr": 0.652745,
+    "sharpe": 1.151362,
+    "max_drawdown": 0.554765,
+    "ann_vol": 0.589123,
+    "vs_QQQ": {
+     "alpha_per_year": 0.439393,
+     "t": 2.619896,
+     "beta": 1.063645
+    }
+   }
+  },
+  "E05a1": {
+   "family": "Gap to close, index ETFs",
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": 0.049313,
+    "sharpe": 0.622832,
+    "max_drawdown": 0.078904,
+    "ann_vol": 0.082802,
+    "vs_QQQ": {
+     "alpha_per_year": 0.027724,
+     "t": 0.725816,
+     "beta": 0.132277
+    }
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": -0.00775,
+    "sharpe": -0.117345,
+    "max_drawdown": 0.110411,
+    "ann_vol": 0.053833,
+    "vs_QQQ": {
+     "alpha_per_year": -0.026759,
+     "t": -1.094393,
+     "beta": 0.075485
+    }
+   },
+   "2019-2026": {
+    "years": 7.837302,
+    "cagr": 0.020975,
+    "sharpe": 0.331189,
+    "max_drawdown": 0.125806,
+    "ann_vol": 0.070135,
+    "vs_QQQ": {
+     "alpha_per_year": -0.001825,
+     "t": -0.080622,
+     "beta": 0.111544
+    }
+   }
+  },
+  "E05a3": {
+   "family": "Gap to close, 3x ETFs",
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": 0.12048,
+    "sharpe": 0.590794,
+    "max_drawdown": 0.233251,
+    "ann_vol": 0.242926,
+    "vs_QQQ": {
+     "alpha_per_year": 0.074212,
+     "t": 0.664092,
+     "beta": 0.384436
+    }
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": -0.027675,
+    "sharpe": -0.09736,
+    "max_drawdown": 0.300201,
+    "ann_vol": 0.15732,
+    "vs_QQQ": {
+     "alpha_per_year": -0.075569,
+     "t": -1.060062,
+     "beta": 0.222492
+    }
+   },
+   "2019-2026": {
+    "years": 7.837302,
+    "cagr": 0.045315,
+    "sharpe": 0.31991,
+    "max_drawdown": 0.364217,
+    "ann_vol": 0.205526,
+    "vs_QQQ": {
+     "alpha_per_year": -0.00732,
+     "t": -0.110427,
+     "beta": 0.325325
+    }
+   }
+  },
+  "E05b1": {
+   "family": "Last half hour momentum, index ETFs",
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": 0.003784,
+    "sharpe": 0.110915,
+    "max_drawdown": 0.058069,
+    "ann_vol": 0.041972,
+    "vs_QQQ": {
+     "alpha_per_year": -0.000343,
+     "t": -0.019681,
+     "beta": 0.027725
+    }
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": -0.025605,
+    "sharpe": -1.394924,
+    "max_drawdown": 0.106587,
+    "ann_vol": 0.018471,
+    "vs_QQQ": {
+     "alpha_per_year": -0.027696,
+     "t": -3.209334,
+     "beta": 0.007129
+    }
+   },
+   "2019-2026": {
+    "years": 7.837302,
+    "cagr": -0.010714,
+    "sharpe": -0.313535,
+    "max_drawdown": 0.127314,
+    "ann_vol": 0.032658,
+    "vs_QQQ": {
+     "alpha_per_year": -0.014775,
+     "t": -1.522613,
+     "beta": 0.020194
+    }
+   }
+  },
+  "E05b3": {
+   "family": "Last half hour momentum, 3x and inverse ETFs",
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": 0.049263,
+    "sharpe": 0.422483,
+    "max_drawdown": 0.15563,
+    "ann_vol": 0.135242,
+    "vs_QQQ": {
+     "alpha_per_year": 0.056431,
+     "t": 0.847508,
+     "beta": 0.003916
+    }
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": -0.154163,
+    "sharpe": -2.020153,
+    "max_drawdown": 0.489507,
+    "ann_vol": 0.081207,
+    "vs_QQQ": {
+     "alpha_per_year": -0.170578,
+     "t": -4.242915,
+     "beta": 0.024107
+    }
+   },
+   "2019-2026": {
+    "years": 7.837302,
+    "cagr": -0.055815,
+    "sharpe": -0.455663,
+    "max_drawdown": 0.520604,
+    "ann_vol": 0.112277,
+    "vs_QQQ": {
+     "alpha_per_year": -0.053607,
+     "t": -1.350307,
+     "beta": 0.010893
+    }
+   }
+  },
+  "E05c1": {
+   "family": "Morning move carries to the close, index ETFs",
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": 0.077704,
+    "sharpe": 0.904209,
+    "max_drawdown": 0.1483,
+    "ann_vol": 0.08694,
+    "vs_QQQ": {
+     "alpha_per_year": 0.057814,
+     "t": 1.378394,
+     "beta": 0.115363
+    }
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": 0.035316,
+    "sharpe": 0.454564,
+    "max_drawdown": 0.107805,
+    "ann_vol": 0.083952,
+    "vs_QQQ": {
+     "alpha_per_year": -0.008751,
+     "t": -0.299622,
+     "beta": 0.173233
+    }
+   },
+   "2019-2026": {
+    "years": 7.837302,
+    "cagr": 0.056737,
+    "sharpe": 0.687975,
+    "max_drawdown": 0.1483,
+    "ann_vol": 0.085478,
+    "vs_QQQ": {
+     "alpha_per_year": 0.028194,
+     "t": 1.100127,
+     "beta": 0.136294
+    }
+   }
+  },
+  "E05c3": {
+   "family": "Morning move carries to the close, 3x and inverse ETFs",
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": 0.324736,
+    "sharpe": 0.965745,
+    "max_drawdown": 0.437101,
+    "ann_vol": 0.358724,
+    "vs_QQQ": {
+     "alpha_per_year": 0.344932,
+     "t": 1.881185,
+     "beta": 0.008338
+    }
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": 0.078663,
+    "sharpe": 0.409079,
+    "max_drawdown": 0.359972,
+    "ann_vol": 0.272285,
+    "vs_QQQ": {
+     "alpha_per_year": 0.014036,
+     "t": 0.127796,
+     "beta": 0.359481
+    }
+   },
+   "2019-2026": {
+    "years": 7.837302,
+    "cagr": 0.197936,
+    "sharpe": 0.724455,
+    "max_drawdown": 0.437101,
+    "ann_vol": 0.319345,
+    "vs_QQQ": {
+     "alpha_per_year": 0.200925,
+     "t": 1.844478,
+     "beta": 0.135461
+    }
+   }
+  },
+  "E06a": {
+   "family": "Calendar effects, index ETFs and Treasuries",
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": 0.051353,
+    "sharpe": 0.604067,
+    "max_drawdown": 0.090586,
+    "ann_vol": 0.089498,
+    "vs_QQQ": {
+     "alpha_per_year": 0.054896,
+     "t": 1.299125,
+     "beta": -0.004618
+    }
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": 0.0091,
+    "sharpe": 0.153989,
+    "max_drawdown": 0.125017,
+    "ann_vol": 0.079232,
+    "vs_QQQ": {
+     "alpha_per_year": -0.007016,
+     "t": -0.18222,
+     "beta": 0.070961
+    }
+   },
+   "2019-2026": {
+    "years": 7.837302,
+    "cagr": 0.030449,
+    "sharpe": 0.396689,
+    "max_drawdown": 0.136835,
+    "ann_vol": 0.084616,
+    "vs_QQQ": {
+     "alpha_per_year": 0.028455,
+     "t": 0.99223,
+     "beta": 0.022758
+    }
+   }
+  },
+  "E06b": {
+   "family": "Calendar effects, 3x ETFs",
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": 0.200934,
+    "sharpe": 0.828902,
+    "max_drawdown": 0.258017,
+    "ann_vol": 0.261608,
+    "vs_QQQ": {
+     "alpha_per_year": 0.2313,
+     "t": 1.920434,
+     "beta": -0.080167
+    }
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": -0.030101,
+    "sharpe": -0.009496,
+    "max_drawdown": 0.387978,
+    "ann_vol": 0.237151,
+    "vs_QQQ": {
+     "alpha_per_year": -0.059537,
+     "t": -0.515807,
+     "beta": 0.211534
+    }
+   },
+   "2019-2026": {
+    "years": 7.837302,
+    "cagr": 0.081648,
+    "sharpe": 0.438349,
+    "max_drawdown": 0.455079,
+    "ann_vol": 0.249965,
+    "vs_QQQ": {
+     "alpha_per_year": 0.103865,
+     "t": 1.23762,
+     "beta": 0.02541
+    }
+   }
+  },
+  "E07a": {
+   "family": "Trend and volatility timing, index ETFs",
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": 0.071608,
+    "sharpe": 0.551454,
+    "max_drawdown": 0.214776,
+    "ann_vol": 0.144379,
+    "vs_QQQ": {
+     "alpha_per_year": -0.009994,
+     "t": -0.372078,
+     "beta": 0.497063
+    }
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": 0.132837,
+    "sharpe": 1.208014,
+    "max_drawdown": 0.113362,
+    "ann_vol": 0.108111,
+    "vs_QQQ": {
+     "alpha_per_year": -0.003208,
+     "t": -0.162627,
+     "beta": 0.494108
+    }
+   },
+   "2019-2026": {
+    "years": 7.837302,
+    "cagr": 0.101162,
+    "sharpe": 0.817726,
+    "max_drawdown": 0.215068,
+    "ann_vol": 0.127891,
+    "vs_QQQ": {
+     "alpha_per_year": -0.006825,
+     "t": -0.404358,
+     "beta": 0.496
+    }
+   }
+  },
+  "E07b": {
+   "family": "Trend and volatility timing, 3x ETFs",
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": 0.117532,
+    "sharpe": 0.48149,
+    "max_drawdown": 0.526791,
+    "ann_vol": 0.391874,
+    "vs_QQQ": {
+     "alpha_per_year": -0.052232,
+     "t": -0.694967,
+     "beta": 1.336309
+    }
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": 0.261184,
+    "sharpe": 0.986995,
+    "max_drawdown": 0.275324,
+    "ann_vol": 0.27314,
+    "vs_QQQ": {
+     "alpha_per_year": -0.066706,
+     "t": -1.298586,
+     "beta": 1.241825
+    }
+   },
+   "2019-2026": {
+    "years": 7.837302,
+    "cagr": 0.185698,
+    "sharpe": 0.673636,
+    "max_drawdown": 0.530047,
+    "ann_vol": 0.338901,
+    "vs_QQQ": {
+     "alpha_per_year": -0.064127,
+     "t": -1.385525,
+     "beta": 1.301938
+    }
+   }
+  },
+  "E08": {
+   "family": "Short volatility (SVXY)",
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": 0.012033,
+    "sharpe": 0.178748,
+    "max_drawdown": 0.38643,
+    "ann_vol": 0.25568,
+    "vs_QQQ": {
+     "alpha_per_year": -0.034838,
+     "t": -0.306968,
+     "beta": 0.446741
+    }
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": 0.138523,
+    "sharpe": 0.732415,
+    "max_drawdown": 0.338764,
+    "ann_vol": 0.206814,
+    "vs_QQQ": {
+     "alpha_per_year": 0.016684,
+     "t": 0.195202,
+     "beta": 0.497733
+    }
+   },
+   "2019-2026": {
+    "years": 7.837302,
+    "cagr": 0.072105,
+    "sharpe": 0.418407,
+    "max_drawdown": 0.38643,
+    "ann_vol": 0.233003,
+    "vs_QQQ": {
+     "alpha_per_year": -0.007032,
+     "t": -0.097013,
+     "beta": 0.465361
+    }
+   }
+  },
+  "E09": {
+   "family": "Intraday momentum outside the noise area (5-minute bars)",
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": 0.135704,
+    "sharpe": 0.739896,
+    "max_drawdown": 0.162472,
+    "ann_vol": 0.198048,
+    "vs_QQQ": {
+     "alpha_per_year": 0.13573,
+     "t": 1.642637,
+     "beta": 0.059931
+    }
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": 0.106345,
+    "sharpe": 0.730432,
+    "max_drawdown": 0.16704,
+    "ann_vol": 0.154503,
+    "vs_QQQ": {
+     "alpha_per_year": 0.092004,
+     "t": 1.227536,
+     "beta": 0.07699
+    }
+   },
+   "2019-2026": {
+    "years": 7.837302,
+    "cagr": 0.121234,
+    "sharpe": 0.730496,
+    "max_drawdown": 0.16704,
+    "ann_vol": 0.178021,
+    "vs_QQQ": {
+     "alpha_per_year": 0.115206,
+     "t": 2.060896,
+     "beta": 0.066063
+    }
+   }
+  },
+  "E10": {
+   "family": "Sector rotation",
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": 0.165736,
+    "sharpe": 0.812966,
+    "max_drawdown": 0.314103,
+    "ann_vol": 0.218022,
+    "vs_QQQ": {
+     "alpha_per_year": 0.068364,
+     "t": 0.916091,
+     "beta": 0.603939
+    }
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": 0.164536,
+    "sharpe": 1.113019,
+    "max_drawdown": 0.170702,
+    "ann_vol": 0.146543,
+    "vs_QQQ": {
+     "alpha_per_year": 0.020793,
+     "t": 0.386159,
+     "beta": 0.525514
+    }
+   },
+   "2019-2026": {
+    "years": 7.837302,
+    "cagr": 0.165148,
+    "sharpe": 0.913577,
+    "max_drawdown": 0.314103,
+    "ann_vol": 0.186434,
+    "vs_QQQ": {
+     "alpha_per_year": 0.041094,
+     "t": 0.866494,
+     "beta": 0.575353
+    }
+   }
+  },
+  "E11": {
+   "family": "Night versus day, gold, bonds, oil and bitcoin funds",
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": 0.02357,
+    "sharpe": 0.216947,
+    "max_drawdown": 0.418236,
+    "ann_vol": 0.237872,
+    "vs_QQQ": {
+     "alpha_per_year": 0.014611,
+     "t": 0.122936,
+     "beta": 0.205205
+    }
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": 0.058071,
+    "sharpe": 0.338047,
+    "max_drawdown": 0.400009,
+    "ann_vol": 0.334264,
+    "vs_QQQ": {
+     "alpha_per_year": 0.016603,
+     "t": 0.112639,
+     "beta": 0.355951
+    }
+   },
+   "2019-2026": {
+    "years": 7.837302,
+    "cagr": 0.04032,
+    "sharpe": 0.282532,
+    "max_drawdown": 0.418236,
+    "ann_vol": 0.289044,
+    "vs_QQQ": {
+     "alpha_per_year": 0.023265,
+     "t": 0.246971,
+     "beta": 0.260009
+    }
+   }
+  },
+  "E12": {
+   "family": "Machine-learned ranking",
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": 0.197838,
+    "sharpe": 1.02012,
+    "max_drawdown": 0.428171,
+    "ann_vol": 0.196077,
+    "vs_QQQ": {
+     "alpha_per_year": 0.140732,
+     "t": 1.552244,
+     "beta": 0.32887
+    }
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": 0.275995,
+    "sharpe": 1.299943,
+    "max_drawdown": 0.176285,
+    "ann_vol": 0.203528,
+    "vs_QQQ": {
+     "alpha_per_year": 0.160233,
+     "t": 1.751088,
+     "beta": 0.385303
+    }
+   },
+   "2019-2026": {
+    "years": 7.837302,
+    "cagr": 0.235488,
+    "sharpe": 1.159768,
+    "max_drawdown": 0.47204,
+    "ann_vol": 0.19972,
+    "vs_QQQ": {
+     "alpha_per_year": 0.153148,
+     "t": 2.367324,
+     "beta": 0.349416
+    }
+   }
+  },
+  "E14": {
+   "family": "Overnight persistence",
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": 0.075267,
+    "sharpe": 0.396374,
+    "max_drawdown": 0.563398,
+    "ann_vol": 0.49161,
+    "vs_QQQ": {
+     "alpha_per_year": 0.202819,
+     "t": 0.940763,
+     "beta": -0.044138
+    }
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": 0.046513,
+    "sharpe": 0.323723,
+    "max_drawdown": 0.554962,
+    "ann_vol": 0.428451,
+    "vs_QQQ": {
+     "alpha_per_year": 0.016013,
+     "t": 0.090652,
+     "beta": 0.453042
+    }
+   },
+   "2019-2026": {
+    "years": 7.837302,
+    "cagr": 0.061091,
+    "sharpe": 0.36253,
+    "max_drawdown": 0.563398,
+    "ann_vol": 0.461653,
+    "vs_QQQ": {
+     "alpha_per_year": 0.136749,
+     "t": 0.975291,
+     "beta": 0.136304
+    }
+   }
+  },
+  "E15": {
+   "family": "Opening-range breakout (5-minute bars)",
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": 0.294413,
+    "sharpe": 1.118979,
+    "max_drawdown": 0.261313,
+    "ann_vol": 0.260856,
+    "vs_QQQ": {
+     "alpha_per_year": 0.234952,
+     "t": 2.164918,
+     "beta": 0.315835
+    }
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": 0.043797,
+    "sharpe": 0.301829,
+    "max_drawdown": 0.331106,
+    "ann_vol": 0.22236,
+    "vs_QQQ": {
+     "alpha_per_year": -0.037816,
+     "t": -0.413913,
+     "beta": 0.387474
+    }
+   },
+   "2019-2026": {
+    "years": 7.837302,
+    "cagr": 0.164969,
+    "sharpe": 0.748873,
+    "max_drawdown": 0.331106,
+    "ann_vol": 0.242813,
+    "vs_QQQ": {
+     "alpha_per_year": 0.105147,
+     "t": 1.47441,
+     "beta": 0.341442
+    }
+   }
+  },
+  "E16a": {
+   "family": "Strong close, inverse ETFs",
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": 0.041492,
+    "sharpe": 0.571019,
+    "max_drawdown": 0.073736,
+    "ann_vol": 0.076165,
+    "vs_QQQ": {
+     "alpha_per_year": 0.061546,
+     "t": 1.555043,
+     "beta": -0.100141
+    }
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": -0.026357,
+    "sharpe": -0.614474,
+    "max_drawdown": 0.101514,
+    "ann_vol": 0.042042,
+    "vs_QQQ": {
+     "alpha_per_year": -0.012576,
+     "t": -0.54228,
+     "beta": -0.048956
+    }
+   },
+   "2019-2026": {
+    "years": 7.837302,
+    "cagr": 0.0077,
+    "sharpe": 0.154308,
+    "max_drawdown": 0.157445,
+    "ann_vol": 0.06188,
+    "vs_QQQ": {
+     "alpha_per_year": 0.027888,
+     "t": 1.157728,
+     "beta": -0.081652
+    }
+   }
+  },
+  "E16b": {
+   "family": "Strong close, 3x inverse ETFs",
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": 0.189277,
+    "sharpe": 0.744572,
+    "max_drawdown": 0.233626,
+    "ann_vol": 0.283958,
+    "vs_QQQ": {
+     "alpha_per_year": 0.283788,
+     "t": 1.726353,
+     "beta": -0.40137
+    }
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": -0.08148,
+    "sharpe": -0.608076,
+    "max_drawdown": 0.288083,
+    "ann_vol": 0.126829,
+    "vs_QQQ": {
+     "alpha_per_year": -0.037309,
+     "t": -0.531902,
+     "beta": -0.147016
+    }
+   },
+   "2019-2026": {
+    "years": 7.837302,
+    "cagr": 0.047974,
+    "sharpe": 0.316613,
+    "max_drawdown": 0.415536,
+    "ann_vol": 0.221557,
+    "vs_QQQ": {
+     "alpha_per_year": 0.139645,
+     "t": 1.446407,
+     "beta": -0.309418
+    }
+   }
+  },
+  "E17": {
+   "family": "Bitcoin trend through a spot-bitcoin ETF",
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": 0.246081,
+    "sharpe": 0.725915,
+    "max_drawdown": 0.632438,
+    "ann_vol": 0.431294,
+    "vs_QQQ": {
+     "alpha_per_year": 0.266096,
+     "t": 1.140172,
+     "beta": 0.260626
+    }
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": 0.419131,
+    "sharpe": 1.117762,
+    "max_drawdown": 0.285485,
+    "ann_vol": 0.374871,
+    "vs_QQQ": {
+     "alpha_per_year": 0.317647,
+     "t": 1.705798,
+     "beta": 0.374325
+    }
+   },
+   "2019-2026": {
+    "years": 7.837302,
+    "cagr": 0.328,
+    "sharpe": 0.902082,
+    "max_drawdown": 0.632438,
+    "ann_vol": 0.404564,
+    "vs_QQQ": {
+     "alpha_per_year": 0.29711,
+     "t": 1.972754,
+     "beta": 0.302042
+    }
+   }
+  },
+  "E13a": {
+   "family": "Ensemble of unleveraged strategies",
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": -0.064503,
+    "sharpe": -1.078368,
+    "max_drawdown": 0.241586,
+    "ann_vol": 0.060133,
+    "vs_QQQ": {
+     "alpha_per_year": -0.078524,
+     "t": -2.467899,
+     "beta": 0.07587
+    }
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": 0.218969,
+    "sharpe": 1.213796,
+    "max_drawdown": 0.153228,
+    "ann_vol": 0.175949,
+    "vs_QQQ": {
+     "alpha_per_year": 0.104785,
+     "t": 1.401859,
+     "beta": 0.401692
+    }
+   },
+   "2019-2026": {
+    "years": 7.837302,
+    "cagr": 0.064938,
+    "sharpe": 0.547009,
+    "max_drawdown": 0.295885,
+    "ann_vol": 0.130657,
+    "vs_QQQ": {
+     "alpha_per_year": 0.02776,
+     "t": 0.646913,
+     "beta": 0.19461
+    }
+   }
+  },
+  "E13b": {
+   "family": "Ensemble of leveraged strategies",
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": -0.069128,
+    "sharpe": -0.537767,
+    "max_drawdown": 0.277479,
+    "ann_vol": 0.119879,
+    "vs_QQQ": {
+     "alpha_per_year": -0.104437,
+     "t": -1.881785,
+     "beta": 0.221705
+    }
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": 0.530933,
+    "sharpe": 1.008761,
+    "max_drawdown": 0.491622,
+    "ann_vol": 0.606498,
+    "vs_QQQ": {
+     "alpha_per_year": 0.237154,
+     "t": 0.994424,
+     "beta": 1.383486
+    }
+   },
+   "2019-2026": {
+    "years": 7.837302,
+    "cagr": 0.187628,
+    "sharpe": 0.615329,
+    "max_drawdown": 0.491622,
+    "ann_vol": 0.433349,
+    "vs_QQQ": {
+     "alpha_per_year": 0.121872,
+     "t": 0.973612,
+     "beta": 0.644596
+    }
+   }
+  },
+  "E18": {
+   "family": "One account, stacked: weak close, night and day",
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": -0.08621,
+    "sharpe": -0.067724,
+    "max_drawdown": 0.494626,
+    "ann_vol": 0.36207,
+    "vs_QQQ": {
+     "alpha_per_year": -0.118446,
+     "t": -0.740871,
+     "beta": 0.520985
+    }
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": 0.2749,
+    "sharpe": 0.86217,
+    "max_drawdown": 0.438307,
+    "ann_vol": 0.353321,
+    "vs_QQQ": {
+     "alpha_per_year": -0.010781,
+     "t": -0.0766,
+     "beta": 1.164683
+    }
+   },
+   "2019-2026": {
+    "years": 7.837302,
+    "cagr": 0.075623,
+    "sharpe": 0.381797,
+    "max_drawdown": 0.608307,
+    "ann_vol": 0.357872,
+    "vs_QQQ": {
+     "alpha_per_year": -0.032979,
+     "t": -0.303093,
+     "beta": 0.755162
+    }
+   }
+  }
+ },
+ "holding": {
+  "SPY": {
+   "2016-2018": {
+    "years": 2.992063,
+    "cagr": 0.092283,
+    "sharpe": 0.76486,
+    "max_drawdown": 0.19311,
+    "ann_vol": 0.125788
+   },
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": 0.132342,
+    "sharpe": 0.675778,
+    "max_drawdown": 0.33225,
+    "ann_vol": 0.219884
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": 0.208116,
+    "sharpe": 1.350193,
+    "max_drawdown": 0.187917,
+    "ann_vol": 0.148173
+   },
+   "2019-2026": {
+    "years": 7.837302,
+    "cagr": 0.168829,
+    "sharpe": 0.923557,
+    "max_drawdown": 0.33225,
+    "ann_vol": 0.188178
+   },
+   "2016-2026": {
+    "years": 10.829365,
+    "cagr": 0.147159,
+    "sharpe": 0.879698,
+    "max_drawdown": 0.33225,
+    "ann_vol": 0.173194
+   }
+  },
+  "QQQ": {
+   "2016-2018": {
+    "years": 2.992063,
+    "cagr": 0.130167,
+    "sharpe": 0.81356,
+    "max_drawdown": 0.227643,
+    "ann_vol": 0.167775
+   },
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": 0.15617,
+    "sharpe": 0.681036,
+    "max_drawdown": 0.349554,
+    "ann_vol": 0.26472
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": 0.283971,
+    "sharpe": 1.326844,
+    "max_drawdown": 0.227919,
+    "ann_vol": 0.204098
+   },
+   "2019-2026": {
+    "years": 7.837302,
+    "cagr": 0.217071,
+    "sharpe": 0.947936,
+    "max_drawdown": 0.349554,
+    "ann_vol": 0.236942
+   },
+   "2016-2026": {
+    "years": 10.829365,
+    "cagr": 0.192413,
+    "sharpe": 0.910278,
+    "max_drawdown": 0.349554,
+    "ann_vol": 0.220001
+   }
+  },
+  "TQQQ": {
+   "2016-2018": {
+    "years": 2.992063,
+    "cagr": 0.272701,
+    "sharpe": 0.734301,
+    "max_drawdown": 0.580551,
+    "ann_vol": 0.50194
+   },
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": 0.174258,
+    "sharpe": 0.605503,
+    "max_drawdown": 0.816659,
+    "ann_vol": 0.79121
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": 0.661421,
+    "sharpe": 1.134092,
+    "max_drawdown": 0.580603,
+    "ann_vol": 0.611874
+   },
+   "2019-2026": {
+    "years": 7.837302,
+    "cagr": 0.391737,
+    "sharpe": 0.824138,
+    "max_drawdown": 0.816659,
+    "ann_vol": 0.708948
+   },
+   "2016-2026": {
+    "years": 10.829365,
+    "cagr": 0.357777,
+    "sharpe": 0.797098,
+    "max_drawdown": 0.816659,
+    "ann_vol": 0.658232
+   }
+  },
+  "SMH": {
+   "2016-2018": {
+    "years": 2.992063,
+    "cagr": 0.198973,
+    "sharpe": 0.942618,
+    "max_drawdown": 0.270916,
+    "ann_vol": 0.217856
+   },
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": 0.248149,
+    "sharpe": 0.797784,
+    "max_drawdown": 0.451034,
+    "ann_vol": 0.358801
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": 0.509818,
+    "sharpe": 1.323651,
+    "max_drawdown": 0.35871,
+    "ann_vol": 0.360491
+   },
+   "2019-2026": {
+    "years": 7.837302,
+    "cagr": 0.370054,
+    "sharpe": 1.055994,
+    "max_drawdown": 0.451034,
+    "ann_vol": 0.359589
+   },
+   "2016-2026": {
+    "years": 10.829365,
+    "cagr": 0.320482,
+    "sharpe": 1.01504,
+    "max_drawdown": 0.451034,
+    "ann_vol": 0.326634
+   }
+  },
+  "SOXL": {
+   "2016-2018": {
+    "years": 2.992063,
+    "cagr": 0.505023,
+    "sharpe": 0.947763,
+    "max_drawdown": 0.666017,
+    "ann_vol": 0.679357
+   },
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": 0.156926,
+    "sharpe": 0.689807,
+    "max_drawdown": 0.903763,
+    "ann_vol": 1.094658
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": 0.589019,
+    "sharpe": 0.982067,
+    "max_drawdown": 0.879864,
+    "ann_vol": 1.150173
+   },
+   "2019-2026": {
+    "years": 7.837302,
+    "cagr": 0.351409,
+    "sharpe": 0.836428,
+    "max_drawdown": 0.903763,
+    "ann_vol": 1.12196
+   },
+   "2016-2026": {
+    "years": 10.829365,
+    "cagr": 0.392212,
+    "sharpe": 0.841082,
+    "max_drawdown": 0.903763,
+    "ann_vol": 1.018987
+   }
+  }
+ },
+ "night_vs_day_2016_on": {
+  "SPY": {
+   "2016-2022": {
+    "night_bp": 2.749346,
+    "day_bp": 2.228672,
+    "t_night_minus_day": 0.197254
+   },
+   "2023-2026": {
+    "night_bp": 5.352053,
+    "day_bp": 2.618878,
+    "t_night_minus_day": 0.847466
+   }
+  },
+  "QQQ": {
+   "2016-2022": {
+    "night_bp": 3.763626,
+    "day_bp": 2.606546,
+    "t_night_minus_day": 0.348003
+   },
+   "2023-2026": {
+    "night_bp": 6.975593,
+    "day_bp": 3.801511,
+    "t_night_minus_day": 0.738525
+   }
+  },
+  "IWM": {
+   "2016-2022": {
+    "night_bp": 5.642315,
+    "day_bp": -1.450726,
+    "t_night_minus_day": 2.08826
+   },
+   "2023-2026": {
+    "night_bp": 5.944142,
+    "day_bp": 0.423801,
+    "t_night_minus_day": 1.205157
+   }
+  },
+  "SMH": {
+   "2016-2022": {
+    "night_bp": 8.594143,
+    "day_bp": 1.306351,
+    "t_night_minus_day": 1.697438
+   },
+   "2023-2026": {
+    "night_bp": 16.485356,
+    "day_bp": 2.470278,
+    "t_night_minus_day": 1.901841
+   }
+  },
+  "TQQQ": {
+   "2016-2022": {
+    "night_bp": 10.522094,
+    "day_bp": 6.280072,
+    "t_night_minus_day": 0.426555
+   },
+   "2023-2026": {
+    "night_bp": 16.717489,
+    "day_bp": 11.096765,
+    "t_night_minus_day": 0.436376
+   }
+  },
+  "SOXL": {
+   "2016-2022": {
+    "night_bp": 24.924707,
+    "day_bp": 2.085087,
+    "t_night_minus_day": 1.737876
+   },
+   "2023-2026": {
+    "night_bp": 36.215,
+    "day_bp": 8.028117,
+    "t_night_minus_day": 1.233341
+   }
+  },
+  "NVDA": {
+   "2016-2022": {
+    "night_bp": 15.972449,
+    "day_bp": 5.292474,
+    "t_night_minus_day": 1.474608
+   },
+   "2023-2026": {
+    "night_bp": 25.545821,
+    "day_bp": 5.006695,
+    "t_night_minus_day": 2.054503
+   }
+  },
+  "AMD": {
+   "2016-2022": {
+    "night_bp": 20.902369,
+    "day_bp": 3.750635,
+    "t_night_minus_day": 2.017386
+   },
+   "2023-2026": {
+    "night_bp": 19.505668,
+    "day_bp": 8.450714,
+    "t_night_minus_day": 0.919322
+   }
+  },
+  "AVGO": {
+   "2016-2022": {
+    "night_bp": 10.203549,
+    "day_bp": 0.957054,
+    "t_night_minus_day": 1.928101
+   },
+   "2023-2026": {
+    "night_bp": 22.964642,
+    "day_bp": -0.019293,
+    "t_night_minus_day": 2.368496
+   }
+  },
+  "AAPL": {
+   "2016-2022": {
+    "night_bp": 3.17076,
+    "day_bp": 8.259329,
+    "t_night_minus_day": -1.135296
+   },
+   "2023-2026": {
+    "night_bp": -0.963326,
+    "day_bp": 12.955653,
+    "t_night_minus_day": -2.340248
+   }
+  },
+  "GLD": {
+   "2016-2022": {
+    "night_bp": 3.755414,
+    "day_bp": -0.536114,
+    "t_night_minus_day": 2.025185
+   },
+   "2023-2026": {
+    "night_bp": 9.16631,
+    "day_bp": -0.118553,
+    "t_night_minus_day": 2.534666
+   }
+  },
+  "TLT": {
+   "2016-2022": {
+    "night_bp": -0.231139,
+    "day_bp": 0.382029,
+    "t_night_minus_day": -0.278073
+   },
+   "2023-2026": {
+    "night_bp": -0.823782,
+    "day_bp": 0.811866,
+    "t_night_minus_day": -0.573615
+   }
+  }
+ },
+ "overnight_semiconductors": {
+  "rule": "Own SOXL only from 15:55 to the next open, and only while SMH is above its 200-day average.",
+  "base": {
+   "2016-2018": {
+    "years": 2.992063,
+    "cagr": 0.460979,
+    "sharpe": 1.602458,
+    "max_drawdown": 0.243274,
+    "ann_vol": 0.257513
+   },
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": 0.594768,
+    "sharpe": 1.236643,
+    "max_drawdown": 0.528501,
+    "ann_vol": 0.467817
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": 0.715425,
+    "sharpe": 1.127977,
+    "max_drawdown": 0.491622,
+    "ann_vol": 0.693539
+   },
+   "2019-2026": {
+    "years": 7.837302,
+    "cagr": 0.652745,
+    "sharpe": 1.151362,
+    "max_drawdown": 0.554765,
+    "ann_vol": 0.589123
+   }
+  },
+  "by_year": {
+   "2016": 0.469589,
+   "2017": 1.422366,
+   "2018": -0.126648,
+   "2019": 0.805261,
+   "2020": 1.041373,
+   "2021": 1.533742,
+   "2022": -0.307268,
+   "2023": -0.074407,
+   "2024": 1.854594,
+   "2025": 0.742644,
+   "2026": 0.722591
+  },
+  "nights": {
+   "trades": 2116,
+   "win_rate": 0.564745,
+   "win_rate_ci95": [
+    0.543521,
+    0.585734
+   ],
+   "expectancy": 0.003096,
+   "expectancy_ci95": [
+    0.001514,
+    0.004714
+   ],
+   "t_stat": 3.837143,
+   "avg_win": 0.026236,
+   "avg_loss": -0.026929,
+   "worst_trade": -0.227652,
+   "longest_losing_streak": 6
+  },
+  "worst_night": -0.227652,
+  "variants_2019_2026": {
+   "costs x3": {
+    "years": 7.837302,
+    "cagr": 0.341916,
+    "sharpe": 0.797789,
+    "max_drawdown": 0.647347,
+    "ann_vol": 0.588279
+   },
+   "no costs": {
+    "years": 7.837302,
+    "cagr": 0.834126,
+    "sharpe": 1.327784,
+    "max_drawdown": 0.522331,
+    "ann_vol": 0.589568
+   },
+   "sell at 09:35": {
+    "years": 7.837302,
+    "cagr": 0.678342,
+    "sharpe": 1.154036,
+    "max_drawdown": 0.570554,
+    "ann_vol": 0.614235
+   },
+   "sell at 10:00": {
+    "years": 7.837302,
+    "cagr": 0.633719,
+    "sharpe": 1.073597,
+    "max_drawdown": 0.628031,
+    "ann_vol": 0.663903
+   },
+   "SOXL all day in the uptrend": {
+    "years": 7.837302,
+    "cagr": 0.428589,
+    "sharpe": 0.853381,
+    "max_drawdown": 0.767247,
+    "ann_vol": 0.903417
+   },
+   "100-day average": {
+    "years": 7.837302,
+    "cagr": 0.447441,
+    "sharpe": 0.960641,
+    "max_drawdown": 0.643267,
+    "ann_vol": 0.533561
+   },
+   "150-day average": {
+    "years": 7.837302,
+    "cagr": 0.500992,
+    "sharpe": 0.994756,
+    "max_drawdown": 0.565081,
+    "ann_vol": 0.57793
+   },
+   "250-day average": {
+    "years": 7.837302,
+    "cagr": 0.67485,
+    "sharpe": 1.163829,
+    "max_drawdown": 0.626691,
+    "ann_vol": 0.600404
+   }
+  },
+  "before_2016": {
+   "years": [
+    "2010-03-11",
+    "2015-12-31"
+   ],
+   "night_only": {
+    "years": 5.015873,
+    "cagr": 0.213599,
+    "sharpe": 0.832745,
+    "max_drawdown": 0.273815
+   },
+   "all_day_in_uptrend": {
+    "years": 5.015873,
+    "cagr": 0.184677,
+    "sharpe": 0.584358,
+    "max_drawdown": 0.608988
+   },
+   "hold": {
+    "years": 5.015873,
+    "cagr": 0.459688,
+    "sharpe": 0.902037,
+    "max_drawdown": 0.605592
+   },
+   "nights": {
+    "trades": 1005,
+    "win_rate": 0.546269,
+    "win_rate_ci95": [
+     0.51537,
+     0.576815
+    ],
+    "expectancy": 0.001103,
+    "expectancy_ci95": [
+     -0.000133,
+     0.002344
+    ],
+    "t_stat": 1.765138,
+    "avg_win": 0.014132,
+    "avg_loss": -0.014584,
+    "worst_trade": -0.08277
+   }
+  },
+  "before_2016_unleveraged": {
+   "SMH overnight while SMH is above its 200-day average": {
+    "years": [
+     "2005-12-08",
+     "2015-12-31"
+    ],
+    "night_only": {
+     "years": 9.257937,
+     "cagr": -0.016428,
+     "sharpe": -0.141822,
+     "max_drawdown": 0.259128
+    },
+    "all_day_in_uptrend": {
+     "years": 9.257937,
+     "cagr": 0.040236,
+     "sharpe": 0.319778,
+     "max_drawdown": 0.339515
+    },
+    "hold": {
+     "years": 9.257937,
+     "cagr": 0.067732,
+     "sharpe": 0.377561,
+     "max_drawdown": 0.627204
+    },
+    "nights": {
+     "trades": 1518,
+     "win_rate": 0.509881,
+     "win_rate_ci95": [
+      0.48474,
+      0.534973
+     ],
+     "expectancy": -8.9e-05,
+     "expectancy_ci95": [
+      -0.000436,
+      0.000253
+     ],
+     "t_stat": -0.496412,
+     "avg_win": 0.004805,
+     "avg_loss": -0.00518,
+     "worst_trade": -0.031671
+    }
+   },
+   "SOXX overnight while SOXX is above its 200-day average": {
+    "years": [
+     "2005-12-08",
+     "2015-12-31"
+    ],
+    "night_only": {
+     "years": 10.051587,
+     "cagr": -0.055102,
+     "sharpe": -0.598863,
+     "max_drawdown": 0.473116
+    },
+    "all_day_in_uptrend": {
+     "years": 10.051587,
+     "cagr": 0.009544,
+     "sharpe": 0.140979,
+     "max_drawdown": 0.401234
+    },
+    "hold": {
+     "years": 10.051587,
+     "cagr": 0.042693,
+     "sharpe": 0.28947,
+     "max_drawdown": 0.670149
+    },
+    "nights": {
+     "trades": 1588,
+     "win_rate": 0.501889,
+     "win_rate_ci95": [
+      0.477322,
+      0.526447
+     ],
+     "expectancy": -0.000347,
+     "expectancy_ci95": [
+      -0.000701,
+      2e-06
+     ],
+     "t_stat": -1.964154,
+     "avg_win": 0.004551,
+     "avg_loss": -0.005282,
+     "worst_trade": -0.06506
+    }
+   }
+  },
+  "older_sample_verdict": {
+   "T3 (a) night beats day in SMH and SOXX": "CONFIRMED",
+   "T3 (b) SOXL overnight in an uptrend": "NOT CONFIRMED"
+  }
+ },
+ "weak_close": {
+  "rule": "At 15:55, if QQQ is in the bottom 15% of its range for the day so far, buy. Sell at the first 15:55 where the position shows a profit after costs; if that has not happened after 5 sessions, sell anyway.",
+  "entry_or_exit": {
+   "QQQ": {
+    "1999-2007": {
+     "trades": 301,
+     "win_rate": 0.800664,
+     "avg_trade": 0.003416,
+     "random_win_rate": 0.78395,
+     "random_avg_trade": 0.001018,
+     "random_avg_trade_p95": 0.003326,
+     "p_random_at_least_as_good": 0.0445
+    },
+    "2008-2015": {
+     "trades": 226,
+     "win_rate": 0.827434,
+     "avg_trade": 0.002704,
+     "random_win_rate": 0.808414,
+     "random_avg_trade": 0.00135,
+     "random_avg_trade_p95": 0.003139,
+     "p_random_at_least_as_good": 0.1105
+    },
+    "2016-2022": {
+     "trades": 194,
+     "win_rate": 0.840206,
+     "avg_trade": 0.005088,
+     "random_win_rate": 0.82357,
+     "random_avg_trade": 0.001663,
+     "random_avg_trade_p95": 0.003512,
+     "p_random_at_least_as_good": 0.001
+    },
+    "2023-2026": {
+     "trades": 112,
+     "win_rate": 0.866071,
+     "avg_trade": 0.005266,
+     "random_win_rate": 0.810337,
+     "random_avg_trade": 0.002606,
+     "random_avg_trade_p95": 0.004717,
+     "p_random_at_least_as_good": 0.011
+    },
+    "all_periods_combined_p": 5.1e-05
+   },
+   "SPY": {
+    "2005-2007": {
+     "trades": 82,
+     "win_rate": 0.865854,
+     "avg_trade": 0.00281,
+     "random_win_rate": 0.811727,
+     "random_avg_trade": 0.00082,
+     "random_avg_trade_p95": 0.002413,
+     "p_random_at_least_as_good": 0.018
+    },
+    "2008-2015": {
+     "trades": 222,
+     "win_rate": 0.81982,
+     "avg_trade": 0.002661,
+     "random_win_rate": 0.80931,
+     "random_avg_trade": 0.000954,
+     "random_avg_trade_p95": 0.002661,
+     "p_random_at_least_as_good": 0.05
+    },
+    "2016-2022": {
+     "trades": 184,
+     "win_rate": 0.847826,
+     "avg_trade": 0.004039,
+     "random_win_rate": 0.828479,
+     "random_avg_trade": 0.001143,
+     "random_avg_trade_p95": 0.002829,
+     "p_random_at_least_as_good": 0.0035
+    },
+    "2023-2026": {
+     "trades": 100,
+     "win_rate": 0.88,
+     "avg_trade": 0.004098,
+     "random_win_rate": 0.8219,
+     "random_avg_trade": 0.002191,
+     "random_avg_trade_p95": 0.003713,
+     "p_random_at_least_as_good": 0.021
+    },
+    "all_periods_combined_p": 6e-05
+   }
+  },
+  "decision_time": {
+   "QQQ": {
+    "15:00": {
+     "2016-2018": {
+      "trades": 61,
+      "win_rate": 0.836066,
+      "avg_trade": 0.001952,
+      "t": 0.881508
+     },
+     "2019-2022": {
+      "trades": 101,
+      "win_rate": 0.80198,
+      "avg_trade": 0.002458,
+      "t": 0.799055
+     },
+     "2023-2026": {
+      "trades": 99,
+      "win_rate": 0.808081,
+      "avg_trade": 0.003634,
+      "t": 1.957495
+     }
+    },
+    "15:30": {
+     "2016-2018": {
+      "trades": 66,
+      "win_rate": 0.863636,
+      "avg_trade": 0.001052,
+      "t": 0.439638
+     },
+     "2019-2022": {
+      "trades": 97,
+      "win_rate": 0.793814,
+      "avg_trade": 0.000407,
+      "t": 0.131433
+     },
+     "2023-2026": {
+      "trades": 108,
+      "win_rate": 0.796296,
+      "avg_trade": 0.002839,
+      "t": 1.853783
+     }
+    },
+    "15:45": {
+     "2016-2018": {
+      "trades": 68,
+      "win_rate": 0.897059,
+      "avg_trade": 0.003737,
+      "t": 1.777516
+     },
+     "2019-2022": {
+      "trades": 99,
+      "win_rate": 0.757576,
+      "avg_trade": 0.002443,
+      "t": 0.873667
+     },
+     "2023-2026": {
+      "trades": 111,
+      "win_rate": 0.828829,
+      "avg_trade": 0.00536,
+      "t": 2.933482
+     }
+    },
+    "15:50": {
+     "2016-2018": {
+      "trades": 78,
+      "win_rate": 0.884615,
+      "avg_trade": 0.003746,
+      "t": 1.949865
+     },
+     "2019-2022": {
+      "trades": 113,
+      "win_rate": 0.787611,
+      "avg_trade": 0.003326,
+      "t": 1.518459
+     },
+     "2023-2026": {
+      "trades": 108,
+      "win_rate": 0.87963,
+      "avg_trade": 0.00674,
+      "t": 5.369053
+     }
+    },
+    "15:55 (buy at the last print)": {
+     "2016-2018": {
+      "trades": 73,
+      "win_rate": 0.863014,
+      "avg_trade": 0.004785,
+      "t": 2.526033
+     },
+     "2019-2022": {
+      "trades": 123,
+      "win_rate": 0.829268,
+      "avg_trade": 0.005228,
+      "t": 2.419619
+     },
+     "2023-2026": {
+      "trades": 111,
+      "win_rate": 0.846847,
+      "avg_trade": 0.005088,
+      "t": 3.57507
+     }
+    },
+    "15:55 (buy at once)": {
+     "2016-2018": {
+      "trades": 72,
+      "win_rate": 0.875,
+      "avg_trade": 0.005467,
+      "t": 3.170495
+     },
+     "2019-2022": {
+      "trades": 122,
+      "win_rate": 0.819672,
+      "avg_trade": 0.004839,
+      "t": 2.285643
+     },
+     "2023-2026": {
+      "trades": 112,
+      "win_rate": 0.866071,
+      "avg_trade": 0.005266,
+      "t": 3.92442
+     }
+    }
+   },
+   "SPY": {
+    "15:00": {
+     "2016-2018": {
+      "trades": 67,
+      "win_rate": 0.80597,
+      "avg_trade": 0.001428,
+      "t": 0.982089
+     },
+     "2019-2022": {
+      "trades": 88,
+      "win_rate": 0.829545,
+      "avg_trade": 0.002737,
+      "t": 1.09288
+     },
+     "2023-2026": {
+      "trades": 92,
+      "win_rate": 0.782609,
+      "avg_trade": 0.001106,
+      "t": 0.711606
+     }
+    },
+    "15:30": {
+     "2016-2018": {
+      "trades": 68,
+      "win_rate": 0.838235,
+      "avg_trade": 0.001445,
+      "t": 0.920068
+     },
+     "2019-2022": {
+      "trades": 95,
+      "win_rate": 0.852632,
+      "avg_trade": 0.001498,
+      "t": 0.500788
+     },
+     "2023-2026": {
+      "trades": 99,
+      "win_rate": 0.808081,
+      "avg_trade": 0.002561,
+      "t": 2.280577
+     }
+    },
+    "15:45": {
+     "2016-2018": {
+      "trades": 67,
+      "win_rate": 0.80597,
+      "avg_trade": 0.000725,
+      "t": 0.40979
+     },
+     "2019-2022": {
+      "trades": 95,
+      "win_rate": 0.852632,
+      "avg_trade": 0.004666,
+      "t": 1.857227
+     },
+     "2023-2026": {
+      "trades": 107,
+      "win_rate": 0.850467,
+      "avg_trade": 0.003457,
+      "t": 3.949627
+     }
+    },
+    "15:50": {
+     "2016-2018": {
+      "trades": 68,
+      "win_rate": 0.808824,
+      "avg_trade": 0.000483,
+      "t": 0.2777
+     },
+     "2019-2022": {
+      "trades": 113,
+      "win_rate": 0.849558,
+      "avg_trade": 0.004608,
+      "t": 2.756368
+     },
+     "2023-2026": {
+      "trades": 101,
+      "win_rate": 0.871287,
+      "avg_trade": 0.00398,
+      "t": 4.255456
+     }
+    },
+    "15:55 (buy at the last print)": {
+     "2016-2018": {
+      "trades": 70,
+      "win_rate": 0.842857,
+      "avg_trade": 0.002477,
+      "t": 1.774928
+     },
+     "2019-2022": {
+      "trades": 117,
+      "win_rate": 0.854701,
+      "avg_trade": 0.005115,
+      "t": 3.199995
+     },
+     "2023-2026": {
+      "trades": 100,
+      "win_rate": 0.86,
+      "avg_trade": 0.003366,
+      "t": 2.819905
+     }
+    },
+    "15:55 (buy at once)": {
+     "2016-2018": {
+      "trades": 68,
+      "win_rate": 0.838235,
+      "avg_trade": 0.002064,
+      "t": 1.459741
+     },
+     "2019-2022": {
+      "trades": 117,
+      "win_rate": 0.854701,
+      "avg_trade": 0.005281,
+      "t": 3.379087
+     },
+     "2023-2026": {
+      "trades": 100,
+      "win_rate": 0.88,
+      "avg_trade": 0.004098,
+      "t": 3.824615
+     }
+    }
+   }
+  },
+  "history": {
+   "QQQ (signal QQQ)": {
+    "from": "1999-03-10",
+    "to": "2026-11-09",
+    "rule": {
+     "before 2016": {
+      "years": 16.789683,
+      "cagr": 0.095022,
+      "sharpe": 0.563113,
+      "max_drawdown": 0.376621,
+      "ann_vol": 0.19445
+     },
+     "2016-2022": {
+      "years": 6.992063,
+      "cagr": 0.144451,
+      "sharpe": 1.109606,
+      "max_drawdown": 0.281144,
+      "ann_vol": 0.129099
+     },
+     "2023-2026": {
+      "years": 3.837302,
+      "cagr": 0.162277,
+      "sharpe": 1.294464,
+      "max_drawdown": 0.090636,
+      "ann_vol": 0.121828
+     },
+     "all": {
+      "years": 27.619048,
+      "cagr": 0.116539,
+      "sharpe": 0.729202,
+      "max_drawdown": 0.376621,
+      "ann_vol": 0.171063
+     }
+    },
+    "hold": {
+     "before 2016": {
+      "years": 16.789683,
+      "cagr": 0.053672,
+      "sharpe": 0.324266,
+      "max_drawdown": 0.829649,
+      "ann_vol": 0.294722
+     },
+     "2016-2022": {
+      "years": 6.992063,
+      "cagr": 0.14497,
+      "sharpe": 0.707674,
+      "max_drawdown": 0.349554,
+      "ann_vol": 0.228277
+     },
+     "2023-2026": {
+      "years": 3.837302,
+      "cagr": 0.283971,
+      "sharpe": 1.326844,
+      "max_drawdown": 0.227919,
+      "ann_vol": 0.204098
+     },
+     "all": {
+      "years": 27.619048,
+      "cagr": 0.106036,
+      "sharpe": 0.50992,
+      "max_drawdown": 0.829649,
+      "ann_vol": 0.267921
+     }
+    },
+    "trades_all": {
+     "trades": 833,
+     "win_rate": 0.827131,
+     "win_rate_ci95": [
+      0.799965,
+      0.851293
+     ],
+     "expectancy": 0.00392,
+     "expectancy_ci95": [
+      0.002233,
+      0.005575
+     ],
+     "t_stat": 4.433632,
+     "avg_win": 0.012461,
+     "avg_loss": -0.036946,
+     "worst_trade": -0.174998,
+     "longest_losing_streak": 2
+    },
+    "share_of_days_invested": 0.267529,
+    "by_year": {
+     "1999": {
+      "rule": 0.243141,
+      "hold": 0.789335
+     },
+     "2000": {
+      "rule": 0.150228,
+      "hold": -0.361131
+     },
+     "2001": {
+      "rule": -0.025718,
+      "hold": -0.333493
+     },
+     "2002": {
+      "rule": 0.341059,
+      "hold": -0.373696
+     },
+     "2003": {
+      "rule": 0.326983,
+      "hold": 0.496765
+     },
+     "2004": {
+      "rule": 0.088349,
+      "hold": 0.10547
+     },
+     "2005": {
+      "rule": -0.07369,
+      "hold": 0.015642
+     },
+     "2006": {
+      "rule": -0.039143,
+      "hold": 0.071546
+     },
+     "2007": {
+      "rule": 0.07578,
+      "hold": 0.190087
+     },
+     "2008": {
+      "rule": -0.284047,
+      "hold": -0.417182
+     },
+     "2009": {
+      "rule": 0.237345,
+      "hold": 0.547048
+     },
+     "2010": {
+      "rule": 0.1011,
+      "hold": 0.199093
+     },
+     "2011": {
+      "rule": 0.181322,
+      "hold": 0.03373
+     },
+     "2012": {
+      "rule": 0.11044,
+      "hold": 0.181139
+     },
+     "2013": {
+      "rule": 0.109166,
+      "hold": 0.366334
+     },
+     "2014": {
+      "rule": 0.089213,
+      "hold": 0.19187
+     },
+     "2015": {
+      "rule": 0.149514,
+      "hold": 0.094232
+     },
+     "2016": {
+      "rule": 0.168719,
+      "hold": 0.093258
+     },
+     "2017": {
+      "rule": 0.144032,
+      "hold": 0.329892
+     },
+     "2018": {
+      "rule": 0.102109,
+      "hold": -0.008103
+     },
+     "2019": {
+      "rule": 0.093307,
+      "hold": 0.399259
+     },
+     "2020": {
+      "rule": 0.570018,
+      "hold": 0.48565
+     },
+     "2021": {
+      "rule": 0.193173,
+      "hold": 0.273298
+     },
+     "2022": {
+      "rule": -0.148877,
+      "hold": -0.324939
+     },
+     "2023": {
+      "rule": 0.176476,
+      "hold": 0.548734
+     },
+     "2024": {
+      "rule": 0.112474,
+      "hold": 0.256896
+     },
+     "2025": {
+      "rule": 0.242281,
+      "hold": 0.209501
+     },
+     "2026": {
+      "rule": 0.095265,
+      "hold": 0.10835
+     }
+    },
+    "worst_day": -0.089536,
+    "worst_year": -0.284047,
+    "monte_carlo_one_year": {
+     "horizon_periods": 252,
+     "return_p5": -0.111058,
+     "return_p50": 0.127496,
+     "return_p95": 0.405906,
+     "maxdd_p50": 0.109198,
+     "maxdd_p95": 0.240364,
+     "p_loss": 0.194,
+     "p_double": 0.0,
+     "p_dd_over_12pct": 0.4315,
+     "p_dd_over_50pct": 0.0
+    },
+    "kelly_fraction_per_trade": 4.134826,
+    "alpha_vs_holding_it": {
+     "alpha_per_year": 0.068894,
+     "t": 2.914639,
+     "beta": 0.40877
+    },
+    "with_default_limits": {
+     "stopped_for_good": true,
+     "last_active_day": "2000-04-12",
+     "return_until_stopped": 0.345143,
+     "max_drawdown": 0.163937,
+     "daily_limit_days": 12
+    },
+    "sizing": {
+     "100% of the account": {
+      "years": 27.619048,
+      "cagr": 0.116539,
+      "sharpe": 0.729202,
+      "max_drawdown": 0.376621,
+      "ann_vol": 0.171063,
+      "worst_day": -0.089536,
+      "mc_drawdown_p95_one_year": 0.240364
+     },
+     "50% of the account": {
+      "years": 27.619048,
+      "cagr": 0.059414,
+      "sharpe": 0.727285,
+      "max_drawdown": 0.200353,
+      "ann_vol": 0.084218,
+      "worst_day": -0.044766,
+      "mc_drawdown_p95_one_year": 0.123593
+     },
+     "25% of the account": {
+      "years": 27.619048,
+      "cagr": 0.029932,
+      "sharpe": 0.726319,
+      "max_drawdown": 0.103042,
+      "ann_vol": 0.041808,
+      "worst_day": -0.022382,
+      "mc_drawdown_p95_one_year": 0.063013
+     },
+     "10% of the account": {
+      "years": 27.619048,
+      "cagr": 0.012019,
+      "sharpe": 0.725738,
+      "max_drawdown": 0.041881,
+      "ann_vol": 0.016654,
+      "worst_day": -0.008953,
+      "mc_drawdown_p95_one_year": 0.025513
+     }
+    }
+   },
+   "SPY (signal SPY)": {
+    "from": "2005-02-25",
+    "to": "2026-11-09",
+    "rule": {
+     "before 2016": {
+      "years": 10.84127,
+      "cagr": 0.075713,
+      "sharpe": 0.663843,
+      "max_drawdown": 0.198206,
+      "ann_vol": 0.120902
+     },
+     "2016-2022": {
+      "years": 6.992063,
+      "cagr": 0.108497,
+      "sharpe": 1.072262,
+      "max_drawdown": 0.155489,
+      "ann_vol": 0.10078
+     },
+     "2023-2026": {
+      "years": 3.837302,
+      "cagr": 0.110805,
+      "sharpe": 1.245343,
+      "max_drawdown": 0.079018,
+      "ann_vol": 0.087415
+     },
+     "all": {
+      "years": 21.670635,
+      "cagr": 0.092375,
+      "sharpe": 0.862959,
+      "max_drawdown": 0.198206,
+      "ann_vol": 0.10927
+     }
+    },
+    "hold": {
+     "before 2016": {
+      "years": 10.84127,
+      "cagr": 0.058413,
+      "sharpe": 0.383227,
+      "max_drawdown": 0.564745,
+      "ann_vol": 0.200593
+     },
+     "2016-2022": {
+      "years": 6.992063,
+      "cagr": 0.115023,
+      "sharpe": 0.680143,
+      "max_drawdown": 0.33225,
+      "ann_vol": 0.185516
+     },
+     "2023-2026": {
+      "years": 3.837302,
+      "cagr": 0.208116,
+      "sharpe": 1.350193,
+      "max_drawdown": 0.187917,
+      "ann_vol": 0.148173
+     },
+     "all": {
+      "years": 21.670635,
+      "cagr": 0.101869,
+      "sharpe": 0.611497,
+      "max_drawdown": 0.564745,
+      "ann_vol": 0.1874
+     }
+    },
+    "trades_all": {
+     "trades": 588,
+     "win_rate": 0.845238,
+     "win_rate_ci95": [
+      0.813772,
+      0.872222
+     ],
+     "expectancy": 0.003358,
+     "expectancy_ci95": [
+      0.001807,
+      0.004793
+     ],
+     "t_stat": 4.362942,
+     "avg_win": 0.008693,
+     "avg_loss": -0.025784,
+     "worst_trade": -0.198126,
+     "longest_losing_streak": 5
+    },
+    "share_of_days_invested": 0.227614,
+    "by_year": {
+     "2005": {
+      "rule": 0.023436,
+      "hold": 0.025144
+     },
+     "2006": {
+      "rule": 0.110744,
+      "hold": 0.137575
+     },
+     "2007": {
+      "rule": 0.160146,
+      "hold": 0.032423
+     },
+     "2008": {
+      "rule": 0.140681,
+      "hold": -0.38279
+     },
+     "2009": {
+      "rule": -0.015042,
+      "hold": 0.234742
+     },
+     "2010": {
+      "rule": 0.043847,
+      "hold": 0.128796
+     },
+     "2011": {
+      "rule": 0.058953,
+      "hold": 0.013408
+     },
+     "2012": {
+      "rule": 0.096523,
+      "hold": 0.160007
+     },
+     "2013": {
+      "rule": 0.059328,
+      "hold": 0.323216
+     },
+     "2014": {
+      "rule": 0.067631,
+      "hold": 0.134652
+     },
+     "2015": {
+      "rule": 0.086117,
+      "hold": 0.012294
+     },
+     "2016": {
+      "rule": 0.094073,
+      "hold": 0.12947
+     },
+     "2017": {
+      "rule": 0.065798,
+      "hold": 0.221096
+     },
+     "2018": {
+      "rule": -0.017905,
+      "hold": -0.055771
+     },
+     "2019": {
+      "rule": 0.089677,
+      "hold": 0.319311
+     },
+     "2020": {
+      "rule": 0.351806,
+      "hold": 0.183999
+     },
+     "2021": {
+      "rule": 0.148679,
+      "hold": 0.286766
+     },
+     "2022": {
+      "rule": 0.060476,
+      "hold": -0.182077
+     },
+     "2023": {
+      "rule": 0.06086,
+      "hold": 0.260703
+     },
+     "2024": {
+      "rule": 0.120085,
+      "hold": 0.249298
+     },
+     "2025": {
+      "rule": 0.129113,
+      "hold": 0.17916
+     },
+     "2026": {
+      "rule": 0.115525,
+      "hold": 0.112304
+     }
+    },
+    "worst_day": -0.07424,
+    "worst_year": -0.017905,
+    "monte_carlo_one_year": {
+     "horizon_periods": 252,
+     "return_p5": -0.084207,
+     "return_p50": 0.090236,
+     "return_p95": 0.277399,
+     "maxdd_p50": 0.069136,
+     "maxdd_p95": 0.185142,
+     "p_loss": 0.1765,
+     "p_double": 0.0,
+     "p_dd_over_12pct": 0.1335,
+     "p_dd_over_50pct": 0.0
+    },
+    "kelly_fraction_per_trade": 4.309296,
+    "alpha_vs_holding_it": {
+     "alpha_per_year": 0.055183,
+     "t": 2.884323,
+     "beta": 0.341305
+    },
+    "with_default_limits": {
+     "stopped_for_good": true,
+     "last_active_day": "2008-10-09",
+     "return_until_stopped": 0.126853,
+     "max_drawdown": 0.178105,
+     "daily_limit_days": 11
+    },
+    "sizing": {
+     "100% of the account": {
+      "years": 21.670635,
+      "cagr": 0.092375,
+      "sharpe": 0.862959,
+      "max_drawdown": 0.198206,
+      "ann_vol": 0.10927,
+      "worst_day": -0.07424,
+      "mc_drawdown_p95_one_year": 0.185142
+     },
+     "50% of the account": {
+      "years": 21.670635,
+      "cagr": 0.046486,
+      "sharpe": 0.866391,
+      "max_drawdown": 0.099108,
+      "ann_vol": 0.054135,
+      "worst_day": -0.037118,
+      "mc_drawdown_p95_one_year": 0.093632
+     },
+     "25% of the account": {
+      "years": 21.670635,
+      "cagr": 0.023293,
+      "sharpe": 0.86787,
+      "max_drawdown": 0.049555,
+      "ann_vol": 0.02695,
+      "worst_day": -0.018559,
+      "mc_drawdown_p95_one_year": 0.047015
+     },
+     "10% of the account": {
+      "years": 21.670635,
+      "cagr": 0.009326,
+      "sharpe": 0.868691,
+      "max_drawdown": 0.019822,
+      "ann_vol": 0.010753,
+      "worst_day": -0.007423,
+      "mc_drawdown_p95_one_year": 0.018818
+     }
+    }
+   },
+   "TQQQ (signal QQQ)": {
+    "from": "2010-02-11",
+    "to": "2026-11-09",
+    "rule": {
+     "before 2016": {
+      "years": 5.884921,
+      "cagr": 0.31365,
+      "sharpe": 1.00484,
+      "max_drawdown": 0.285471,
+      "ann_vol": 0.323777
+     },
+     "2016-2022": {
+      "years": 6.992063,
+      "cagr": 0.410285,
+      "sharpe": 1.083664,
+      "max_drawdown": 0.672699,
+      "ann_vol": 0.385205
+     },
+     "2023-2026": {
+      "years": 3.837302,
+      "cagr": 0.494916,
+      "sharpe": 1.272491,
+      "max_drawdown": 0.26067,
+      "ann_vol": 0.366594
+     },
+     "all": {
+      "years": 16.714286,
+      "cagr": 0.394003,
+      "sharpe": 1.099958,
+      "max_drawdown": 0.672699,
+      "ann_vol": 0.360261
+     }
+    },
+    "hold": {
+     "before 2016": {
+      "years": 5.884921,
+      "cagr": 0.504921,
+      "sharpe": 1.053664,
+      "max_drawdown": 0.439054,
+      "ann_vol": 0.51444
+     },
+     "2016-2022": {
+      "years": 6.992063,
+      "cagr": 0.215416,
+      "sharpe": 0.632723,
+      "max_drawdown": 0.816659,
+      "ann_vol": 0.682435
+     },
+     "2023-2026": {
+      "years": 3.837302,
+      "cagr": 0.661421,
+      "sharpe": 1.134092,
+      "max_drawdown": 0.580603,
+      "ann_vol": 0.611874
+     },
+     "all": {
+      "years": 16.714286,
+      "cagr": 0.407868,
+      "sharpe": 0.868142,
+      "max_drawdown": 0.816659,
+      "ann_vol": 0.611411
+     }
+    },
+    "trades_all": {
+     "trades": 463,
+     "win_rate": 0.844492,
+     "win_rate_ci95": [
+      0.808662,
+      0.874653
+     ],
+     "expectancy": 0.013115,
+     "expectancy_ci95": [
+      0.008116,
+      0.017639
+     ],
+     "t_stat": 5.313998,
+     "avg_win": 0.03079,
+     "avg_loss": -0.082868,
+     "worst_trade": -0.236816,
+     "longest_losing_streak": 3
+    },
+    "share_of_days_invested": 0.236942,
+    "by_year": {
+     "2010": {
+      "rule": 0.077658,
+      "hold": 0.780916
+     },
+     "2011": {
+      "rule": 0.323513,
+      "hold": -0.074288
+     },
+     "2012": {
+      "rule": 0.443429,
+      "hold": 0.522717
+     },
+     "2013": {
+      "rule": 0.351897,
+      "hold": 1.39731
+     },
+     "2014": {
+      "rule": 0.266822,
+      "hold": 0.570903
+     },
+     "2015": {
+      "rule": 0.412474,
+      "hold": 0.172311
+     },
+     "2016": {
+      "rule": 0.585262,
+      "hold": 0.185925
+     },
+     "2017": {
+      "rule": 0.476455,
+      "hold": 1.201684
+     },
+     "2018": {
+      "rule": 0.23661,
+      "hold": -0.211983
+     },
+     "2019": {
+      "rule": 0.255655,
+      "hold": 1.380402
+     },
+     "2020": {
+      "rule": 2.603456,
+      "hold": 1.096117
+     },
+     "2021": {
+      "rule": 0.623363,
+      "hold": 0.826772
+     },
+     "2022": {
+      "rule": -0.479521,
+      "hold": -0.791405
+     },
+     "2023": {
+      "rule": 0.525197,
+      "hold": 1.985292
+     },
+     "2024": {
+      "rule": 0.372102,
+      "hold": 0.585505
+     },
+     "2025": {
+      "rule": 0.79734,
+      "hold": 0.349769
+     },
+     "2026": {
+      "rule": 0.243699,
+      "hold": 0.098078
+     }
+    },
+    "worst_day": -0.177645,
+    "worst_year": -0.479521,
+    "monte_carlo_one_year": {
+     "horizon_periods": 252,
+     "return_p5": -0.123402,
+     "return_p50": 0.42713,
+     "return_p95": 1.241449,
+     "maxdd_p50": 0.213238,
+     "maxdd_p95": 0.387438,
+     "p_loss": 0.1175,
+     "p_double": 0.1085,
+     "p_dd_over_12pct": 0.886,
+     "p_dd_over_50pct": 0.007
+    },
+    "kelly_fraction_per_trade": 2.981474,
+    "alpha_vs_holding_it": {
+     "alpha_per_year": 0.211597,
+     "t": 3.011135,
+     "beta": 0.347923
+    },
+    "with_default_limits": {
+     "stopped_for_good": true,
+     "last_active_day": "2010-05-20",
+     "return_until_stopped": -0.162725,
+     "max_drawdown": 0.200179,
+     "daily_limit_days": 4
+    },
+    "sizing": {
+     "100% of the account": {
+      "years": 16.714286,
+      "cagr": 0.394003,
+      "sharpe": 1.099958,
+      "max_drawdown": 0.672699,
+      "ann_vol": 0.360261,
+      "worst_day": -0.177645,
+      "mc_drawdown_p95_one_year": 0.387438
+     },
+     "50% of the account": {
+      "years": 16.714286,
+      "cagr": 0.193256,
+      "sharpe": 1.09556,
+      "max_drawdown": 0.399849,
+      "ann_vol": 0.175241,
+      "worst_day": -0.088811,
+      "mc_drawdown_p95_one_year": 0.204439
+     },
+     "25% of the account": {
+      "years": 16.714286,
+      "cagr": 0.095168,
+      "sharpe": 1.093252,
+      "max_drawdown": 0.216817,
+      "ann_vol": 0.086584,
+      "worst_day": -0.044403,
+      "mc_drawdown_p95_one_year": 0.105101
+     },
+     "10% of the account": {
+      "years": 16.714286,
+      "cagr": 0.037662,
+      "sharpe": 1.091855,
+      "max_drawdown": 0.09086,
+      "ann_vol": 0.034404,
+      "worst_day": -0.01776,
+      "mc_drawdown_p95_one_year": 0.042726
+     }
+    }
+   },
+   "UPRO (signal SPY)": {
+    "from": "2009-06-25",
+    "to": "2026-11-09",
+    "rule": {
+     "before 2016": {
+      "years": 6.515873,
+      "cagr": 0.123786,
+      "sharpe": 0.544759,
+      "max_drawdown": 0.371809,
+      "ann_vol": 0.295201
+     },
+     "2016-2022": {
+      "years": 6.992063,
+      "cagr": 0.32271,
+      "sharpe": 1.073543,
+      "max_drawdown": 0.416756,
+      "ann_vol": 0.302468
+     },
+     "2023-2026": {
+      "years": 3.837302,
+      "cagr": 0.27215,
+      "sharpe": 1.028569,
+      "max_drawdown": 0.231367,
+      "ann_vol": 0.267713
+     },
+     "all": {
+      "years": 17.345238,
+      "cagr": 0.233476,
+      "sharpe": 0.862817,
+      "max_drawdown": 0.416756,
+      "ann_vol": 0.292327
+     }
+    },
+    "hold": {
+     "before 2016": {
+      "years": 6.515873,
+      "cagr": 0.390887,
+      "sharpe": 0.935243,
+      "max_drawdown": 0.517307,
+      "ann_vol": 0.474125
+     },
+     "2016-2022": {
+      "years": 6.992063,
+      "cagr": 0.18949,
+      "sharpe": 0.596207,
+      "max_drawdown": 0.761511,
+      "ann_vol": 0.555868
+     },
+     "2023-2026": {
+      "years": 3.837302,
+      "cagr": 0.468936,
+      "sharpe": 1.08603,
+      "max_drawdown": 0.49165,
+      "ann_vol": 0.444783
+     },
+     "all": {
+      "years": 17.345238,
+      "cagr": 0.321763,
+      "sharpe": 0.80975,
+      "max_drawdown": 0.761511,
+      "ann_vol": 0.502669
+     }
+    },
+    "trades_all": {
+     "trades": 453,
+     "win_rate": 0.843267,
+     "win_rate_ci95": [
+      0.806918,
+      0.873843
+     ],
+     "expectancy": 0.008746,
+     "expectancy_ci95": [
+      0.004494,
+      0.012665
+     ],
+     "t_stat": 4.224198,
+     "avg_win": 0.023282,
+     "avg_loss": -0.06946,
+     "worst_trade": -0.227411,
+     "longest_losing_streak": 5
+    },
+    "share_of_days_invested": 0.218943,
+    "by_year": {
+     "2009": {
+      "rule": -0.136954,
+      "hold": 0.735805
+     },
+     "2010": {
+      "rule": -0.01267,
+      "hold": 0.360244
+     },
+     "2011": {
+      "rule": 0.073335,
+      "hold": -0.133441
+     },
+     "2012": {
+      "rule": 0.36226,
+      "hold": 0.468299
+     },
+     "2013": {
+      "rule": 0.16645,
+      "hold": 1.184875
+     },
+     "2014": {
+      "rule": 0.193052,
+      "hold": 0.380082
+     },
+     "2015": {
+      "rule": 0.233763,
+      "hold": -0.052432
+     },
+     "2016": {
+      "rule": 0.347749,
+      "hold": 0.362427
+     },
+     "2017": {
+      "rule": 0.200256,
+      "hold": 0.73125
+     },
+     "2018": {
+      "rule": -0.10799,
+      "hold": -0.264892
+     },
+     "2019": {
+      "rule": 0.264874,
+      "hold": 1.056476
+     },
+     "2020": {
+      "rule": 1.300615,
+      "hold": 0.103284
+     },
+     "2021": {
+      "rule": 0.477524,
+      "hold": 0.984848
+     },
+     "2022": {
+      "rule": 0.139228,
+      "hold": -0.569111
+     },
+     "2023": {
+      "rule": 0.139675,
+      "hold": 0.681114
+     },
+     "2024": {
+      "rule": 0.354319,
+      "hold": 0.637185
+     },
+     "2025": {
+      "rule": 0.215253,
+      "hold": 0.325862
+     },
+     "2026": {
+      "rule": 0.342691,
+      "hold": 0.198526
+     }
+    },
+    "worst_day": -0.197483,
+    "worst_year": -0.136954,
+    "monte_carlo_one_year": {
+     "horizon_periods": 252,
+     "return_p5": -0.19562,
+     "return_p50": 0.240534,
+     "return_p95": 0.827608,
+     "maxdd_p50": 0.185106,
+     "maxdd_p95": 0.367338,
+     "p_loss": 0.1935,
+     "p_double": 0.029,
+     "p_dd_over_12pct": 0.765,
+     "p_dd_over_50pct": 0.0035
+    },
+    "kelly_fraction_per_trade": 3.049727,
+    "alpha_vs_holding_it": {
+     "alpha_per_year": 0.114242,
+     "t": 2.058649,
+     "beta": 0.338992
+    },
+    "with_default_limits": {
+     "stopped_for_good": true,
+     "last_active_day": "2009-07-07",
+     "return_until_stopped": -0.13743,
+     "max_drawdown": 0.13743,
+     "daily_limit_days": 2
+    },
+    "sizing": {
+     "100% of the account": {
+      "years": 17.345238,
+      "cagr": 0.233476,
+      "sharpe": 0.862817,
+      "max_drawdown": 0.416756,
+      "ann_vol": 0.292327,
+      "worst_day": -0.197483,
+      "mc_drawdown_p95_one_year": 0.367338
+     },
+     "50% of the account": {
+      "years": 17.345238,
+      "cagr": 0.118148,
+      "sharpe": 0.856261,
+      "max_drawdown": 0.224054,
+      "ann_vol": 0.142206,
+      "worst_day": -0.098517,
+      "mc_drawdown_p95_one_year": 0.194534
+     },
+     "25% of the account": {
+      "years": 17.345238,
+      "cagr": 0.059157,
+      "sharpe": 0.853072,
+      "max_drawdown": 0.116745,
+      "ann_vol": 0.070267,
+      "worst_day": -0.049202,
+      "mc_drawdown_p95_one_year": 0.100017
+     },
+     "10% of the account": {
+      "years": 17.345238,
+      "cagr": 0.023652,
+      "sharpe": 0.851197,
+      "max_drawdown": 0.04786,
+      "ann_vol": 0.027922,
+      "worst_day": -0.019668,
+      "mc_drawdown_p95_one_year": 0.040798
+     }
+    }
+   }
+  },
+  "rebuilt_3x_stress": {
+   "check_against_real_TQQQ_2010_2015": {
+    "rebuilt_cagr": 0.501381,
+    "real_cagr": 0.504921,
+    "correlation": 0.998373
+   },
+   "rule": {
+    "1999-2002": {
+     "years": 3.801587,
+     "cagr": 0.20465,
+     "sharpe": 0.673659,
+     "max_drawdown": 0.843132,
+     "ann_vol": 1.006298
+    },
+    "2003-2007": {
+     "years": 4.992063,
+     "cagr": 0.13383,
+     "sharpe": 0.570451,
+     "max_drawdown": 0.542858,
+     "ann_vol": 0.296801
+    },
+    "2008-2009": {
+     "years": 2.003968,
+     "cagr": -0.213322,
+     "sharpe": -0.054569,
+     "max_drawdown": 0.74005,
+     "ann_vol": 0.63966
+    },
+    "1999-2009": {
+     "years": 10.797619,
+     "cagr": 0.082303,
+     "sharpe": 0.451373,
+     "max_drawdown": 0.843132,
+     "ann_vol": 0.687839
+    },
+    "1999-2015": {
+     "years": 16.789683,
+     "cagr": 0.166881,
+     "sharpe": 0.550777,
+     "max_drawdown": 0.843132,
+     "ann_vol": 0.585405
+    }
+   },
+   "rule_only_in_uptrend": {
+    "1999-2002": {
+     "years": 3.801587,
+     "cagr": -0.100762,
+     "sharpe": 0.044347,
+     "max_drawdown": 0.680455,
+     "ann_vol": 0.510579
+    },
+    "2003-2007": {
+     "years": 4.992063,
+     "cagr": 0.031664,
+     "sharpe": 0.249186,
+     "max_drawdown": 0.555375,
+     "ann_vol": 0.257109
+    },
+    "2008-2009": {
+     "years": 2.003968,
+     "cagr": -0.050941,
+     "sharpe": -0.128512,
+     "max_drawdown": 0.340569,
+     "ann_vol": 0.218598
+    },
+    "1999-2009": {
+     "years": 10.797619,
+     "cagr": -0.032156,
+     "sharpe": 0.089415,
+     "max_drawdown": 0.73933,
+     "ann_vol": 0.362118
+    },
+    "1999-2015": {
+     "years": 16.789683,
+     "cagr": 0.032773,
+     "sharpe": 0.261915,
+     "max_drawdown": 0.73933,
+     "ann_vol": 0.329962
+    }
+   },
+   "holding_the_rebuilt_fund": {
+    "1999-2002": {
+     "years": 3.801587,
+     "cagr": -0.747699,
+     "sharpe": -0.230499,
+     "max_drawdown": 0.999514,
+     "ann_vol": 1.44742
+    },
+    "2003-2007": {
+     "years": 4.992063,
+     "cagr": 0.317937,
+     "sharpe": 0.779027,
+     "max_drawdown": 0.490562,
+     "ann_vol": 0.545722
+    },
+    "2008-2009": {
+     "years": 2.003968,
+     "cagr": -0.414742,
+     "sharpe": -0.027135,
+     "max_drawdown": 0.931061,
+     "ann_vol": 1.008421
+    },
+    "1999-2009": {
+     "years": 10.797619,
+     "cagr": -0.366595,
+     "sharpe": 0.071762,
+     "max_drawdown": 0.999786,
+     "ann_vol": 1.031326
+    },
+    "1999-2015": {
+     "years": 16.789683,
+     "cagr": -0.150607,
+     "sharpe": 0.257028,
+     "max_drawdown": 0.999786,
+     "ann_vol": 0.884189
+    }
+   },
+   "by_year": {
+    "1999": 0.786196,
+    "2000": -0.113409,
+    "2001": -0.381276,
+    "2002": 1.071331,
+    "2003": 1.197485,
+    "2004": 0.251447,
+    "2005": -0.310167,
+    "2006": -0.151165,
+    "2007": 0.162519,
+    "2008": -0.651949,
+    "2009": 0.776389
+   }
+  },
+  "nearby_settings_2016_on": {
+   "QQQ": {
+    "as stated": {
+     "2016-2018": {
+      "years": 2.992063,
+      "cagr": 0.138343,
+      "sharpe": 1.431557,
+      "max_drawdown": 0.087004,
+      "ann_vol": 0.093575
+     },
+     "2019-2022": {
+      "years": 4.0,
+      "cagr": 0.149041,
+      "sharpe": 0.999158,
+      "max_drawdown": 0.281144,
+      "ann_vol": 0.150325
+     },
+     "2023-2026": {
+      "years": 3.837302,
+      "cagr": 0.162277,
+      "sharpe": 1.294464,
+      "max_drawdown": 0.090636,
+      "ann_vol": 0.121828
+     },
+     "2016-2026": {
+      "years": 10.829365,
+      "cagr": 0.150736,
+      "sharpe": 1.172437,
+      "max_drawdown": 0.281144,
+      "ann_vol": 0.126548
+     },
+     "trades": {
+      "trades": 306,
+      "win_rate": 0.849673,
+      "win_rate_ci95": [
+       0.805307,
+       0.885368
+      ],
+      "expectancy": 0.005153,
+      "expectancy_ci95": [
+       0.003031,
+       0.007178
+      ],
+      "t_stat": 4.886351,
+      "avg_win": 0.011118,
+      "avg_loss": -0.028558,
+      "worst_trade": -0.080989,
+      "longest_losing_streak": 2
+     }
+    },
+    "bottom 10%": {
+     "2016-2018": {
+      "years": 2.992063,
+      "cagr": 0.115685,
+      "sharpe": 1.528556,
+      "max_drawdown": 0.060115,
+      "ann_vol": 0.073387
+     },
+     "2019-2022": {
+      "years": 4.0,
+      "cagr": 0.142352,
+      "sharpe": 1.108639,
+      "max_drawdown": 0.166555,
+      "ann_vol": 0.127331
+     },
+     "2023-2026": {
+      "years": 3.837302,
+      "cagr": 0.122429,
+      "sharpe": 1.17083,
+      "max_drawdown": 0.050966,
+      "ann_vol": 0.103069
+     },
+     "2016-2026": {
+      "years": 10.829365,
+      "cagr": 0.127868,
+      "sharpe": 1.187809,
+      "max_drawdown": 0.166555,
+      "ann_vol": 0.105989
+     },
+     "trades": {
+      "trades": 217,
+      "win_rate": 0.861751,
+      "win_rate_ci95": [
+       0.809502,
+       0.901415
+      ],
+      "expectancy": 0.006205,
+      "expectancy_ci95": [
+       0.003565,
+       0.008579
+      ],
+      "t_stat": 4.793018,
+      "avg_win": 0.011636,
+      "avg_loss": -0.027643,
+      "worst_trade": -0.099159,
+      "longest_losing_streak": 2
+     }
+    },
+    "bottom 20%": {
+     "2016-2018": {
+      "years": 2.992063,
+      "cagr": 0.124657,
+      "sharpe": 1.203299,
+      "max_drawdown": 0.087004,
+      "ann_vol": 0.101955
+     },
+     "2019-2022": {
+      "years": 4.0,
+      "cagr": 0.122469,
+      "sharpe": 0.751083,
+      "max_drawdown": 0.281441,
+      "ann_vol": 0.173986
+     },
+     "2023-2026": {
+      "years": 3.837302,
+      "cagr": 0.172482,
+      "sharpe": 1.290783,
+      "max_drawdown": 0.094763,
+      "ann_vol": 0.129722
+     },
+     "2016-2026": {
+      "years": 10.829365,
+      "cagr": 0.140556,
+      "sharpe": 1.000436,
+      "max_drawdown": 0.281441,
+      "ann_vol": 0.141435
+     },
+     "trades": {
+      "trades": 372,
+      "win_rate": 0.833333,
+      "win_rate_ci95": [
+       0.792095,
+       0.867758
+      ],
+      "expectancy": 0.004042,
+      "expectancy_ci95": [
+       0.001811,
+       0.006105
+      ],
+      "t_stat": 3.886954,
+      "avg_win": 0.010679,
+      "avg_loss": -0.029141,
+      "worst_trade": -0.147614,
+      "longest_losing_streak": 2
+     }
+    },
+    "bottom 30%": {
+     "2016-2018": {
+      "years": 2.992063,
+      "cagr": 0.123726,
+      "sharpe": 1.114318,
+      "max_drawdown": 0.131255,
+      "ann_vol": 0.110135
+     },
+     "2019-2022": {
+      "years": 4.0,
+      "cagr": 0.14493,
+      "sharpe": 0.810614,
+      "max_drawdown": 0.218199,
+      "ann_vol": 0.189026
+     },
+     "2023-2026": {
+      "years": 3.837302,
+      "cagr": 0.197211,
+      "sharpe": 1.318495,
+      "max_drawdown": 0.094763,
+      "ann_vol": 0.144369
+     },
+     "2016-2026": {
+      "years": 10.829365,
+      "cagr": 0.157197,
+      "sharpe": 1.021273,
+      "max_drawdown": 0.218199,
+      "ann_vol": 0.154664
+     },
+     "trades": {
+      "trades": 487,
+      "win_rate": 0.831622,
+      "win_rate_ci95": [
+       0.79582,
+       0.862233
+      ],
+      "expectancy": 0.00348,
+      "expectancy_ci95": [
+       0.001762,
+       0.00514
+      ],
+      "t_stat": 3.976961,
+      "avg_win": 0.009795,
+      "avg_loss": -0.027709,
+      "worst_trade": -0.147614,
+      "longest_losing_streak": 2
+     }
+    },
+    "3 sessions at most": {
+     "2016-2018": {
+      "years": 2.992063,
+      "cagr": 0.134141,
+      "sharpe": 1.520537,
+      "max_drawdown": 0.065039,
+      "ann_vol": 0.085169
+     },
+     "2019-2022": {
+      "years": 4.0,
+      "cagr": 0.13001,
+      "sharpe": 0.945873,
+      "max_drawdown": 0.230646,
+      "ann_vol": 0.139448
+     },
+     "2023-2026": {
+      "years": 3.837302,
+      "cagr": 0.124142,
+      "sharpe": 1.232571,
+      "max_drawdown": 0.091971,
+      "ann_vol": 0.098932
+     },
+     "2016-2026": {
+      "years": 10.829365,
+      "cagr": 0.129065,
+      "sharpe": 1.135637,
+      "max_drawdown": 0.230646,
+      "ann_vol": 0.112455
+     },
+     "trades": {
+      "trades": 324,
+      "win_rate": 0.774691,
+      "win_rate_ci95": [
+       0.726133,
+       0.816812
+      ],
+      "expectancy": 0.004246,
+      "expectancy_ci95": [
+       0.002238,
+       0.006316
+      ],
+      "t_stat": 4.047953,
+      "avg_win": 0.011881,
+      "avg_loss": -0.022006,
+      "worst_trade": -0.104057,
+      "longest_losing_streak": 3
+     }
+    },
+    "10 sessions at most": {
+     "2016-2018": {
+      "years": 2.992063,
+      "cagr": 0.118649,
+      "sharpe": 1.155709,
+      "max_drawdown": 0.131081,
+      "ann_vol": 0.101476
+     },
+     "2019-2022": {
+      "years": 4.0,
+      "cagr": 0.143491,
+      "sharpe": 0.860291,
+      "max_drawdown": 0.255554,
+      "ann_vol": 0.1733
+     },
+     "2023-2026": {
+      "years": 3.837302,
+      "cagr": 0.181524,
+      "sharpe": 1.337823,
+      "max_drawdown": 0.109853,
+      "ann_vol": 0.131033
+     },
+     "2016-2026": {
+      "years": 10.829365,
+      "cagr": 0.149827,
+      "sharpe": 1.05746,
+      "max_drawdown": 0.255554,
+      "ann_vol": 0.141458
+     },
+     "trades": {
+      "trades": 273,
+      "win_rate": 0.901099,
+      "win_rate_ci95": [
+       0.859929,
+       0.931137
+      ],
+      "expectancy": 0.00572,
+      "expectancy_ci95": [
+       0.003534,
+       0.007743
+      ],
+      "t_stat": 5.23594,
+      "avg_win": 0.010318,
+      "avg_loss": -0.036176,
+      "worst_trade": -0.081124,
+      "longest_losing_streak": 4
+     }
+    },
+    "only while QQQ is above its 200-day average": {
+     "2016-2018": {
+      "years": 2.992063,
+      "cagr": 0.067993,
+      "sharpe": 0.977742,
+      "max_drawdown": 0.084314,
+      "ann_vol": 0.069775
+     },
+     "2019-2022": {
+      "years": 4.0,
+      "cagr": 0.119252,
+      "sharpe": 1.175119,
+      "max_drawdown": 0.105797,
+      "ann_vol": 0.100137
+     },
+     "2023-2026": {
+      "years": 3.837302,
+      "cagr": 0.120237,
+      "sharpe": 1.247688,
+      "max_drawdown": 0.090636,
+      "ann_vol": 0.094598
+     },
+     "2016-2026": {
+      "years": 10.829365,
+      "cagr": 0.105193,
+      "sharpe": 1.148865,
+      "max_drawdown": 0.134113,
+      "ann_vol": 0.090642
+     },
+     "trades": {
+      "trades": 227,
+      "win_rate": 0.854626,
+      "win_rate_ci95": [
+       0.802872,
+       0.894576
+      ],
+      "expectancy": 0.00489,
+      "expectancy_ci95": [
+       0.002882,
+       0.00665
+      ],
+      "t_stat": 5.058958,
+      "avg_win": 0.009669,
+      "avg_loss": -0.023203,
+      "worst_trade": -0.068796,
+      "longest_losing_streak": 2
+     }
+    },
+    "costs x3": {
+     "2016-2018": {
+      "years": 2.992063,
+      "cagr": 0.125137,
+      "sharpe": 1.309279,
+      "max_drawdown": 0.087552,
+      "ann_vol": 0.093385
+     },
+     "2019-2022": {
+      "years": 4.0,
+      "cagr": 0.138063,
+      "sharpe": 0.937343,
+      "max_drawdown": 0.288724,
+      "ann_vol": 0.14993
+     },
+     "2023-2026": {
+      "years": 3.837302,
+      "cagr": 0.155123,
+      "sharpe": 1.23476,
+      "max_drawdown": 0.091545,
+      "ann_vol": 0.122815
+     },
+     "2016-2026": {
+      "years": 10.829365,
+      "cagr": 0.140474,
+      "sharpe": 1.100652,
+      "max_drawdown": 0.288724,
+      "ann_vol": 0.126675
+     },
+     "trades": {
+      "trades": 305,
+      "win_rate": 0.842623,
+      "win_rate_ci95": [
+       0.797524,
+       0.879198
+      ],
+      "expectancy": 0.004851,
+      "expectancy_ci95": [
+       0.002709,
+       0.006812
+      ],
+      "t_stat": 4.578124,
+      "avg_win": 0.010984,
+      "avg_loss": -0.027983,
+      "worst_trade": -0.081356,
+      "longest_losing_streak": 2
+     }
+    }
+   },
+   "TQQQ": {
+    "as stated": {
+     "2016-2018": {
+      "years": 2.992063,
+      "cagr": 0.426459,
+      "sharpe": 1.4128,
+      "max_drawdown": 0.252372,
+      "ann_vol": 0.278751
+     },
+     "2019-2022": {
+      "years": 4.0,
+      "cagr": 0.398306,
+      "sharpe": 0.969565,
+      "max_drawdown": 0.672699,
+      "ann_vol": 0.448754
+     },
+     "2023-2026": {
+      "years": 3.837302,
+      "cagr": 0.494916,
+      "sharpe": 1.272491,
+      "max_drawdown": 0.26067,
+      "ann_vol": 0.366594
+     },
+     "2016-2026": {
+      "years": 10.829365,
+      "cagr": 0.439711,
+      "sharpe": 1.148328,
+      "max_drawdown": 0.672699,
+      "ann_vol": 0.37865
+     },
+     "trades": {
+      "trades": 307,
+      "win_rate": 0.846906,
+      "win_rate_ci95": [
+       0.802359,
+       0.882877
+      ],
+      "expectancy": 0.0145,
+      "expectancy_ci95": [
+       0.008701,
+       0.020366
+      ],
+      "t_stat": 4.654311,
+      "avg_win": 0.03252,
+      "avg_loss": -0.085185,
+      "worst_trade": -0.236816,
+      "longest_losing_streak": 3
+     }
+    },
+    "bottom 10%": {
+     "2016-2018": {
+      "years": 2.992063,
+      "cagr": 0.359296,
+      "sharpe": 1.513651,
+      "max_drawdown": 0.183201,
+      "ann_vol": 0.218617
+     },
+     "2019-2022": {
+      "years": 4.0,
+      "cagr": 0.412894,
+      "sharpe": 1.092391,
+      "max_drawdown": 0.442481,
+      "ann_vol": 0.382252
+     },
+     "2023-2026": {
+      "years": 3.837302,
+      "cagr": 0.36717,
+      "sharpe": 1.151721,
+      "max_drawdown": 0.155718,
+      "ann_vol": 0.310474
+     },
+     "2016-2026": {
+      "years": 10.829365,
+      "cagr": 0.381678,
+      "sharpe": 1.170139,
+      "max_drawdown": 0.442481,
+      "ann_vol": 0.318226
+     },
+     "trades": {
+      "trades": 218,
+      "win_rate": 0.857798,
+      "win_rate_ci95": [
+       0.805226,
+       0.897978
+      ],
+      "expectancy": 0.017827,
+      "expectancy_ci95": [
+       0.009766,
+       0.025695
+      ],
+      "t_stat": 4.662426,
+      "avg_win": 0.034351,
+      "avg_loss": -0.081851,
+      "worst_trade": -0.285378,
+      "longest_losing_streak": 2
+     }
+    },
+    "bottom 20%": {
+     "2016-2018": {
+      "years": 2.992063,
+      "cagr": 0.366212,
+      "sharpe": 1.1783,
+      "max_drawdown": 0.252372,
+      "ann_vol": 0.303963
+     },
+     "2019-2022": {
+      "years": 4.0,
+      "cagr": 0.251185,
+      "sharpe": 0.6935,
+      "max_drawdown": 0.676462,
+      "ann_vol": 0.517589
+     },
+     "2023-2026": {
+      "years": 3.837302,
+      "cagr": 0.517287,
+      "sharpe": 1.256761,
+      "max_drawdown": 0.279491,
+      "ann_vol": 0.390143
+     },
+     "2016-2026": {
+      "years": 10.829365,
+      "cagr": 0.372618,
+      "sharpe": 0.959774,
+      "max_drawdown": 0.676462,
+      "ann_vol": 0.422266
+     },
+     "trades": {
+      "trades": 372,
+      "win_rate": 0.830645,
+      "win_rate_ci95": [
+       0.789196,
+       0.865335
+      ],
+      "expectancy": 0.011162,
+      "expectancy_ci95": [
+       0.004772,
+       0.016913
+      ],
+      "t_stat": 3.65617,
+      "avg_win": 0.031175,
+      "avg_loss": -0.086996,
+      "worst_trade": -0.413166,
+      "longest_losing_streak": 3
+     }
+    },
+    "bottom 30%": {
+     "2016-2018": {
+      "years": 2.992063,
+      "cagr": 0.351947,
+      "sharpe": 1.081808,
+      "max_drawdown": 0.352275,
+      "ann_vol": 0.328747
+     },
+     "2019-2022": {
+      "years": 4.0,
+      "cagr": 0.297601,
+      "sharpe": 0.746177,
+      "max_drawdown": 0.556982,
+      "ann_vol": 0.562594
+     },
+     "2023-2026": {
+      "years": 3.837302,
+      "cagr": 0.557488,
+      "sharpe": 1.229984,
+      "max_drawdown": 0.275329,
+      "ann_vol": 0.435662
+     },
+     "2016-2026": {
+      "years": 10.829365,
+      "cagr": 0.400096,
+      "sharpe": 0.958279,
+      "max_drawdown": 0.556982,
+      "ann_vol": 0.462491
+     },
+     "trades": {
+      "trades": 485,
+      "win_rate": 0.826804,
+      "win_rate_ci95": [
+       0.790592,
+       0.85788
+      ],
+      "expectancy": 0.009471,
+      "expectancy_ci95": [
+       0.004313,
+       0.014409
+      ],
+      "t_stat": 3.679205,
+      "avg_win": 0.028795,
+      "avg_loss": -0.082777,
+      "worst_trade": -0.413166,
+      "longest_losing_streak": 2
+     }
+    },
+    "3 sessions at most": {
+     "2016-2018": {
+      "years": 2.992063,
+      "cagr": 0.418277,
+      "sharpe": 1.503944,
+      "max_drawdown": 0.189857,
+      "ann_vol": 0.253434
+     },
+     "2019-2022": {
+      "years": 4.0,
+      "cagr": 0.337201,
+      "sharpe": 0.90352,
+      "max_drawdown": 0.602217,
+      "ann_vol": 0.415905
+     },
+     "2023-2026": {
+      "years": 3.837302,
+      "cagr": 0.374009,
+      "sharpe": 1.216206,
+      "max_drawdown": 0.263037,
+      "ann_vol": 0.298128
+     },
+     "2016-2026": {
+      "years": 10.829365,
+      "cagr": 0.372267,
+      "sharpe": 1.108117,
+      "max_drawdown": 0.602217,
+      "ann_vol": 0.336235
+     },
+     "trades": {
+      "trades": 325,
+      "win_rate": 0.772308,
+      "win_rate_ci95": [
+       0.723691,
+       0.814562
+      ],
+      "expectancy": 0.012219,
+      "expectancy_ci95": [
+       0.006406,
+       0.01806
+      ],
+      "t_stat": 3.953031,
+      "avg_win": 0.035199,
+      "avg_loss": -0.065727,
+      "worst_trade": -0.291052,
+      "longest_losing_streak": 3
+     }
+    },
+    "10 sessions at most": {
+     "2016-2018": {
+      "years": 2.992063,
+      "cagr": 0.345958,
+      "sharpe": 1.132859,
+      "max_drawdown": 0.351951,
+      "ann_vol": 0.302629
+     },
+     "2019-2022": {
+      "years": 4.0,
+      "cagr": 0.353762,
+      "sharpe": 0.843098,
+      "max_drawdown": 0.634799,
+      "ann_vol": 0.518218
+     },
+     "2023-2026": {
+      "years": 3.837302,
+      "cagr": 0.563368,
+      "sharpe": 1.322984,
+      "max_drawdown": 0.31951,
+      "ann_vol": 0.394548
+     },
+     "2016-2026": {
+      "years": 10.829365,
+      "cagr": 0.422334,
+      "sharpe": 1.040884,
+      "max_drawdown": 0.634799,
+      "ann_vol": 0.423737
+     },
+     "trades": {
+      "trades": 274,
+      "win_rate": 0.894161,
+      "win_rate_ci95": [
+       0.852129,
+       0.925292
+      ],
+      "expectancy": 0.015608,
+      "expectancy_ci95": [
+       0.008691,
+       0.021528
+      ],
+      "t_stat": 4.770762,
+      "avg_win": 0.030055,
+      "avg_loss": -0.106449,
+      "worst_trade": -0.243233,
+      "longest_losing_streak": 4
+     }
+    },
+    "only while QQQ is above its 200-day average": {
+     "2016-2018": {
+      "years": 2.992063,
+      "cagr": 0.189445,
+      "sharpe": 0.939343,
+      "max_drawdown": 0.252372,
+      "ann_vol": 0.207816
+     },
+     "2019-2022": {
+      "years": 4.0,
+      "cagr": 0.359838,
+      "sharpe": 1.170148,
+      "max_drawdown": 0.297375,
+      "ann_vol": 0.301119
+     },
+     "2023-2026": {
+      "years": 3.837302,
+      "cagr": 0.363917,
+      "sharpe": 1.231585,
+      "max_drawdown": 0.26067,
+      "ann_vol": 0.28499
+     },
+     "2016-2026": {
+      "years": 10.829365,
+      "cagr": 0.311849,
+      "sharpe": 1.132588,
+      "max_drawdown": 0.362548,
+      "ann_vol": 0.272343
+     },
+     "trades": {
+      "trades": 227,
+      "win_rate": 0.854626,
+      "win_rate_ci95": [
+       0.802872,
+       0.894576
+      ],
+      "expectancy": 0.014033,
+      "expectancy_ci95": [
+       0.00803,
+       0.019348
+      ],
+      "t_stat": 4.818831,
+      "avg_win": 0.028582,
+      "avg_loss": -0.071496,
+      "worst_trade": -0.197222,
+      "longest_losing_streak": 2
+     }
+    },
+    "costs x3": {
+     "2016-2018": {
+      "years": 2.992063,
+      "cagr": 0.387461,
+      "sharpe": 1.317648,
+      "max_drawdown": 0.255729,
+      "ann_vol": 0.277583
+     },
+     "2019-2022": {
+      "years": 4.0,
+      "cagr": 0.370362,
+      "sharpe": 0.9257,
+      "max_drawdown": 0.677749,
+      "ann_vol": 0.447747
+     },
+     "2023-2026": {
+      "years": 3.837302,
+      "cagr": 0.458047,
+      "sharpe": 1.198971,
+      "max_drawdown": 0.262516,
+      "ann_vol": 0.369
+     },
+     "2016-2026": {
+      "years": 10.829365,
+      "cagr": 0.40562,
+      "sharpe": 1.084785,
+      "max_drawdown": 0.677749,
+      "ann_vol": 0.378802
+     },
+     "trades": {
+      "trades": 305,
+      "win_rate": 0.839344,
+      "win_rate_ci95": [
+       0.793951,
+       0.876295
+      ],
+      "expectancy": 0.013736,
+      "expectancy_ci95": [
+       0.007353,
+       0.019373
+      ],
+      "t_stat": 4.380261,
+      "avg_win": 0.032258,
+      "avg_loss": -0.083034,
+      "worst_trade": -0.237579,
+      "longest_losing_streak": 3
+     }
+    }
+   }
+  },
+  "older_sample_verdict": {
+   "T1 QQQ on QQQ's weak close": "CONFIRMED",
+   "T1 SPY on SPY's weak close": "CONFIRMED",
+   "T2 TQQQ on QQQ's weak close": "CONFIRMED",
+   "T2 UPRO on SPY's weak close": "CONFIRMED",
+   "T2 QLD on QQQ's weak close": "CONFIRMED",
+   "T2 SSO on SPY's weak close": "CONFIRMED"
+  },
+  "older_sample": {
+   "QQQ on QQQ's weak close": {
+    "years": [
+     "1999-03-10",
+     "2015-12-31"
+    ],
+    "all_trades": {
+     "trades": 527,
+     "win_rate": 0.814042,
+     "win_rate_ci95": [
+      0.778593,
+      0.844945
+     ],
+     "expectancy": 0.003204,
+     "expectancy_ci95": [
+      0.000916,
+      0.005657
+     ],
+     "t_stat": 2.551096,
+     "avg_win": 0.013275,
+     "avg_loss": -0.040883,
+     "worst_trade": -0.174998
+    },
+    "first_half": {
+     "trades": 290,
+     "win_rate": 0.803448,
+     "win_rate_ci95": [
+      0.75387,
+      0.845092
+     ],
+     "expectancy": 0.00391,
+     "expectancy_ci95": [
+      9.9e-05,
+      0.007426
+     ],
+     "t_stat": 2.054738,
+     "avg_win": 0.015428,
+     "avg_loss": -0.043175,
+     "worst_trade": -0.174998
+    },
+    "second_half": {
+     "trades": 237,
+     "win_rate": 0.827004,
+     "win_rate_ci95": [
+      0.773734,
+      0.869843
+     ],
+     "expectancy": 0.002341,
+     "expectancy_ci95": [
+      -0.00088,
+      0.005212
+     ],
+     "t_stat": 1.514982,
+     "avg_win": 0.010716,
+     "avg_loss": -0.037697,
+     "worst_trade": -0.142497
+    },
+    "split_at": "2007-08-08",
+    "rule": {
+     "years": 16.789683,
+     "cagr": 0.095022,
+     "sharpe": 0.563113,
+     "max_drawdown": 0.376621
+    },
+    "hold": {
+     "years": 16.789683,
+     "cagr": 0.053672,
+     "sharpe": 0.324266,
+     "max_drawdown": 0.829649
+    },
+    "share_of_days_invested": 0.285039
+   },
+   "SPY on SPY's weak close": {
+    "years": [
+     "2005-02-25",
+     "2015-12-31"
+    ],
+    "all_trades": {
+     "trades": 304,
+     "win_rate": 0.832237,
+     "win_rate_ci95": [
+      0.786144,
+      0.870037
+     ],
+     "expectancy": 0.002701,
+     "expectancy_ci95": [
+      7.1e-05,
+      0.005105
+     ],
+     "t_stat": 2.115466,
+     "avg_win": 0.009369,
+     "avg_loss": -0.030375,
+     "worst_trade": -0.198126
+    },
+    "first_half": {
+     "trades": 160,
+     "win_rate": 0.8375,
+     "win_rate_ci95": [
+      0.772546,
+      0.886627
+     ],
+     "expectancy": 0.002936,
+     "expectancy_ci95": [
+      -0.001671,
+      0.007148
+     ],
+     "t_stat": 1.342334,
+     "avg_win": 0.010877,
+     "avg_loss": -0.03799,
+     "worst_trade": -0.198126
+    },
+    "second_half": {
+     "trades": 144,
+     "win_rate": 0.826389,
+     "win_rate_ci95": [
+      0.756264,
+      0.879551
+     ],
+     "expectancy": 0.002441,
+     "expectancy_ci95": [
+      0.000159,
+      0.004605
+     ],
+     "t_stat": 2.07586,
+     "avg_win": 0.007671,
+     "avg_loss": -0.022456,
+     "worst_trade": -0.060653
+    },
+    "split_at": "2010-07-30",
+    "rule": {
+     "years": 10.84127,
+     "cagr": 0.075713,
+     "sharpe": 0.663843,
+     "max_drawdown": 0.198206
+    },
+    "hold": {
+     "years": 10.84127,
+     "cagr": 0.058413,
+     "sharpe": 0.383227,
+     "max_drawdown": 0.564745
+    },
+    "share_of_days_invested": 0.240483
+   },
+   "TQQQ on QQQ's weak close": {
+    "years": [
+     "2010-02-11",
+     "2015-12-31"
+    ],
+    "all_trades": {
+     "trades": 156,
+     "win_rate": 0.839744,
+     "win_rate_ci95": [
+      0.774124,
+      0.889033
+     ],
+     "expectancy": 0.01039,
+     "expectancy_ci95": [
+      0.00215,
+      0.018094
+     ],
+     "t_stat": 2.588952,
+     "avg_win": 0.027357,
+     "avg_loss": -0.078512,
+     "worst_trade": -0.211387
+    },
+    "first_half": {
+     "trades": 84,
+     "win_rate": 0.833333,
+     "win_rate_ci95": [
+      0.739468,
+      0.898044
+     ],
+     "expectancy": 0.010229,
+     "expectancy_ci95": [
+      -0.002208,
+      0.020964
+     ],
+     "t_stat": 1.7016,
+     "avg_win": 0.02948,
+     "avg_loss": -0.086028,
+     "worst_trade": -0.199979
+    },
+    "second_half": {
+     "trades": 72,
+     "win_rate": 0.847222,
+     "win_rate_ci95": [
+      0.746775,
+      0.912494
+     ],
+     "expectancy": 0.010579,
+     "expectancy_ci95": [
+      -0.00017,
+      0.019942
+     ],
+     "t_stat": 2.039606,
+     "avg_win": 0.024919,
+     "avg_loss": -0.068947,
+     "worst_trade": -0.211387
+    },
+    "split_at": "2013-01-23",
+    "rule": {
+     "years": 5.884921,
+     "cagr": 0.31365,
+     "sharpe": 1.00484,
+     "max_drawdown": 0.285471
+    },
+    "hold": {
+     "years": 5.884921,
+     "cagr": 0.504921,
+     "sharpe": 1.053664,
+     "max_drawdown": 0.439054
+    },
+    "share_of_days_invested": 0.229265
+   },
+   "UPRO on SPY's weak close": {
+    "years": [
+     "2009-06-25",
+     "2015-12-31"
+    ],
+    "all_trades": {
+     "trades": 169,
+     "win_rate": 0.828402,
+     "win_rate_ci95": [
+      0.764422,
+      0.877784
+     ],
+     "expectancy": 0.004794,
+     "expectancy_ci95": [
+      -0.003052,
+      0.011612
+     ],
+     "t_stat": 1.31282,
+     "avg_win": 0.022639,
+     "avg_loss": -0.081354,
+     "worst_trade": -0.209674
+    },
+    "first_half": {
+     "trades": 83,
+     "win_rate": 0.819277,
+     "win_rate_ci95": [
+      0.722999,
+      0.887307
+     ],
+     "expectancy": 0.002597,
+     "expectancy_ci95": [
+      -0.010791,
+      0.014443
+     ],
+     "t_stat": 0.418999,
+     "avg_win": 0.024866,
+     "avg_loss": -0.098357,
+     "worst_trade": -0.209674
+    },
+    "second_half": {
+     "trades": 86,
+     "win_rate": 0.837209,
+     "win_rate_ci95": [
+      0.745101,
+      0.90048
+     ],
+     "expectancy": 0.006916,
+     "expectancy_ci95": [
+      -0.001061,
+      0.014123
+     ],
+     "t_stat": 1.732276,
+     "avg_win": 0.020537,
+     "avg_loss": -0.063136,
+     "worst_trade": -0.16714
+    },
+    "split_at": "2012-09-26",
+    "rule": {
+     "years": 6.515873,
+     "cagr": 0.123786,
+     "sharpe": 0.544759,
+     "max_drawdown": 0.371809
+    },
+    "hold": {
+     "years": 6.515873,
+     "cagr": 0.390887,
+     "sharpe": 0.935243,
+     "max_drawdown": 0.517307
+    },
+    "share_of_days_invested": 0.223508
+   },
+   "QLD on QQQ's weak close": {
+    "years": [
+     "2006-06-21",
+     "2015-12-31"
+    ],
+    "all_trades": {
+     "trades": 269,
+     "win_rate": 0.821561,
+     "win_rate_ci95": [
+      0.771376,
+      0.862691
+     ],
+     "expectancy": 0.00427,
+     "expectancy_ci95": [
+      -0.001423,
+      0.009523
+     ],
+     "t_stat": 1.544482,
+     "avg_win": 0.020161,
+     "avg_loss": -0.068898,
+     "worst_trade": -0.300689
+    },
+    "first_half": {
+     "trades": 141,
+     "win_rate": 0.815603,
+     "win_rate_ci95": [
+      0.743522,
+      0.870942
+     ],
+     "expectancy": 0.001913,
+     "expectancy_ci95": [
+      -0.007028,
+      0.010827
+     ],
+     "t_stat": 0.411963,
+     "avg_win": 0.022323,
+     "avg_loss": -0.088359,
+     "worst_trade": -0.300689
+    },
+    "second_half": {
+     "trades": 128,
+     "win_rate": 0.828125,
+     "win_rate_ci95": [
+      0.753459,
+      0.88367
+     ],
+     "expectancy": 0.006865,
+     "expectancy_ci95": [
+      0.001273,
+      0.012066
+     ],
+     "t_stat": 2.490803,
+     "avg_win": 0.017816,
+     "avg_loss": -0.045897,
+     "worst_trade": -0.144704
+    },
+    "split_at": "2011-03-28",
+    "rule": {
+     "years": 9.52381,
+     "cagr": 0.108124,
+     "sharpe": 0.514862,
+     "max_drawdown": 0.664431
+    },
+    "hold": {
+     "years": 9.52381,
+     "cagr": 0.181955,
+     "sharpe": 0.603099,
+     "max_drawdown": 0.831532
+    },
+    "share_of_days_invested": 0.245833
+   },
+   "SSO on SPY's weak close": {
+    "years": [
+     "2006-06-21",
+     "2015-12-31"
+    ],
+    "all_trades": {
+     "trades": 257,
+     "win_rate": 0.81323,
+     "win_rate_ci95": [
+      0.761096,
+      0.856137
+     ],
+     "expectancy": 0.004053,
+     "expectancy_ci95": [
+      -0.001894,
+      0.009417
+     ],
+     "t_stat": 1.395904,
+     "avg_win": 0.019603,
+     "avg_loss": -0.063655,
+     "worst_trade": -0.340997
+    },
+    "first_half": {
+     "trades": 130,
+     "win_rate": 0.815385,
+     "win_rate_ci95": [
+      0.73998,
+      0.872684
+     ],
+     "expectancy": 0.004615,
+     "expectancy_ci95": [
+      -0.006307,
+      0.014061
+     ],
+     "t_stat": 0.896698,
+     "avg_win": 0.023726,
+     "avg_loss": -0.079792,
+     "worst_trade": -0.340997
+    },
+    "second_half": {
+     "trades": 127,
+     "win_rate": 0.811024,
+     "win_rate_ci95": [
+      0.734191,
+      0.869592
+     ],
+     "expectancy": 0.003478,
+     "expectancy_ci95": [
+      -0.001922,
+      0.008412
+     ],
+     "t_stat": 1.323967,
+     "avg_win": 0.015361,
+     "avg_loss": -0.047519,
+     "worst_trade": -0.120512
+    },
+    "split_at": "2011-03-28",
+    "rule": {
+     "years": 9.52381,
+     "cagr": 0.092168,
+     "sharpe": 0.478482,
+     "max_drawdown": 0.34126
+    },
+    "hold": {
+     "years": 9.52381,
+     "cagr": 0.071479,
+     "sharpe": 0.37394,
+     "max_drawdown": 0.84904
+    },
+    "share_of_days_invested": 0.235417
+   }
+  }
+ },
+ "one_account_two_rules": {
+  "C: TQQQ weak close first, otherwise SOXL overnight in an uptrend": {
+   "2016-2018": {
+    "years": 2.992063,
+    "cagr": 0.883694,
+    "sharpe": 1.960019,
+    "max_drawdown": 0.335978,
+    "ann_vol": 0.355607
+   },
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": 0.919843,
+    "sharpe": 1.403549,
+    "max_drawdown": 0.691092,
+    "ann_vol": 0.590054
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": 0.606694,
+    "sharpe": 1.037168,
+    "max_drawdown": 0.650257,
+    "ann_vol": 0.678723
+   },
+   "2016-2026": {
+    "years": 10.829365,
+    "cagr": 0.793009,
+    "sharpe": 1.308778,
+    "max_drawdown": 0.698299,
+    "ann_vol": 0.571458
+   },
+   "by_year": {
+    "2016": 0.99961,
+    "2017": 2.016666,
+    "2018": 0.102493,
+    "2019": 0.896954,
+    "2020": 4.556296,
+    "2021": 1.928598,
+    "2022": -0.559891,
+    "2023": 0.301093,
+    "2024": 1.70261,
+    "2025": 1.677406,
+    "2026": -0.344728
+   },
+   "worst_day": -0.227459,
+   "before_2016": {
+    "years": [
+     "2010-03-11",
+     "2015-12-31"
+    ],
+    "rule": {
+     "years": 5.015873,
+     "cagr": 0.483555,
+     "sharpe": 1.248128,
+     "max_drawdown": 0.323402
+    },
+    "hold_TQQQ": {
+     "years": 5.015873,
+     "cagr": 0.623356,
+     "sharpe": 1.269762,
+     "max_drawdown": 0.430895
+    },
+    "hold_QQQ": {
+     "years": 5.015873,
+     "cagr": 0.21083,
+     "sharpe": 1.290073,
+     "max_drawdown": 0.157689
+    },
+    "hold_SPY": {
+     "years": 5.015873,
+     "cagr": 0.15658,
+     "sharpe": 1.120061,
+     "max_drawdown": 0.161025
+    },
+    "by_year": {
+     "2010": 0.323879,
+     "2011": 0.182955,
+     "2012": 0.196957,
+     "2013": 0.882635,
+     "2014": 0.788457,
+     "2015": 0.145771
+    },
+    "worst_day": -0.124405
+   }
+  },
+  "D: QQQ weak close first, otherwise SMH overnight in an uptrend": {
+   "2016-2018": {
+    "years": 2.992063,
+    "cagr": 0.224643,
+    "sharpe": 1.773558,
+    "max_drawdown": 0.116016,
+    "ann_vol": 0.118237
+   },
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": 0.294776,
+    "sharpe": 1.395646,
+    "max_drawdown": 0.287155,
+    "ann_vol": 0.199458
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": 0.310698,
+    "sharpe": 1.343321,
+    "max_drawdown": 0.188527,
+    "ann_vol": 0.219328
+   },
+   "2016-2026": {
+    "years": 10.829365,
+    "cagr": 0.28054,
+    "sharpe": 1.405669,
+    "max_drawdown": 0.287155,
+    "ann_vol": 0.188635
+   },
+   "by_year": {
+    "2016": 0.196337,
+    "2017": 0.461154,
+    "2018": 0.049013,
+    "2019": 0.212217,
+    "2020": 0.823747,
+    "2021": 0.548236,
+    "2022": -0.178899,
+    "2023": 0.138885,
+    "2024": 0.714984,
+    "2025": 0.452313,
+    "2026": -0.004383
+   },
+   "worst_day": -0.082293,
+   "before_2016": {
+    "years": [
+     "2005-12-08",
+     "2015-12-31"
+    ],
+    "rule": {
+     "years": 9.257937,
+     "cagr": 0.023781,
+     "sharpe": 0.230926,
+     "max_drawdown": 0.376423
+    },
+    "hold_QQQ": {
+     "years": 9.257937,
+     "cagr": 0.12575,
+     "sharpe": 0.665323,
+     "max_drawdown": 0.534008
+    },
+    "hold_SPY": {
+     "years": 9.257937,
+     "cagr": 0.071294,
+     "sharpe": 0.441476,
+     "max_drawdown": 0.564745
+    },
+    "by_year": {
+     "2005": -0.010819,
+     "2006": -0.076034,
+     "2007": 0.071492,
+     "2008": -0.279613,
+     "2009": 0.371206,
+     "2010": -0.002883,
+     "2011": 0.039352,
+     "2012": 0.001545,
+     "2013": 0.094095,
+     "2014": 0.098858,
+     "2015": 0.029745
+    },
+    "worst_day": -0.089536
+   }
+  },
+  "older_sample_verdict": {
+   "T4 D (no leverage)": "NOT CONFIRMED",
+   "T4 C (3x)": "NOT CONFIRMED"
+  }
+ },
+ "hindsight_universe": {
+  "equal_weight_of_the_10_large_stocks": {
+   "2016-2018": {
+    "years": 2.992063,
+    "cagr": 0.355755,
+    "sharpe": 1.407496,
+    "max_drawdown": 0.28848,
+    "ann_vol": 0.236269
+   },
+   "2019-2022": {
+    "years": 4.0,
+    "cagr": 0.283133,
+    "sharpe": 0.908896,
+    "max_drawdown": 0.470542,
+    "ann_vol": 0.337166
+   },
+   "2023-2026": {
+    "years": 3.837302,
+    "cagr": 0.520653,
+    "sharpe": 1.702453,
+    "max_drawdown": 0.281717,
+    "ann_vol": 0.267209
+   }
+  },
+  "note": "The 10 large stocks were chosen in 2026. Families E01 (its large-stock settings), E12 and E14 trade them; all three did worse than simply holding the ten."
+ },
+ "targets": {
+  "settings_at_or_above_100pct_a_year_in_the_holdout": 0,
+  "settings_tested": 414,
+  "best_holdout_cagr_by_drawdown_allowed": {
+   "drawdown up to 12%": {
+    "best_cagr": 0.179112,
+    "family": "E03a",
+    "setting": "QQQ: RSI(2) of QQQ below 20",
+    "its_drawdown": 0.092898,
+    "settings_in_bucket": 83
+   },
+   "drawdown up to 25%": {
+    "best_cagr": 0.390979,
+    "family": "E01",
+    "setting": "10 large stocks, 3 at a time: bottom 25% of the range, held until it is profitable (5 days at most)",
+    "its_drawdown": 0.213256,
+    "settings_in_bucket": 213
+   },
+   "drawdown up to 50%": {
+    "best_cagr": 0.72968,
+    "family": "E18",
+    "setting": "Night and day sleeves (best of each)",
+    "its_drawdown": 0.484688,
+    "settings_in_bucket": 370
+   },
+   "drawdown up to 100%": {
+    "best_cagr": 0.72968,
+    "family": "E18",
+    "setting": "Night and day sleeves (best of each)",
+    "its_drawdown": 0.484688,
+    "settings_in_bucket": 414
+   }
+  },
+  "note": "The best-of-many figures above are biased upward: each is the luckiest of the settings in its bucket.",
+  "A_win_rate": {
+   "qqq_trades_since_1999": {
+    "trades": 833,
+    "win_rate": 0.827131,
+    "win_rate_ci95": [
+     0.799965,
+     0.851293
+    ],
+    "expectancy": 0.00392,
+    "expectancy_ci95": [
+     0.002233,
+     0.005575
+    ],
+    "t_stat": 4.433632,
+    "avg_win": 0.012461,
+    "avg_loss": -0.036946,
+    "worst_trade": -0.174998,
+    "longest_losing_streak": 2
+   },
+   "random_days_same_exit_win_rate": {
+    "1999-2007": 0.78395,
+    "2008-2015": 0.808414,
+    "2016-2022": 0.82357,
+    "2023-2026": 0.810337
+   }
+  }
+ },
+ "post_hoc_rule_evaluations_in_this_script": 80,
+ "pre_registered_settings": 414
+}

@@ -1,0 +1,826 @@
+{
+ "data": {
+  "first": "1972-01-07",
+  "last": "2017-11-10",
+  "cut": "2016-01-01",
+  "symbols": {
+   "QQQ": "1999-03-10",
+   "SPY": "2005-02-25",
+   "IWM": "2005-02-25",
+   "DIA": "2005-02-25",
+   "SMH": "2005-02-25",
+   "SOXX": "2005-02-25",
+   "SOXL": "2010-03-11",
+   "TQQQ": "2010-02-11",
+   "UPRO": "2009-06-25",
+   "QLD": "2006-06-21",
+   "SSO": "2006-06-21",
+   "TNA": "2008-11-05",
+   "XLK": "2005-02-25",
+   "GLD": "2005-02-25",
+   "TLT": "2005-02-25",
+   "NVDA": "1999-01-22",
+   "AMD": "1983-03-21",
+   "INTC": "1972-01-07",
+   "TXN": "1981-12-31",
+   "QCOM": "1991-12-16",
+   "MU": "1989-05-16",
+   "AVGO": "2009-08-05",
+   "AAPL": "1984-09-07",
+   "MSFT": "1986-03-13",
+   "AMZN": "1997-05-16"
+  }
+ },
+ "weak_close": {
+  "QQQ on QQQ's weak close": {
+   "years": [
+    "1999-03-10",
+    "2015-12-31"
+   ],
+   "all_trades": {
+    "trades": 527,
+    "win_rate": 0.814042,
+    "win_rate_ci95": [
+     0.778593,
+     0.844945
+    ],
+    "expectancy": 0.003204,
+    "expectancy_ci95": [
+     0.000916,
+     0.005657
+    ],
+    "t_stat": 2.551096,
+    "avg_win": 0.013275,
+    "avg_loss": -0.040883,
+    "worst_trade": -0.174998
+   },
+   "first_half": {
+    "trades": 290,
+    "win_rate": 0.803448,
+    "win_rate_ci95": [
+     0.75387,
+     0.845092
+    ],
+    "expectancy": 0.00391,
+    "expectancy_ci95": [
+     9.9e-05,
+     0.007426
+    ],
+    "t_stat": 2.054738,
+    "avg_win": 0.015428,
+    "avg_loss": -0.043175,
+    "worst_trade": -0.174998
+   },
+   "second_half": {
+    "trades": 237,
+    "win_rate": 0.827004,
+    "win_rate_ci95": [
+     0.773734,
+     0.869843
+    ],
+    "expectancy": 0.002341,
+    "expectancy_ci95": [
+     -0.00088,
+     0.005212
+    ],
+    "t_stat": 1.514982,
+    "avg_win": 0.010716,
+    "avg_loss": -0.037697,
+    "worst_trade": -0.142497
+   },
+   "split_at": "2007-08-08",
+   "rule": {
+    "years": 16.789683,
+    "cagr": 0.095022,
+    "sharpe": 0.563113,
+    "max_drawdown": 0.376621
+   },
+   "hold": {
+    "years": 16.789683,
+    "cagr": 0.053672,
+    "sharpe": 0.324266,
+    "max_drawdown": 0.829649
+   },
+   "share_of_days_invested": 0.285039
+  },
+  "SPY on SPY's weak close": {
+   "years": [
+    "2005-02-25",
+    "2015-12-31"
+   ],
+   "all_trades": {
+    "trades": 304,
+    "win_rate": 0.832237,
+    "win_rate_ci95": [
+     0.786144,
+     0.870037
+    ],
+    "expectancy": 0.002701,
+    "expectancy_ci95": [
+     7.1e-05,
+     0.005105
+    ],
+    "t_stat": 2.115466,
+    "avg_win": 0.009369,
+    "avg_loss": -0.030375,
+    "worst_trade": -0.198126
+   },
+   "first_half": {
+    "trades": 160,
+    "win_rate": 0.8375,
+    "win_rate_ci95": [
+     0.772546,
+     0.886627
+    ],
+    "expectancy": 0.002936,
+    "expectancy_ci95": [
+     -0.001671,
+     0.007148
+    ],
+    "t_stat": 1.342334,
+    "avg_win": 0.010877,
+    "avg_loss": -0.03799,
+    "worst_trade": -0.198126
+   },
+   "second_half": {
+    "trades": 144,
+    "win_rate": 0.826389,
+    "win_rate_ci95": [
+     0.756264,
+     0.879551
+    ],
+    "expectancy": 0.002441,
+    "expectancy_ci95": [
+     0.000159,
+     0.004605
+    ],
+    "t_stat": 2.07586,
+    "avg_win": 0.007671,
+    "avg_loss": -0.022456,
+    "worst_trade": -0.060653
+   },
+   "split_at": "2010-07-30",
+   "rule": {
+    "years": 10.84127,
+    "cagr": 0.075713,
+    "sharpe": 0.663843,
+    "max_drawdown": 0.198206
+   },
+   "hold": {
+    "years": 10.84127,
+    "cagr": 0.058413,
+    "sharpe": 0.383227,
+    "max_drawdown": 0.564745
+   },
+   "share_of_days_invested": 0.240483
+  },
+  "TQQQ on QQQ's weak close": {
+   "years": [
+    "2010-02-11",
+    "2015-12-31"
+   ],
+   "all_trades": {
+    "trades": 156,
+    "win_rate": 0.839744,
+    "win_rate_ci95": [
+     0.774124,
+     0.889033
+    ],
+    "expectancy": 0.01039,
+    "expectancy_ci95": [
+     0.00215,
+     0.018094
+    ],
+    "t_stat": 2.588952,
+    "avg_win": 0.027357,
+    "avg_loss": -0.078512,
+    "worst_trade": -0.211387
+   },
+   "first_half": {
+    "trades": 84,
+    "win_rate": 0.833333,
+    "win_rate_ci95": [
+     0.739468,
+     0.898044
+    ],
+    "expectancy": 0.010229,
+    "expectancy_ci95": [
+     -0.002208,
+     0.020964
+    ],
+    "t_stat": 1.7016,
+    "avg_win": 0.02948,
+    "avg_loss": -0.086028,
+    "worst_trade": -0.199979
+   },
+   "second_half": {
+    "trades": 72,
+    "win_rate": 0.847222,
+    "win_rate_ci95": [
+     0.746775,
+     0.912494
+    ],
+    "expectancy": 0.010579,
+    "expectancy_ci95": [
+     -0.00017,
+     0.019942
+    ],
+    "t_stat": 2.039606,
+    "avg_win": 0.024919,
+    "avg_loss": -0.068947,
+    "worst_trade": -0.211387
+   },
+   "split_at": "2013-01-23",
+   "rule": {
+    "years": 5.884921,
+    "cagr": 0.31365,
+    "sharpe": 1.00484,
+    "max_drawdown": 0.285471
+   },
+   "hold": {
+    "years": 5.884921,
+    "cagr": 0.504921,
+    "sharpe": 1.053664,
+    "max_drawdown": 0.439054
+   },
+   "share_of_days_invested": 0.229265
+  },
+  "UPRO on SPY's weak close": {
+   "years": [
+    "2009-06-25",
+    "2015-12-31"
+   ],
+   "all_trades": {
+    "trades": 169,
+    "win_rate": 0.828402,
+    "win_rate_ci95": [
+     0.764422,
+     0.877784
+    ],
+    "expectancy": 0.004794,
+    "expectancy_ci95": [
+     -0.003052,
+     0.011612
+    ],
+    "t_stat": 1.31282,
+    "avg_win": 0.022639,
+    "avg_loss": -0.081354,
+    "worst_trade": -0.209674
+   },
+   "first_half": {
+    "trades": 83,
+    "win_rate": 0.819277,
+    "win_rate_ci95": [
+     0.722999,
+     0.887307
+    ],
+    "expectancy": 0.002597,
+    "expectancy_ci95": [
+     -0.010791,
+     0.014443
+    ],
+    "t_stat": 0.418999,
+    "avg_win": 0.024866,
+    "avg_loss": -0.098357,
+    "worst_trade": -0.209674
+   },
+   "second_half": {
+    "trades": 86,
+    "win_rate": 0.837209,
+    "win_rate_ci95": [
+     0.745101,
+     0.90048
+    ],
+    "expectancy": 0.006916,
+    "expectancy_ci95": [
+     -0.001061,
+     0.014123
+    ],
+    "t_stat": 1.732276,
+    "avg_win": 0.020537,
+    "avg_loss": -0.063136,
+    "worst_trade": -0.16714
+   },
+   "split_at": "2012-09-26",
+   "rule": {
+    "years": 6.515873,
+    "cagr": 0.123786,
+    "sharpe": 0.544759,
+    "max_drawdown": 0.371809
+   },
+   "hold": {
+    "years": 6.515873,
+    "cagr": 0.390887,
+    "sharpe": 0.935243,
+    "max_drawdown": 0.517307
+   },
+   "share_of_days_invested": 0.223508
+  },
+  "QLD on QQQ's weak close": {
+   "years": [
+    "2006-06-21",
+    "2015-12-31"
+   ],
+   "all_trades": {
+    "trades": 269,
+    "win_rate": 0.821561,
+    "win_rate_ci95": [
+     0.771376,
+     0.862691
+    ],
+    "expectancy": 0.00427,
+    "expectancy_ci95": [
+     -0.001423,
+     0.009523
+    ],
+    "t_stat": 1.544482,
+    "avg_win": 0.020161,
+    "avg_loss": -0.068898,
+    "worst_trade": -0.300689
+   },
+   "first_half": {
+    "trades": 141,
+    "win_rate": 0.815603,
+    "win_rate_ci95": [
+     0.743522,
+     0.870942
+    ],
+    "expectancy": 0.001913,
+    "expectancy_ci95": [
+     -0.007028,
+     0.010827
+    ],
+    "t_stat": 0.411963,
+    "avg_win": 0.022323,
+    "avg_loss": -0.088359,
+    "worst_trade": -0.300689
+   },
+   "second_half": {
+    "trades": 128,
+    "win_rate": 0.828125,
+    "win_rate_ci95": [
+     0.753459,
+     0.88367
+    ],
+    "expectancy": 0.006865,
+    "expectancy_ci95": [
+     0.001273,
+     0.012066
+    ],
+    "t_stat": 2.490803,
+    "avg_win": 0.017816,
+    "avg_loss": -0.045897,
+    "worst_trade": -0.144704
+   },
+   "split_at": "2011-03-28",
+   "rule": {
+    "years": 9.52381,
+    "cagr": 0.108124,
+    "sharpe": 0.514862,
+    "max_drawdown": 0.664431
+   },
+   "hold": {
+    "years": 9.52381,
+    "cagr": 0.181955,
+    "sharpe": 0.603099,
+    "max_drawdown": 0.831532
+   },
+   "share_of_days_invested": 0.245833
+  },
+  "SSO on SPY's weak close": {
+   "years": [
+    "2006-06-21",
+    "2015-12-31"
+   ],
+   "all_trades": {
+    "trades": 257,
+    "win_rate": 0.81323,
+    "win_rate_ci95": [
+     0.761096,
+     0.856137
+    ],
+    "expectancy": 0.004053,
+    "expectancy_ci95": [
+     -0.001894,
+     0.009417
+    ],
+    "t_stat": 1.395904,
+    "avg_win": 0.019603,
+    "avg_loss": -0.063655,
+    "worst_trade": -0.340997
+   },
+   "first_half": {
+    "trades": 130,
+    "win_rate": 0.815385,
+    "win_rate_ci95": [
+     0.73998,
+     0.872684
+    ],
+    "expectancy": 0.004615,
+    "expectancy_ci95": [
+     -0.006307,
+     0.014061
+    ],
+    "t_stat": 0.896698,
+    "avg_win": 0.023726,
+    "avg_loss": -0.079792,
+    "worst_trade": -0.340997
+   },
+   "second_half": {
+    "trades": 127,
+    "win_rate": 0.811024,
+    "win_rate_ci95": [
+     0.734191,
+     0.869592
+    ],
+    "expectancy": 0.003478,
+    "expectancy_ci95": [
+     -0.001922,
+     0.008412
+    ],
+    "t_stat": 1.323967,
+    "avg_win": 0.015361,
+    "avg_loss": -0.047519,
+    "worst_trade": -0.120512
+   },
+   "split_at": "2011-03-28",
+   "rule": {
+    "years": 9.52381,
+    "cagr": 0.092168,
+    "sharpe": 0.478482,
+    "max_drawdown": 0.34126
+   },
+   "hold": {
+    "years": 9.52381,
+    "cagr": 0.071479,
+    "sharpe": 0.37394,
+    "max_drawdown": 0.84904
+   },
+   "share_of_days_invested": 0.235417
+  }
+ },
+ "night_vs_day": {
+  "SMH": {
+   "sessions": 2729,
+   "from": "2005-02-25",
+   "night_bp": 2.101194,
+   "day_bp": 1.550477,
+   "t_night_minus_day": 0.168766
+  },
+  "SOXX": {
+   "sessions": 2731,
+   "from": "2005-02-25",
+   "night_bp": 3.665706,
+   "day_bp": -0.002228,
+   "t_night_minus_day": 1.045623
+  },
+  "SOXL": {
+   "sessions": 1461,
+   "from": "2010-03-11",
+   "night_bp": 20.898411,
+   "day_bp": -4.349702,
+   "t_night_minus_day": 2.190492
+  },
+  "NVDA": {
+   "sessions": 4262,
+   "from": "1999-01-22",
+   "night_bp": 13.487947,
+   "day_bp": 2.190988,
+   "t_night_minus_day": 1.760388
+  },
+  "AMD": {
+   "sessions": 4276,
+   "from": "1999-01-04",
+   "night_bp": 16.217687,
+   "day_bp": -11.676553,
+   "t_night_minus_day": 4.385767
+  },
+  "INTC": {
+   "sessions": 4276,
+   "from": "1999-01-04",
+   "night_bp": 3.756907,
+   "day_bp": 0.088732,
+   "t_night_minus_day": 0.965806
+  },
+  "TXN": {
+   "sessions": 4269,
+   "from": "1999-01-04",
+   "night_bp": 0.662845,
+   "day_bp": 5.44301,
+   "t_night_minus_day": -1.109714
+  },
+  "QCOM": {
+   "sessions": 4276,
+   "from": "1999-01-04",
+   "night_bp": 1.91346,
+   "day_bp": 9.295337,
+   "t_night_minus_day": -1.585843
+  },
+  "MU": {
+   "sessions": 4272,
+   "from": "1999-01-04",
+   "night_bp": 18.583865,
+   "day_bp": -12.83203,
+   "t_night_minus_day": 5.485315
+  },
+  "AVGO": {
+   "sessions": 1611,
+   "from": "2009-08-05",
+   "night_bp": 12.707794,
+   "day_bp": 4.504635,
+   "t_night_minus_day": 1.465151
+  },
+  "QQQ": {
+   "sessions": 4230,
+   "from": "1999-03-10",
+   "night_bp": 5.893109,
+   "day_bp": -2.05462,
+   "t_night_minus_day": 2.717244
+  },
+  "SPY": {
+   "sessions": 2729,
+   "from": "2005-02-25",
+   "night_bp": 2.385705,
+   "day_bp": 0.621245,
+   "t_night_minus_day": 0.777439
+  },
+  "IWM": {
+   "sessions": 2729,
+   "from": "2005-02-25",
+   "night_bp": 3.341683,
+   "day_bp": 0.278892,
+   "t_night_minus_day": 0.998768
+  },
+  "TQQQ": {
+   "sessions": 1480,
+   "from": "2010-02-11",
+   "night_bp": 16.476578,
+   "day_bp": 5.076511,
+   "t_night_minus_day": 1.351075
+  },
+  "GLD": {
+   "sessions": 2729,
+   "from": "2005-02-25",
+   "night_bp": 3.539475,
+   "day_bp": 0.285703,
+   "t_night_minus_day": 1.417466
+  }
+ },
+ "night_rules": {
+  "SOXL overnight while SMH is above its 200-day average": {
+   "years": [
+    "2010-03-11",
+    "2015-12-31"
+   ],
+   "night_only": {
+    "years": 5.015873,
+    "cagr": 0.213599,
+    "sharpe": 0.832745,
+    "max_drawdown": 0.273815
+   },
+   "all_day_in_uptrend": {
+    "years": 5.015873,
+    "cagr": 0.184677,
+    "sharpe": 0.584358,
+    "max_drawdown": 0.608988
+   },
+   "hold": {
+    "years": 5.015873,
+    "cagr": 0.459688,
+    "sharpe": 0.902037,
+    "max_drawdown": 0.605592
+   },
+   "nights": {
+    "trades": 1005,
+    "win_rate": 0.546269,
+    "win_rate_ci95": [
+     0.51537,
+     0.576815
+    ],
+    "expectancy": 0.001103,
+    "expectancy_ci95": [
+     -0.000133,
+     0.002344
+    ],
+    "t_stat": 1.765138,
+    "avg_win": 0.014132,
+    "avg_loss": -0.014584,
+    "worst_trade": -0.08277
+   }
+  },
+  "SMH overnight while SMH is above its 200-day average": {
+   "years": [
+    "2005-12-08",
+    "2015-12-31"
+   ],
+   "night_only": {
+    "years": 9.257937,
+    "cagr": -0.016428,
+    "sharpe": -0.141822,
+    "max_drawdown": 0.259128
+   },
+   "all_day_in_uptrend": {
+    "years": 9.257937,
+    "cagr": 0.040236,
+    "sharpe": 0.319778,
+    "max_drawdown": 0.339515
+   },
+   "hold": {
+    "years": 9.257937,
+    "cagr": 0.067732,
+    "sharpe": 0.377561,
+    "max_drawdown": 0.627204
+   },
+   "nights": {
+    "trades": 1518,
+    "win_rate": 0.509881,
+    "win_rate_ci95": [
+     0.48474,
+     0.534973
+    ],
+    "expectancy": -8.9e-05,
+    "expectancy_ci95": [
+     -0.000436,
+     0.000253
+    ],
+    "t_stat": -0.496412,
+    "avg_win": 0.004805,
+    "avg_loss": -0.00518,
+    "worst_trade": -0.031671
+   }
+  },
+  "SOXX overnight while SOXX is above its 200-day average": {
+   "years": [
+    "2005-12-08",
+    "2015-12-31"
+   ],
+   "night_only": {
+    "years": 10.051587,
+    "cagr": -0.055102,
+    "sharpe": -0.598863,
+    "max_drawdown": 0.473116
+   },
+   "all_day_in_uptrend": {
+    "years": 10.051587,
+    "cagr": 0.009544,
+    "sharpe": 0.140979,
+    "max_drawdown": 0.401234
+   },
+   "hold": {
+    "years": 10.051587,
+    "cagr": 0.042693,
+    "sharpe": 0.28947,
+    "max_drawdown": 0.670149
+   },
+   "nights": {
+    "trades": 1588,
+    "win_rate": 0.501889,
+    "win_rate_ci95": [
+     0.477322,
+     0.526447
+    ],
+    "expectancy": -0.000347,
+    "expectancy_ci95": [
+     -0.000701,
+     2e-06
+    ],
+    "t_stat": -1.964154,
+    "avg_win": 0.004551,
+    "avg_loss": -0.005282,
+    "worst_trade": -0.06506
+   }
+  },
+  "TQQQ overnight while QQQ is above its 200-day average": {
+   "years": [
+    "2010-02-11",
+    "2015-12-31"
+   ],
+   "night_only": {
+    "years": 5.884921,
+    "cagr": 0.232278,
+    "sharpe": 0.947578,
+    "max_drawdown": 0.20902
+   },
+   "all_day_in_uptrend": {
+    "years": 5.884921,
+    "cagr": 0.238365,
+    "sharpe": 0.710966,
+    "max_drawdown": 0.555107
+   },
+   "hold": {
+    "years": 5.884921,
+    "cagr": 0.504921,
+    "sharpe": 1.053664,
+    "max_drawdown": 0.439054
+   },
+   "nights": {
+    "trades": 1323,
+    "win_rate": 0.557823,
+    "win_rate_ci95": [
+     0.530932,
+     0.58438
+    ],
+    "expectancy": 0.001023,
+    "expectancy_ci95": [
+     9.4e-05,
+     0.001921
+    ],
+    "t_stat": 2.177386,
+    "avg_win": 0.011824,
+    "avg_loss": -0.012602,
+    "worst_trade": -0.091287
+   }
+  }
+ },
+ "stacks": {
+  "D: QQQ weak close first, otherwise SMH overnight in an uptrend": {
+   "years": [
+    "2005-12-08",
+    "2015-12-31"
+   ],
+   "rule": {
+    "years": 9.257937,
+    "cagr": 0.023781,
+    "sharpe": 0.230926,
+    "max_drawdown": 0.376423
+   },
+   "hold_QQQ": {
+    "years": 9.257937,
+    "cagr": 0.12575,
+    "sharpe": 0.665323,
+    "max_drawdown": 0.534008
+   },
+   "hold_SPY": {
+    "years": 9.257937,
+    "cagr": 0.071294,
+    "sharpe": 0.441476,
+    "max_drawdown": 0.564745
+   },
+   "by_year": {
+    "2005": -0.010819,
+    "2006": -0.076034,
+    "2007": 0.071492,
+    "2008": -0.279613,
+    "2009": 0.371206,
+    "2010": -0.002883,
+    "2011": 0.039352,
+    "2012": 0.001545,
+    "2013": 0.094095,
+    "2014": 0.098858,
+    "2015": 0.029745
+   },
+   "worst_day": -0.089536
+  },
+  "C: TQQQ weak close first, otherwise SOXL overnight in an uptrend": {
+   "years": [
+    "2010-03-11",
+    "2015-12-31"
+   ],
+   "rule": {
+    "years": 5.015873,
+    "cagr": 0.483555,
+    "sharpe": 1.248128,
+    "max_drawdown": 0.323402
+   },
+   "hold_TQQQ": {
+    "years": 5.015873,
+    "cagr": 0.623356,
+    "sharpe": 1.269762,
+    "max_drawdown": 0.430895
+   },
+   "hold_QQQ": {
+    "years": 5.015873,
+    "cagr": 0.21083,
+    "sharpe": 1.290073,
+    "max_drawdown": 0.157689
+   },
+   "hold_SPY": {
+    "years": 5.015873,
+    "cagr": 0.15658,
+    "sharpe": 1.120061,
+    "max_drawdown": 0.161025
+   },
+   "by_year": {
+    "2010": 0.323879,
+    "2011": 0.182955,
+    "2012": 0.196957,
+    "2013": 0.882635,
+    "2014": 0.788457,
+    "2015": 0.145771
+   },
+   "worst_day": -0.124405
+  }
+ },
+ "verdicts": {
+  "T1 QQQ on QQQ's weak close": "CONFIRMED",
+  "T1 SPY on SPY's weak close": "CONFIRMED",
+  "T2 TQQQ on QQQ's weak close": "CONFIRMED",
+  "T2 UPRO on SPY's weak close": "CONFIRMED",
+  "T2 QLD on QQQ's weak close": "CONFIRMED",
+  "T2 SSO on SPY's weak close": "CONFIRMED",
+  "T3 (a) night beats day in SMH and SOXX": "CONFIRMED",
+  "T3 (b) SOXL overnight in an uptrend": "NOT CONFIRMED",
+  "T4 D (no leverage)": "NOT CONFIRMED",
+  "T4 C (3x)": "NOT CONFIRMED"
+ }
+}

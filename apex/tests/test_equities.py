@@ -182,3 +182,26 @@ def test_run_states_switch_to_inverse_fund_pays_both_costs():
     b = gi.px[d, g.last[d]] / gi.px[d, 21] * (1 - c) ** 2 - 1
     assert r["ret"][d] == pytest.approx((1 + a) * (1 + b) - 1)
     assert len(r["trade_ret"]) == 2
+
+
+def test_stack_weak_close_first_then_night():
+    # QQQ closes weak on day 1 -> buy TQQQ at LATE(1). Day 2 shows a profit -> sell. No signal on day 2, SMH in an "uptrend" (sma_n=2) -> SOXL for the night, sold at day 3's open.
+    dates = bdays(6)
+    q = {"o": [100, 100, 96, 99, 100, 101], "late": [100, 95, 97, 99.5, 100.5, 101.5], "hi": [100.5, 101, 97.2, 99.6, 100.6, 101.6], "lo": [99.5, 94.9, 95.5, 98.5, 99.5, 100.5]}
+    t = {"o": [50, 50, 44, 47, 48, 49], "late": [50, 43, 46, 47.5, 48.5, 49.5]}
+    s = {"o": [20, 20, 21, 23, 23.5, 24], "late": [20, 21, 22, 22.5, 23.2, 24.2]}
+    m = {"o": [200, 201, 203, 205, 207, 209], "late": [200, 202, 204, 206, 208, 210]}
+    p = make_panel(dates, {"QQQ": q, "TQQQ": t, "SOXL": s, "SMH": m})
+    ct, cs = float(E.cost_of(["TQQQ"])["TQQQ"]), float(E.cost_of(["SOXL"])["SOXL"])
+    r = E.simulate_stack(p, "QQQ", "TQQQ", "SOXL", "SMH", sma_n=2)
+    assert list(r["held"][:3]) == [0, 1, 2]                                  # nothing, weak-close position, then a night position
+    assert list(r["mr_trade_entry"]) == [1]
+    assert r["mr_trade_ret"][0] == pytest.approx(46 * (1 - ct) / (43 * (1 + ct)) - 1)
+    assert r["night_trade_entry"][0] == 2
+    assert r["night_trade_ret"][0] == pytest.approx(23 * (1 - cs) / (22 * (1 + cs)) - 1)
+    # the account compounds one trade into the next
+    first_two = (46 * (1 - ct) / (43 * (1 + ct))) * (23 * (1 - cs) / (22 * (1 + cs)))
+    assert np.prod(1 + r["ret"][:4]) == pytest.approx(first_two * (22.5 / (22.5 * (1 + cs))), rel=1e-9)   # and day 3 buys the next night at LATE(3)
+    # half size leaves half the account in cash
+    h = E.simulate_stack(p, "QQQ", "TQQQ", None, None, size=0.5)
+    assert np.prod(1 + h["ret"]) == pytest.approx(1 + 0.5 * (46 * (1 - ct) / (43 * (1 + ct)) - 1))

@@ -1,9 +1,19 @@
 n,time,account,severity,alert,equity
-1,2023-03-14 00:00,BTC paper engine (replay with limits),stop,Drawdown limit hit (12%): trading stopped until a person clears it,322.19
-2,2023-03-03 02:00,BTC paper engine (replay with limits),warning,Daily loss limit hit (2%): no new buys until the next UTC day,325.65
-3,2023-02-24 16:00,BTC paper engine (replay with limits),warning,Daily loss limit hit (2%): no new buys until the next UTC day,343.0
-4,2023-02-22 07:00,BTC paper engine (replay with limits),warning,Daily loss limit hit (2%): no new buys until the next UTC day,351.88
-5,2023-02-21 22:00,BTC paper engine (replay with limits),warning,Daily loss limit hit (2%): no new buys until the next UTC day,355.45
-6,2023-02-09 17:00,BTC paper engine (replay with limits),warning,Daily loss limit hit (2%): no new buys until the next UTC day,330.6
-7,2023-02-05 18:00,BTC paper engine (replay with limits),warning,Daily loss limit hit (2%): no new buys until the next UTC day,335.8
-8,2023-01-30 10:00,BTC paper engine (replay with limits),warning,Daily loss limit hit (2%): no new buys until the next UTC day,340.71
+1,2022-05-09 13:30,QQQ paper engine (replay with limits),stop,Drawdown limit hit (12%): trading stopped until a person clears it,656.15
+2,2022-04-26 19:55,QQQ paper engine (replay with limits),warning,Daily loss limit hit (2%): no new buys until the next UTC day,664.84
+3,2022-04-22 19:55,QQQ paper engine (replay with limits),warning,Daily loss limit hit (2%): no new buys until the next UTC day,682.07
+4,2022-04-21 19:55,QQQ paper engine (replay with limits),warning,Daily loss limit hit (2%): no new buys until the next UTC day,701.09
+5,2022-03-07 20:55,QQQ paper engine (replay with limits),warning,Daily loss limit hit (2%): no new buys until the next UTC day,699.47
+6,2022-02-11 20:55,QQQ paper engine (replay with limits),warning,Daily loss limit hit (2%): no new buys until the next UTC day,716.12
+7,2022-01-21 20:55,QQQ paper engine (replay with limits),warning,Daily loss limit hit (2%): no new buys until the next UTC day,708.72
+8,2022-01-20 20:55,QQQ paper engine (replay with limits),warning,Daily loss limit hit (2%): no new buys until the next UTC day,728.37
+9,2021-12-03 20:55,QQQ paper engine (replay with limits),warning,Daily loss limit hit (2%): no new buys until the next UTC day,685.79
+10,2021-12-01 20:55,QQQ paper engine (replay with limits),warning,Daily loss limit hit (2%): no new buys until the next UTC day,699.52
+11,2021-03-08 20:55,QQQ paper engine (replay with limits),warning,Daily loss limit hit (2%): no new buys until the next UTC day,588.47
+12,2021-03-03 20:55,QQQ paper engine (replay with limits),warning,Daily loss limit hit (2%): no new buys until the next UTC day,605.5
+13,2020-10-19 19:55,QQQ paper engine (replay with limits),warning,Daily loss limit hit (2%): no new buys until the next UTC day,574.89
+14,2020-04-21 19:55,QQQ paper engine (replay with limits),warning,Daily loss limit hit (2%): no new buys until the next UTC day,445.23
+15,2018-12-17 20:55,QQQ paper engine (replay with limits),warning,Daily loss limit hit (2%): no new buys until the next UTC day,361.09
+16,2018-03-23 19:55,QQQ paper engine (replay with limits),warning,Daily loss limit hit (2%): no new buys until the next UTC day,311.29
+17,2018-02-08 20:55,QQQ paper engine (replay with limits),warning,Daily loss limit hit (2%): no new buys until the next UTC day,319.52
+18,2018-02-05 20:55,QQQ paper engine (replay with limits),warning,Daily loss limit hit (2%): no new buys until the next UTC day,327.07

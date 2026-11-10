@@ -113,7 +113,7 @@
 
   <section class="apx-sec" id="apx-alerts">
     <h2 class="apx-h2">Risk alerts</h2>
-    <p class="apx-note">Newest first. A watch is an open paper position down <span data-draw="limit" data-name="watch">—</span>% or more. Warnings and stops come from the risk limits in the BTC replay below: a <span data-draw="limit" data-name="daily">—</span>% loss in a day pauses new buying until the next day, and a <span data-draw="limit" data-name="drawdown">—</span>% fall from the high stops trading until a person clears it.</p>
+    <p class="apx-note">Newest first. A watch is an open paper position down <span data-draw="limit" data-name="watch">—</span>% or more. Warnings and stops come from the risk limits in the QQQ replay below: a <span data-draw="limit" data-name="daily">—</span>% loss in a day pauses new buying until the next day, and a <span data-draw="limit" data-name="drawdown">—</span>% fall from the high stops trading until a person clears it.</p>
     <div class="apx-scroll apx-tall">
       <table class="apx-table" data-source="alerts" data-row-key="n">
         <thead><tr>
@@ -129,15 +129,15 @@
   </section>
 
   <section class="apx-sec" id="apx-replay">
-    <h2 class="apx-h2">BTC paper engine replay, 2023 to 2026</h2>
-    <p class="apx-note">A rehearsal, not a forward test: real BTC prices from 2023 on, replayed hour by hour through the paper trading engine at Robinhood's fee for small accounts (<span data-draw="limit" data-name="fee">—</span>% a side). The rule is the best crypto candidate from round one, the 50-day trend that steps aside in crisis or thin markets. It did not beat holding. Every line starts with <span data-draw="val" data-source="replay_equity" data-row="0" data-field="engine" data-fmt="usd">—</span>.</p>
+    <h2 class="apx-h2">Weak-close rule through the paper engine, 2016 to 2026</h2>
+    <p class="apx-note">A rehearsal, not a forward test: real QQQ prices from 2016 on, replayed session by session through the paper trading engine, with no commission and a cost of <span data-draw="limit" data-name="cost">—</span> basis point a side for the spread. The rule is the one pattern that held in every test: at 15:55, buy QQQ if it is in the bottom <span data-draw="limit" data-name="bottom">—</span>% of its range for the day; sell at the first 15:55 that shows a profit, or after <span data-draw="limit" data-name="hold">—</span> sessions. It made money but less than holding QQQ over these years. Every line starts with <span data-draw="val" data-source="replay_equity" data-row="0" data-field="engine" data-fmt="usd">—</span>.</p>
     <div class="apx-cards">
       <div class="apx-card" id="apx-run-engine">
         <div class="apx-label">Paper engine, no limits</div>
         <div class="apx-big"><span data-draw="val" data-source="replay_summary" data-where="run=engine" data-field="final_equity" data-fmt="usd">—</span></div>
         <div class="apx-kv"><span>Return</span><span data-draw="val" data-source="replay_summary" data-where="run=engine" data-field="total_return" data-fmt="pct">—</span></div>
         <div class="apx-kv"><span>Largest drop from a high</span><span data-draw="val" data-source="replay_summary" data-where="run=engine" data-field="max_drawdown" data-fmt="pctu">—</span></div>
-        <div class="apx-kv"><span>Fees paid</span><span data-draw="val" data-source="replay_summary" data-where="run=engine" data-field="fees_paid" data-fmt="usd">—</span></div>
+        <div class="apx-kv"><span>Completed trades</span><span data-draw="val" data-source="replay_summary" data-where="run=engine" data-field="round_trips" data-fmt="int">—</span></div>
         <div class="apx-kv"><span>Orders</span><span data-draw="val" data-source="replay_summary" data-where="run=engine" data-field="orders" data-fmt="int">—</span></div>
         <div class="apx-kv"><span>Winning trades</span><span data-draw="val" data-source="replay_summary" data-where="run=engine" data-field="win_rate" data-fmt="pctu">—</span></div>
       </div>
@@ -158,7 +158,7 @@
         <div class="apx-kv"><span>Engine minus backtest, points</span><span data-draw="val" data-source="replay_gap" data-row="0" data-field="gap_points" data-fmt="num1">—</span></div>
       </div>
       <div class="apx-card" id="apx-run-hold">
-        <div class="apx-label">Hold BTC, for comparison</div>
+        <div class="apx-label">Hold QQQ, for comparison</div>
         <div class="apx-big"><span data-draw="val" data-source="replay_summary" data-where="run=hold" data-field="final_equity" data-fmt="usd">—</span></div>
         <div class="apx-kv"><span>Return</span><span data-draw="val" data-source="replay_summary" data-where="run=hold" data-field="total_return" data-fmt="pct">—</span></div>
         <div class="apx-kv"><span>Largest drop from a high</span><span data-draw="val" data-source="replay_summary" data-where="run=hold" data-field="max_drawdown" data-fmt="pctu">—</span></div>
@@ -169,7 +169,7 @@
     <div class="apx-legend">
       <span><span class="apx-swatch" data-series="engine"></span>Paper engine, no limits</span>
       <span><span class="apx-swatch" data-series="engine_with_limits"></span>Paper engine with limits</span>
-      <span><span class="apx-swatch" data-series="hold_btc"></span>Hold BTC</span>
+      <span><span class="apx-swatch" data-series="hold_qqq"></span>Hold QQQ</span>
     </div>
     <div class="apx-chart" id="apx-equity" data-draw="equity-chart" data-source="replay_equity">—</div>
 
@@ -182,18 +182,44 @@
           <th class="apx-th" data-field="exit_date">Sold</th>
           <th class="apx-th apx-num" data-field="entry_price">Buy price</th>
           <th class="apx-th apx-num" data-field="exit_price">Sell price</th>
-          <th class="apx-th apx-num" data-field="days_held">Days held</th>
-          <th class="apx-th apx-num" data-field="fees">Fees</th>
-          <th class="apx-th apx-num" data-field="return">Return after fees</th>
+          <th class="apx-th apx-num" data-field="days_held">Sessions held</th>
+          <th class="apx-th apx-num" data-field="return">Return after costs</th>
         </tr></thead>
         <tbody data-draw="rows-replay-trades"></tbody>
       </table>
+    </div>
+
+    <h3 class="apx-h3" id="apx-tqqq">The same rule through TQQQ, the 3x fund</h3>
+    <p class="apx-note">Same signal from QQQ, same dates, but the money goes into TQQQ, which moves about three times as far each day. The gain is larger and so is every fall.</p>
+    <div class="apx-cards">
+      <div class="apx-card" id="apx-tqqq-engine">
+        <div class="apx-label">Paper engine, no limits</div>
+        <div class="apx-big"><span data-draw="val" data-source="replay_summary" data-where="run=tqqq_engine" data-field="final_equity" data-fmt="usd">—</span></div>
+        <div class="apx-kv"><span>Return</span><span data-draw="val" data-source="replay_summary" data-where="run=tqqq_engine" data-field="total_return" data-fmt="pct">—</span></div>
+        <div class="apx-kv"><span>Largest drop from a high</span><span data-draw="val" data-source="replay_summary" data-where="run=tqqq_engine" data-field="max_drawdown" data-fmt="pctu">—</span></div>
+        <div class="apx-kv"><span>Completed trades</span><span data-draw="val" data-source="replay_summary" data-where="run=tqqq_engine" data-field="round_trips" data-fmt="int">—</span></div>
+        <div class="apx-kv"><span>Winning trades</span><span data-draw="val" data-source="replay_summary" data-where="run=tqqq_engine" data-field="win_rate" data-fmt="pctu">—</span></div>
+      </div>
+      <div class="apx-card" id="apx-tqqq-limits">
+        <div class="apx-label">Paper engine with the <span data-draw="limit" data-name="daily">—</span>% daily and <span data-draw="limit" data-name="drawdown">—</span>% drawdown limits</div>
+        <div class="apx-big"><span data-draw="val" data-source="replay_summary" data-where="run=tqqq_limits" data-field="final_equity" data-fmt="usd">—</span></div>
+        <div class="apx-kv"><span>Return</span><span data-draw="val" data-source="replay_summary" data-where="run=tqqq_limits" data-field="total_return" data-fmt="pct">—</span></div>
+        <div class="apx-kv"><span>State at the end</span><span class="apx-bad" data-draw="val" data-source="replay_summary" data-where="run=tqqq_limits" data-field="state" data-fmt="text">—</span></div>
+        <div class="apx-kv"><span>Completed trades</span><span data-draw="val" data-source="replay_summary" data-where="run=tqqq_limits" data-field="round_trips" data-fmt="int">—</span></div>
+        <div class="apx-kv"><span>Buy decisions blocked</span><span data-draw="val" data-source="replay_summary" data-where="run=tqqq_limits" data-field="blocked_decisions" data-fmt="int">—</span></div>
+      </div>
+      <div class="apx-card" id="apx-tqqq-hold">
+        <div class="apx-label">Hold TQQQ, for comparison</div>
+        <div class="apx-big"><span data-draw="val" data-source="replay_summary" data-where="run=tqqq_hold" data-field="final_equity" data-fmt="usd">—</span></div>
+        <div class="apx-kv"><span>Return</span><span data-draw="val" data-source="replay_summary" data-where="run=tqqq_hold" data-field="total_return" data-fmt="pct">—</span></div>
+        <div class="apx-kv"><span>Largest drop from a high</span><span data-draw="val" data-source="replay_summary" data-where="run=tqqq_hold" data-field="max_drawdown" data-fmt="pctu">—</span></div>
+      </div>
     </div>
   </section>
 
   <section class="apx-sec" id="apx-status">
     <h2 class="apx-h2">Strategy status</h2>
-    <p class="apx-note">Every strategy family tested, best first. A verdict is set by rule: a strategy must make money after costs on data it was never tuned on, and beat simply holding its market for the risk taken. Rows from MEDS are re-scored from its stored backtests, not re-run.</p>
+    <p class="apx-note">Every strategy family tested, best first. A verdict is set by rule: a strategy must make money after costs on data it was never tuned on, and beat simply holding its market for the risk taken. Round-two rows were tested on 2023 to 2026 against the better of holding SPY and holding QQQ. Older-sample rows re-run the two leading rules on years before 2016 that no other test touched. Rows from MEDS are re-scored from its stored backtests, not re-run.</p>
     <div class="apx-row">
       <label class="apx-label" for="apx-status-filter">Show</label>
       <select class="dash-select" id="apx-status-filter">
@@ -306,8 +332,9 @@ dash.draw('val', (el) => {
 
 dash.draw('gate', (el) => { el.textContent = d3.format(',')(REVIEW_TRADES); });
 
-// Fixed references: the brief's two risk limits, the alert threshold for an open position, Robinhood's Tier 1 crypto fee per side.
-const LIMITS = {daily: 2, drawdown: 12, watch: 5, fee: 0.95};
+// Fixed references: the brief's two risk limits, the alert threshold for an open position, and the replayed rule's own settings
+// (spread cost in basis points a side, the bottom share of the day's range that counts as a weak close, the longest hold in sessions).
+const LIMITS = {daily: 2, drawdown: 12, watch: 5, cost: 1, bottom: 15, hold: 5};
 dash.draw('limit', (el) => { el.textContent = String(LIMITS[el.dataset.name] ?? '—'); });
 
 dash.draw('progress', (el) => {
@@ -364,7 +391,7 @@ tableDrawing('rows-alerts', 'alerts', [
   {field: 'account', cls: 'apx-nowrap'}, {field: 'alert'}, {field: 'equity', fmt: 'usd', num: true}], 'n');
 tableDrawing('rows-replay-trades', 'replay_trades', [
   {field: 'n', fmt: 'int', num: true}, {field: 'entry_date', fmt: 'date', cls: 'apx-nowrap'}, {field: 'exit_date', fmt: 'date', cls: 'apx-nowrap'}, {field: 'entry_price', fmt: 'usd', num: true},
-  {field: 'exit_price', fmt: 'usd', num: true}, {field: 'days_held', fmt: 'int', num: true}, {field: 'fees', fmt: 'usd', num: true},
+  {field: 'exit_price', fmt: 'usd', num: true}, {field: 'days_held', fmt: 'int', num: true},
   {field: 'return', fmt: 'pct', num: true, tone: true}], 'n');
 
 const statusFilter = document.getElementById('apx-status-filter');
@@ -379,7 +406,7 @@ tableDrawing('rows-status', 'strategy_status', [
 if (statusFilter) statusFilter.addEventListener('change', () => dash.draw('rows-status'));
 
 const SERIES = [
-  {key: 'hold_btc', label: 'Hold BTC', color: 'var(--cds-chart-muted)'},
+  {key: 'hold_qqq', label: 'Hold QQQ', color: 'var(--cds-chart-muted)'},
   {key: 'engine_with_limits', label: 'Paper engine with limits', color: dash.colors[1]},
   {key: 'engine', label: 'Paper engine, no limits', color: dash.colors[0]},
 ];
@@ -392,11 +419,11 @@ dash.draw('equity-chart', (el) => {
   const {status, rows} = rowsOf('replay_equity');
   el.replaceChildren();
   if (status !== 'ok' || !rows.length) { el.textContent = status === 'error' ? 'Failed to load' : '—'; return; }
-  const data = rows.map((r) => ({date: parseDay(r.date), engine: +r.engine, engine_with_limits: +r.engine_with_limits, hold_btc: +r.hold_btc})).filter((d) => d.date);
+  const data = rows.map((r) => ({date: parseDay(r.date), engine: +r.engine, engine_with_limits: +r.engine_with_limits, hold_qqq: +r.hold_qqq})).filter((d) => d.date);
   const W = Math.max(280, el.clientWidth || 640), H = 320, mt = 10, mb = 26, mr = 12;
   const svg = d3.select(el).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).attr('role', 'img')
-    .attr('aria-label', 'Account equity over time for the paper engine without limits, the paper engine with risk limits, and holding BTC');
-  const y = d3.scaleLinear().domain([0, d3.max(data, (d) => Math.max(d.engine, d.engine_with_limits, d.hold_btc)) * 1.05]).range([H - mb, mt]).nice();
+    .attr('aria-label', 'Account equity over time for the paper engine without limits, the paper engine with risk limits, and holding QQQ');
+  const y = d3.scaleLinear().domain([0, d3.max(data, (d) => Math.max(d.engine, d.engine_with_limits || 0, d.hold_qqq)) * 1.05]).range([H - mb, mt]).nice();
   const yAxis = svg.append('g').attr('class', 'apx-axis').call(d3.axisLeft(y).ticks(5).tickFormat(d3.format('$,.0f')).tickSizeOuter(0));
   let ml = 0;
   yAxis.selectAll('text').each(function () { ml = Math.max(ml, this.getComputedTextLength()); });
@@ -409,7 +436,7 @@ dash.draw('equity-chart', (el) => {
     .call(d3.axisBottom(x).ticks(Math.max(2, Math.floor((W - ml) / 110))).tickFormat(d3.utcFormat('%b %Y')).tickSizeOuter(0));
   for (const s of SERIES) {
     svg.append('path').datum(data.filter((d) => Number.isFinite(d[s.key]))).attr('fill', 'none').style('stroke', s.color)
-      .attr('stroke-width', s.key === 'hold_btc' ? 1.5 : 2).attr('d', d3.line().x((d) => x(d.date)).y((d) => y(d[s.key])));
+      .attr('stroke-width', s.key === 'hold_qqq' ? 1.5 : 2).attr('d', d3.line().x((d) => x(d.date)).y((d) => y(d[s.key])));
   }
   svg.append('rect').attr('x', ml).attr('y', mt).attr('width', Math.max(0, W - mr - ml)).attr('height', H - mb - mt).style('fill', 'none').style('pointer-events', 'all');
   const rule = svg.append('line').attr('y1', mt).attr('y2', H - mb).style('stroke', 'var(--cds-chart-reference)').attr('visibility', 'hidden');

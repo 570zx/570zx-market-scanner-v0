@@ -1,5 +1,8 @@
-run,label,final_equity,total_return,max_drawdown,orders,round_trips,win_rate,fees_paid,blocked_decisions,state
-engine,"Paper engine, no limits",661.07,164.4,40.9,82,41,26.8,453.38,0,running
-engine_with_limits,"Paper engine, 2% daily and 12% drawdown limits",370.11,48.0,12.7,4,2,100.0,12.08,686,halted: drawdown limit
-backtest,Backtest of the same rules,659.49,163.8,,,41,,,,reference
-hold,Hold BTC,1145.61,358.2,53.1,1,0,,,,reference
+run,label,final_equity,total_return,max_drawdown,orders,round_trips,win_rate,blocked_decisions,state
+engine,"QQQ, paper engine, no limits",1143.58,357.4,28.1,612,306,85.0,0,running
+engine_with_limits,"QQQ, paper engine, 2% daily and 12% drawdown limits",626.59,150.6,15.9,350,175,85.7,161,halted: drawdown limit
+backtest,"QQQ, backtest of the same rule",1143.58,357.4,,,306,,,reference
+hold,Hold QQQ,1679.43,571.8,35.0,,0,,,reference
+tqqq_engine,"TQQQ, paper engine, no limits",12940.78,5076.3,67.3,614,307,84.7,0,running
+tqqq_limits,"TQQQ, paper engine, 2% daily and 12% drawdown limits",495.2,98.1,20.7,88,44,90.9,329,halted: drawdown limit
+tqqq_hold,Hold TQQQ,6841.51,2636.6,81.7,,0,,,reference

@@ -1,6 +1,11 @@
-# Market data never goes into this public repository (vendor terms); neither do per-day return series.
+# Market data never goes into this public repository (vendor terms). The same goes for anything a price
+# series could be read back from: per-day return series, and the replay's trade prices and equity curve.
 data/
 results/series/E*.csv
+results/series/weak_close_*.csv
+results/paper_replay_equity.json
+results/dashboard/replay_equity.csv
+results/dashboard/replay_trades.csv
 results/equity_summary_dev.json
 results/ledger_smoke_tests.jsonl
 __pycache__/

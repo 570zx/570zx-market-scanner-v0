@@ -3,9 +3,17 @@
 Research-first trading engine: test an idea honestly, then (only if it survives) trade it on paper,
 then (only with explicit approval) trade it for real.
 
-**Status after round one (2026-11-09): no strategy is proven, live trading is off.**
-The findings are in the report "APEX — Feasibility and First-Round Research"; the numbers behind it
-are in `results/summary.json` and `results/ledger.jsonl`.
+**Status after round two (2026-11-10): no strategy is proven, live trading is off.**
+
+* Round one (crypto at Robinhood's fees): 0 of 15 ideas passed.
+* Round two (stocks and ETFs, commission-free): 29 families and 414 settings, each with its kill rule committed
+  before the 2023+ holdout was run. 0 of 29 beat holding SPY or QQQ.
+* One pattern held on every sample, including 1999-2015 data that no other test touched: the weak-close bounce
+  in index ETFs. It is real, it is small, and it did not beat holding in 2023-2026.
+
+The findings are in the report "APEX — Feasibility and First-Round Research". The numbers behind it are in
+`results/summary.json` (round one), `results/equity_summary.json` (round two), `results/older_sample.json`,
+`results/equity_deep_dive.json`, `results/paper_replay_equity.json` and the append-only `results/ledger.jsonl`.
 
 ## What is here
 
@@ -22,13 +30,20 @@ are in `results/summary.json` and `results/ledger.jsonl`.
 | `src/apex/feasibility.py` | Arithmetic of the win-rate, annual-doubling and monthly-doubling targets |
 | `src/apex/risk.py` | Sizing rules and the risk governor (0.5% per position, 2% daily, 12% drawdown by default) |
 | `src/apex/monitor.py` | Forward-versus-backtest degradation check |
+| `src/apex/equities.py` | Stock and ETF research: session panel with two tradable moments a day (open, 15:55), early closes, weight and slot engines, family evaluation, lookahead test, exact one-account replay |
+| `src/apex/intraday.py` | 5-minute grid, noise-area and opening-range rules, next-bar-open fills |
 | `src/apex/execution/` | Broker interface, paper broker, execution engine, SQLite store, Robinhood crypto adapter |
 | `scripts/ingest_data.py` | Build the bar files from the raw downloads |
 | `scripts/run_experiments.py` | Round one: 16 hypotheses, 145 settings, verdicts, ledger |
 | `scripts/paper_replay.py` | Replay a rule through the paper engine and compare with the backtest |
+| `scripts/run_equity_experiments.py` | Round two: 29 families, 414 settings, verdicts, ledger |
+| `scripts/older_sample_test.py` | The two leading rules on 1999-2015 daily bars, rules and failure conditions fixed first |
+| `scripts/equity_deep_dive.py` | After the holdout: stress tests, sizing, the entry-versus-exit control (descriptive only) |
+| `scripts/paper_replay_equity.py` | The weak-close rule through the paper engine, with and without the risk limits |
+| `tools/export_alpaca.py` | Read-only export of Alpaca bars, run in GitHub Actions and encrypted before it leaves the runner |
 | `scripts/build_dashboard_data.py` | Flatten results into the dashboard's CSV files |
 | `dashboard/` | The dashboard page and its data-source documents |
-| `tests/` | 33 tests |
+| `tests/` | 43 tests |
 | `results/` | Outputs of the last run, including the append-only experiment ledger |
 
 ## Reproduce
@@ -53,6 +68,25 @@ python3 scripts/build_dashboard_data.py
 Needs Python 3.11+, numpy, pandas, scipy, scikit-learn, cryptography. `requests` is only used by the
 Robinhood adapter's default transport.
 
+### Round two (stocks and ETFs)
+
+Market data is not in this repository: Alpaca's terms do not allow republishing it, and the repository is public.
+
+```bash
+# 1. data. The workflow .github/workflows/apex-data-export.yml downloads the bars with the repository's Alpaca keys,
+#    encrypts them for the key in tools/pub.pem and publishes them to the apex-data branch. Whoever holds the matching
+#    private key decrypts into data/equities/. To use your own key pair, replace tools/pub.pem and re-run the workflow.
+# 2. older, public-domain daily bars (1999-2017) for the older-sample test
+git clone --depth 1 --filter=blob:none --sparse https://github.com/neo-zhao/CMSC320_Final_Tutorial_Huge_Stock_Market_Dataset raw/older
+#    then copy the ETFs/*.us.txt and Stocks/*.us.txt files named in scripts/older_sample_test.py into data/older/
+# 3. run
+python3 scripts/run_equity_experiments.py          # about 90 seconds; --discovery-only cuts the data at 2022-12-31
+python3 scripts/older_sample_test.py
+python3 scripts/equity_deep_dive.py
+python3 scripts/paper_replay_equity.py
+python3 scripts/build_dashboard_data.py
+```
+
 ## Rules the engine enforces
 
 1. **A hypothesis has a kill rule before it runs.** `HYP` in `scripts/run_experiments.py` is the registry.
@@ -60,9 +94,11 @@ Robinhood adapter's default transport.
    earlier data only (walk-forward); the holdout is only ever scored.
 3. **A signal at the close of a bar fills at the next bar's open.** In the bracket simulator a minute that
    touches both target and stop counts as a stop, and a gap through the stop fills at the worse price.
-4. **Costs are Robinhood's own.** The default is the Tier 1 market-order fee, 0.95% a side plus 0.02% slippage.
-5. **Every signal function must pass the lookahead test** (`validation.prefix_invariance`): recomputed on
-   truncated data, its last values must not change.
+4. **Costs are Robinhood's own.** For crypto the default is the Tier 1 market-order fee, 0.95% a side plus 0.02%
+   slippage. Stocks and ETFs pay no commission; the cost is the spread, set per symbol in `equities.COST_TIERS`
+   (1 basis point a side for SPY and QQQ, 2.5 for TQQQ), and every family is re-run at three times that.
+5. **Every signal function must pass the lookahead test** (`validation.prefix_invariance`, and for round two
+   `equities.truncation_test`): recomputed on data cut off at a date, the decisions up to that date must not change.
 6. **The verdict is computed, not judged.** `research.verdict`: make money after costs on the holdout, beat
    holding for the risk taken, work across most settings; "proven" also needs a deflated-Sharpe probability
    and a probability of beating holding of 95% each.
@@ -87,8 +123,12 @@ Robinhood adapter's default transport.
 
 ## Known limits
 
-* Equity, ETF and options data are not in this repository's pipeline yet. ETF results in the report are
-  re-scored from MEDS's stored backtests (`exp_prior`).
+* Stock and ETF data start in 2016 (Alpaca's free history) and come from 5-minute bars: there is no official
+  closing-auction price, so rules trade at 15:55 or at the last print. Alpaca's daily bars were found to carry
+  wrong closes on some volatile days and are not used for trading rules.
+* Options were not tested (no data). Shorting was not tested (the account cannot short); inverse ETFs stand in.
+* Ten large stocks in the round-two universe were picked in 2026, which flatters any rule that is long them.
+* On early-close days the 15:55 decision is approximated by the 13:00 print (21 sessions in 11 years).
 * Coin tests use coins listed today (survivorship flatters them) and daily reference prices.
 * The coin panel assumes weights are held constant between rebalances; the small daily drift is not costed.
 * The paper broker fills market orders at the quote with a fixed half-spread. Real fills in fast markets are worse.
