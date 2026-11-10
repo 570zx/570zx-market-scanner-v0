@@ -423,3 +423,77 @@ def rsi(x: pd.DataFrame | pd.Series, n: int):
 
 def sma(x, n: int):
     return x.rolling(n, min_periods=n).mean()
+
+
+# ------------------------------------------------------------------ one account, two rules (exact replay)
+def simulate_stack(p: Panel, mr_signal: str | None, mr_vehicle: str | None, night_vehicle: str | None, night_trend: str | None,
+                   thr: float = 0.15, max_hold: int = 5, sma_n: int = 200, mr_uptrend_only: bool = False, cost_mult: float = 1.0,
+                   size: float = 1.0) -> dict:
+    """Exact day-by-day replay of one account running up to two rules, the weak-close rule first:
+
+    At 15:55 each day, in this order:
+      1. If the weak-close position is on: sell it if the 15:55 price, after selling costs, is above what was paid,
+         or if it has been held `max_hold` sessions.
+      2. If no weak-close position is on and `mr_signal` is in the bottom `thr` of its day's range (and, optionally,
+         above its 200-day average): buy `mr_vehicle`.
+      3. Otherwise, if `night_trend` is above its `sma_n`-day average: buy `night_vehicle` for the night.
+    At the next open: sell the night position.
+
+    `size` is the fraction of the account put into whichever position is on (the rest stays in cash).
+    Returns daily returns (15:55 to 15:55), the trades of each rule, and what was held."""
+    n = len(p.dates)
+    late, op, ibs = p["late"], p["o"], p["ibs"]
+    cm = cost_of([s for s in (mr_vehicle, night_vehicle) if s], cost_mult)
+    c_mr = float(cm[mr_vehicle]) if mr_vehicle else 0.0
+    c_n = float(cm[night_vehicle]) if night_vehicle else 0.0
+    mr_ok = np.zeros(n, bool)
+    if mr_signal:
+        cond = ibs[mr_signal] < thr
+        if mr_uptrend_only:
+            cond = cond & (late[mr_signal] > sma(late[mr_signal], 200))
+        mr_ok = (cond & late[mr_vehicle].notna()).to_numpy()
+    night_ok = ((late[night_trend] > sma(late[night_trend], sma_n)) & late[night_vehicle].notna()).to_numpy() if night_vehicle else np.zeros(n, bool)
+    lv = late[mr_vehicle].to_numpy() if mr_vehicle else np.full(n, np.nan)
+    ln = late[night_vehicle].to_numpy() if night_vehicle else np.full(n, np.nan)
+    on = op[night_vehicle].to_numpy() if night_vehicle else np.full(n, np.nan)
+    eq = 1.0
+    ret, held = np.zeros(n), np.zeros(n, dtype=np.int8)                   # held after 15:55: 0 nothing, 1 weak-close, 2 night
+    mr_pos = None                                                         # [shares, price paid incl. cost, entry day, last mark]
+    night_pos = None                                                      # [shares, price paid incl. cost]
+    mr_tr, night_tr = [], []
+    cash = 1.0
+    for d in range(n):
+        start = eq
+        if night_pos is not None:                                         # the open: the night position is sold
+            sh, paid, ed = night_pos
+            px = on[d] if np.isfinite(on[d]) else ln[d - 1]
+            cash += sh * px * (1 - c_n)
+            night_tr.append((ed, px * (1 - c_n) / paid - 1))
+            night_pos = None
+        if mr_pos is not None and np.isfinite(lv[d]):                      # 15:55, step 1
+            sh, paid, ed = mr_pos
+            if lv[d] * (1 - c_mr) > paid or d - ed >= max_hold:
+                cash += sh * lv[d] * (1 - c_mr)
+                mr_tr.append((ed, lv[d] * (1 - c_mr) / paid - 1))
+                mr_pos = None
+        if mr_pos is None:
+            equity = cash
+            if mr_ok[d]:                                                  # step 2
+                paid = lv[d] * (1 + c_mr)
+                mr_pos = [size * equity / paid, paid, d]
+                cash -= size * equity
+            elif night_ok[d]:                                             # step 3
+                paid = ln[d] * (1 + c_n)
+                night_pos = [size * equity / paid, paid, d]
+                cash -= size * equity
+        eq = cash + (mr_pos[0] * lv[d] if mr_pos is not None and np.isfinite(lv[d]) else (mr_pos[0] * mr_pos[1] if mr_pos is not None else 0.0)) \
+            + (night_pos[0] * ln[d] if night_pos is not None else 0.0)
+        ret[d] = eq / start - 1
+        held[d] = 1 if mr_pos is not None else (2 if night_pos is not None else 0)
+    f = lambda t: (np.array([x[1] for x in t]), np.array([x[0] for x in t], dtype=int))
+    (mr_r, mr_e), (n_r, n_e) = f(mr_tr), f(night_tr)
+    all_e = np.concatenate([mr_e, n_e])
+    order = np.argsort(all_e, kind="stable")
+    return {"ret": ret, "expo": (held > 0) * size * np.where(held == 2, 0.73, 1.0), "held": held, "dec": held.astype(float),
+            "mr_trade_ret": mr_r, "mr_trade_entry": mr_e, "night_trade_ret": n_r, "night_trade_entry": n_e,
+            "trade_ret": np.concatenate([mr_r, n_r])[order], "trade_entry": all_e[order]}
