@@ -1,20 +1,17 @@
 # Weak-close ETF strategy: forward paper test
 
-**Paper only: no orders are placed and no broker account is touched.** Go-live 2026-10-21; last update 2026-11-10 (15 sessions so far). Costs assumed: 1 cent per share each way. Rules are frozen; do not change them while this runs.
+**Paper only: no orders are placed and no broker account is touched.** Go-live 2026-10-21; last update 2026-11-11 (16 sessions so far). Costs assumed: 1 cent per share each way. Rules are frozen; do not change them while this runs.
 
 ## Account A: IBS ≤ 0.1, above 200-day average, hold 5 sessions
 
-No new signals on 2026-11-10.
+No new signals on 2026-11-11.
+Exits on 2026-11-11: XLK -1.06% (time).
 
-
-Equity since go-live: -1.73% (hold SPY: -2.36%). Max drawdown 4.93%. Closed trades 5, win rate 60.00%, average -0.92%, longest losing streak 1. Progress to the 100-trade review: 5/100.
-
-| Open position | Entered | Entry | Last | P&L | Sessions held |
-|---|---|---:|---:|---:|---:|
-| XLK | 2026-11-04 | $176.10 | $169.09 | -3.98% | 4 |
+Equity since go-live: -1.14% (hold SPY: -1.19%). Max drawdown 4.93%. Closed trades 6, win rate 50.00%, average -0.94%, longest losing streak 2. Progress to the 100-trade review: 6/100.
 
 | Closed trade | Entered | Exited | Return | Exit reason |
 |---|---|---|---:|---|
+| XLK | 2026-11-04 | 2026-11-11 | -1.06% | time |
 | QQQ | 2026-11-02 | 2026-11-09 | -0.42% | time |
 | SPY | 2026-11-02 | 2026-11-09 | 0.03% | time |
 | XLE | 2026-11-02 | 2026-11-09 | -8.02% | time |
@@ -23,10 +20,10 @@ Equity since go-live: -1.73% (hold SPY: -2.36%). Max drawdown 4.93%. Closed trad
 
 ## Account B: IBS ≤ 0.1, no trend filter, sell on strength (max 5 sessions)
 
-No new signals on 2026-11-10.
+No new signals on 2026-11-11.
 
 
-Equity since go-live: 0.85% (hold SPY: -2.36%). Max drawdown 2.09%. Closed trades 11, win rate 81.82%, average 0.40%, longest losing streak 2. Progress to the 100-trade review: 11/100.
+Equity since go-live: 0.85% (hold SPY: -1.19%). Max drawdown 2.09%. Closed trades 11, win rate 81.82%, average 0.40%, longest losing streak 2. Progress to the 100-trade review: 11/100.
 
 | Closed trade | Entered | Exited | Return | Exit reason |
 |---|---|---|---:|---|
