@@ -1,13 +1,18 @@
 # Weak-close ETF strategy: forward paper test
 
-**Paper only: no orders are placed and no broker account is touched.** Go-live 2026-10-21; last update 2026-11-11 (16 sessions so far). Costs assumed: 1 cent per share each way. Rules are frozen; do not change them while this runs.
+**Paper only: no orders are placed and no broker account is touched.** Go-live 2026-10-21; last update 2026-11-12 (17 sessions so far). Costs assumed: 1 cent per share each way. Rules are frozen; do not change them while this runs.
 
 ## Account A: IBS ≤ 0.1, above 200-day average, hold 5 sessions
 
-No new signals on 2026-11-11.
-Exits on 2026-11-11: XLK -1.06% (time).
+Signals logged 2026-11-12: **XLF** (IBS 0.011, paper buy at $58.20), **DIA** (IBS 0.031, paper buy at $522.55).
 
-Equity since go-live: -1.14% (hold SPY: -1.19%). Max drawdown 4.93%. Closed trades 6, win rate 50.00%, average -0.94%, longest losing streak 2. Progress to the 100-trade review: 6/100.
+
+Equity since go-live: -1.15% (hold SPY: -1.54%). Max drawdown 4.93%. Closed trades 6, win rate 50.00%, average -0.94%, longest losing streak 2. Progress to the 100-trade review: 6/100.
+
+| Open position | Entered | Entry | Last | P&L | Sessions held |
+|---|---|---:|---:|---:|---:|
+| XLF | 2026-11-12 | $58.20 | $58.20 | 0.00% | 0 |
+| DIA | 2026-11-12 | $522.55 | $522.55 | 0.00% | 0 |
 
 | Closed trade | Entered | Exited | Return | Exit reason |
 |---|---|---|---:|---|
@@ -20,10 +25,17 @@ Equity since go-live: -1.14% (hold SPY: -1.19%). Max drawdown 4.93%. Closed trad
 
 ## Account B: IBS ≤ 0.1, no trend filter, sell on strength (max 5 sessions)
 
-No new signals on 2026-11-11.
+Signals logged 2026-11-12: **TLT** (IBS 0.005, paper buy at $79.75), **XLF** (IBS 0.011, paper buy at $58.20), **DIA** (IBS 0.031, paper buy at $522.55), **IWM** (IBS 0.037, paper buy at $278.38).
 
 
-Equity since go-live: 0.85% (hold SPY: -1.19%). Max drawdown 2.09%. Closed trades 11, win rate 81.82%, average 0.40%, longest losing streak 2. Progress to the 100-trade review: 11/100.
+Equity since go-live: 0.84% (hold SPY: -1.54%). Max drawdown 2.09%. Closed trades 11, win rate 81.82%, average 0.40%, longest losing streak 2. Progress to the 100-trade review: 11/100.
+
+| Open position | Entered | Entry | Last | P&L | Sessions held |
+|---|---|---:|---:|---:|---:|
+| TLT | 2026-11-12 | $79.75 | $79.75 | 0.00% | 0 |
+| XLF | 2026-11-12 | $58.20 | $58.20 | 0.00% | 0 |
+| DIA | 2026-11-12 | $522.55 | $522.55 | 0.00% | 0 |
+| IWM | 2026-11-12 | $278.38 | $278.38 | 0.00% | 0 |
 
 | Closed trade | Entered | Exited | Return | Exit reason |
 |---|---|---|---:|---|
