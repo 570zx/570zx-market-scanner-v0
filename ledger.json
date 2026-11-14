@@ -54,18 +54,18 @@
    {
     "sym": "XLF",
     "entry": 58.195,
-    "mark": 58.195,
+    "mark": 58.575,
     "shares": 0.0033968812622974494,
     "entryDate": "2026-11-12",
-    "days": 0
+    "days": 1
    },
    {
     "sym": "DIA",
     "entry": 522.555,
-    "mark": 522.555,
+    "mark": 523.06,
     "shares": 0.00037835575262794687,
     "entryDate": "2026-11-12",
-    "days": 0
+    "days": 1
    }
   ],
   "entries": [
@@ -222,34 +222,34 @@
    {
     "sym": "TLT",
     "entry": 79.745,
-    "mark": 79.745,
+    "mark": 79.355,
     "shares": 0.0025288820635209755,
     "entryDate": "2026-11-12",
-    "days": 0
+    "days": 1
    },
    {
     "sym": "XLF",
     "entry": 58.195,
-    "mark": 58.195,
+    "mark": 58.575,
     "shares": 0.00346518321409012,
     "entryDate": "2026-11-12",
-    "days": 0
+    "days": 1
    },
    {
     "sym": "DIA",
     "entry": 522.555,
-    "mark": 522.555,
+    "mark": 523.06,
     "shares": 0.00038596344756368193,
     "entryDate": "2026-11-12",
-    "days": 0
+    "days": 1
    },
    {
     "sym": "IWM",
     "entry": 278.38,
-    "mark": 278.38,
+    "mark": 277.92,
     "shares": 0.000724490782629101,
     "entryDate": "2026-11-12",
-    "days": 0
+    "days": 1
    }
   ],
   "entries": [
