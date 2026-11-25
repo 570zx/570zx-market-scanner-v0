@@ -1,18 +1,18 @@
 # Weak-close ETF strategy: forward paper test
 
-**Paper only: no orders are placed and no broker account is touched.** Go-live 2026-10-21; last update 2026-11-23 (24 sessions so far). Costs assumed: 1 cent per share each way. Rules are frozen; do not change them while this runs.
+**Paper only: no orders are placed and no broker account is touched.** Go-live 2026-10-21; last update 2026-11-24 (25 sessions so far). Costs assumed: 1 cent per share each way. Rules are frozen; do not change them while this runs.
 
 ## Account A: IBS ≤ 0.1, above 200-day average, hold 5 sessions
 
-No new signals on 2026-11-23.
+No new signals on 2026-11-24.
 
 
-Equity since go-live: -3.27% (hold SPY: -6.05%). Max drawdown 4.93%. Closed trades 8, win rate 37.50%, average -2.00%, longest losing streak 4. Progress to the 100-trade review: 8/100.
+Equity since go-live: -2.98% (hold SPY: -6.55%). Max drawdown 4.93%. Closed trades 8, win rate 37.50%, average -2.00%, longest losing streak 4. Progress to the 100-trade review: 8/100.
 
 | Open position | Entered | Entry | Last | P&L | Sessions held |
 |---|---|---:|---:|---:|---:|
-| XLE | 2026-11-18 | $61.35 | $59.90 | -2.37% | 3 |
-| XLF | 2026-11-20 | $54.58 | $55.66 | 1.99% | 1 |
+| XLE | 2026-11-18 | $61.35 | $60.37 | -1.61% | 4 |
+| XLF | 2026-11-20 | $54.58 | $56.05 | 2.70% | 2 |
 
 | Closed trade | Entered | Exited | Return | Exit reason |
 |---|---|---|---:|---|
@@ -27,15 +27,16 @@ Equity since go-live: -3.27% (hold SPY: -6.05%). Max drawdown 4.93%. Closed trad
 
 ## Account B: IBS ≤ 0.1, no trend filter, sell on strength (max 5 sessions)
 
-Signals logged 2026-11-23: **GLD** (IBS 0.002, paper buy at $332.74).
-Exits on 2026-11-23: GLD -0.86% (strength), SPY 0.64% (strength), DIA 0.76% (strength), XLK 0.48% (strength).
+Signals logged 2026-11-24: **TLT** (IBS 0.020, paper buy at $81.53).
 
-Equity since go-live: -2.38% (hold SPY: -6.05%). Max drawdown 6.55%. Closed trades 19, win rate 68.42%, average -0.49%, longest losing streak 4. Progress to the 100-trade review: 19/100.
+
+Equity since go-live: -2.66% (hold SPY: -6.55%). Max drawdown 6.55%. Closed trades 19, win rate 68.42%, average -0.49%, longest losing streak 4. Progress to the 100-trade review: 19/100.
 
 | Open position | Entered | Entry | Last | P&L | Sessions held |
 |---|---|---:|---:|---:|---:|
-| XLE | 2026-11-18 | $61.35 | $59.90 | -2.37% | 3 |
-| GLD | 2026-11-23 | $332.74 | $332.74 | 0.00% | 0 |
+| XLE | 2026-11-18 | $61.35 | $60.37 | -1.61% | 4 |
+| GLD | 2026-11-23 | $332.74 | $325.48 | -2.18% | 1 |
+| TLT | 2026-11-24 | $81.53 | $81.53 | 0.00% | 0 |
 
 | Closed trade | Entered | Exited | Return | Exit reason |
 |---|---|---|---:|---|
