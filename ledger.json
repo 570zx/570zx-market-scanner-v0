@@ -78,10 +78,10 @@
    {
     "sym": "XLF",
     "entry": 54.58,
-    "mark": 56.575,
+    "mark": 57.33,
     "shares": 0.003537815617523604,
     "entryDate": "2026-11-20",
-    "days": 3
+    "days": 4
    }
   ],
   "entries": [
@@ -326,24 +326,24 @@
     "days": 1,
     "why": "strength",
     "ret": 0.008524992333639854
+   },
+   {
+    "sym": "GLD",
+    "entry": "2026-11-23",
+    "exit": "2026-11-27",
+    "days": 3,
+    "why": "strength",
+    "ret": 0.006221073510849237
    }
   ],
   "open": [
    {
-    "sym": "GLD",
-    "entry": 332.74,
-    "mark": 327.54,
-    "shares": 0.0005867395065769092,
-    "entryDate": "2026-11-23",
-    "days": 2
-   },
-   {
     "sym": "TLT",
     "entry": 82.24,
-    "mark": 82.24,
+    "mark": 81.2305,
     "shares": 0.0023792145445872734,
     "entryDate": "2026-11-25",
-    "days": 0
+    "days": 1
    }
   ],
   "entries": [
